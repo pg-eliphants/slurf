@@ -1,0 +1,10 @@
+node_modules
+.jest-cache
+.vscode
+dist
+coverage
+.eslint-ignore
+.gitignore
+.prettierrc
+jest.config.cjs
+Dockerfile
