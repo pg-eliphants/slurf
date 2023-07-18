@@ -1,5 +1,5 @@
 typedef unsigned int UINT4;
-static UINT4 state[4];
+static UINT4 state[4]; // (4 x 4 * 2) = 32 hex digits   32 nibbles  = 32*4 = 128bits
 static unsigned int length;
 static unsigned char buffer[64];
 
