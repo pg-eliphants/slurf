@@ -13,7 +13,6 @@ module.exports = {
         ecmaVersion: 2020,
         requireConfigFile: false,
         sourceType: 'module',
-        extraFileExtensions: ['.mjs', '.cjs'],
         babelOptions: {
             parserOpts: {
                 plugins: ['importAssertions']
