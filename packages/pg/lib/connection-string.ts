@@ -1,12 +1,10 @@
 // TODO:
 // this used to be standalone, make it TS
 
-//Parse method copied from https://github.com/brianc/node-postgres
-//Copyright (c) 2010-2014 Brian Carlson (brian.m.carlson@gmail.com)
-//MIT License
-
 //parses a connection string
-function parse(str) {
+// https://www.postgresql.org/docs/current/libpq-connect.html
+// https://node-postgres.com/features/connecting
+function parse(str: string) {
     //unix socket
     if (str.charAt(0) === '/') {
         const config = str.split(' ');
@@ -18,9 +16,12 @@ function parse(str) {
     const config = {};
     let result;
     let dummyHost = false;
+
+    // this makes no sense
     if (/ |%[^a-f0-9]|%[a-f0-9][^a-f0-9]/i.test(str)) {
         // Ensure spaces are encoded as %20
-        str = encodeURI(str).replace(/\%25(\d\d)/g, '%$1');
+        // encodeURI('hello[ ][%][20world]') -> 'hello[%20][%25][20world]'
+        str = encodeURI(str).replace(/%25(\d\d)/g, '%$1');
     }
 
     try {
