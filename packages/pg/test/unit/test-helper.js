@@ -1,48 +1,48 @@
-'use strict'
-var EventEmitter = require('events').EventEmitter
+'use strict';
+var EventEmitter = require('events').EventEmitter;
 
-var helper = require('../test-helper')
-var Connection = require('../../lib/connection')
+var helper = require('../test-helper');
+var Connection = require('../../lib/connection');
 
 global.MemoryStream = function () {
-  EventEmitter.call(this)
-  this.packets = []
-}
+    EventEmitter.call(this);
+    this.packets = [];
+};
 
-helper.sys.inherits(MemoryStream, EventEmitter)
+helper.sys.inherits(MemoryStream, EventEmitter);
 
-var p = MemoryStream.prototype
+var p = MemoryStream.prototype;
 
 p.connect = function () {
-  // NOOP
-}
+    // NOOP
+};
 
-p.setNoDelay = () => {}
+p.setNoDelay = () => {};
 
 p.write = function (packet, cb) {
-  this.packets.push(packet)
-  if (cb) {
-    cb()
-  }
-}
+    this.packets.push(packet);
+    if (cb) {
+        cb();
+    }
+};
 
 p.end = function () {
-  p.closed = true
-}
+    p.closed = true;
+};
 
-p.setKeepAlive = function () {}
-p.closed = false
-p.writable = true
+p.setKeepAlive = function () {};
+p.closed = false;
+p.writable = true;
 
 const createClient = function () {
-  var stream = new MemoryStream()
-  var client = new Client({
-    connection: new Connection({ stream: stream }),
-  })
-  client.connect()
-  return client
-}
+    var stream = new MemoryStream();
+    var client = new Client({
+        connection: new Connection({ stream: stream })
+    });
+    client.connect();
+    return client;
+};
 
 module.exports = Object.assign({}, helper, {
-  createClient: createClient,
-})
+    createClient: createClient
+});

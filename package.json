@@ -13,8 +13,7 @@
         "docs:build": "cd docs && yarn build",
         "docs:start": "cd docs && yarn start",
         "lint": "eslint '*/**/*.{js,ts,tsx}'",
-        "prepublish": "yarn build",
-        "pretest": "yarn build"
+        "pretty": "prettier -w ."
     },
     "contributes": {
         "typescriptServerPlugins": [

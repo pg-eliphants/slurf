@@ -18,14 +18,14 @@ $ npm install pg
 
 ### Features
 
-- Pure JavaScript client and native libpq bindings share _the same API_
-- Connection pooling
-- Extensible JS ↔ PostgreSQL data-type coercion
-- Supported PostgreSQL features
-  - Parameterized queries
-  - Named statements with query plan caching
-  - Async notifications with `LISTEN/NOTIFY`
-  - Bulk import & export with `COPY TO/COPY FROM`
+-   Pure JavaScript client and native libpq bindings share _the same API_
+-   Connection pooling
+-   Extensible JS ↔ PostgreSQL data-type coercion
+-   Supported PostgreSQL features
+    -   Parameterized queries
+    -   Named statements with query plan caching
+    -   Async notifications with `LISTEN/NOTIFY`
+    -   Bulk import & export with `COPY TO/COPY FROM`
 
 ### Extras
 
@@ -38,9 +38,9 @@ node-postgres is free software. If you encounter a bug with the library please o
 
 When you open an issue please provide:
 
-- version of Node
-- version of Postgres
-- smallest possible snippet of code to reproduce the problem
+-   version of Node
+-   version of Postgres
+-   smallest possible snippet of code to reproduce the problem
 
 You can also follow me [@briancarlson](https://twitter.com/briancarlson) if that's your thing. I try to always announce noteworthy changes & developments with node-postgres on Twitter.
 
@@ -56,9 +56,9 @@ If you or your company are benefiting from node-postgres and would like to help 
 
 I will **happily** accept your pull request if it:
 
-- **has tests**
-- looks reasonable
-- does not break backwards compatibility
+-   **has tests**
+-   looks reasonable
+-   does not break backwards compatibility
 
 If your change involves breaking backwards compatibility please please point that out in the pull request & we can discuss & plan when and how to release it and what type of documentation or communicate it will require.
 

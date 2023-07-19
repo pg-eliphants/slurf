@@ -1,2 +1,2 @@
-'use strict'
-module.exports = require('../test-helper')
+'use strict';
+module.exports = require('../test-helper');

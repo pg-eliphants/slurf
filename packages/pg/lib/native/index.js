@@ -1,2 +1,2 @@
-'use strict'
-module.exports = require('./client')
+'use strict';
+module.exports = require('./client');
