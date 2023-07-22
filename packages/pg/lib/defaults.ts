@@ -1,6 +1,6 @@
 'use strict';
 
-module.exports = {
+const defaultConfi = Object.freeze({
     // database host. defaults to localhost
     host: 'localhost',
 
@@ -70,7 +70,7 @@ module.exports = {
     keepalives: 1,
 
     keepalives_idle: 0
-};
+});
 
 var pgTypes = require('pg-types');
 // save default parsers
