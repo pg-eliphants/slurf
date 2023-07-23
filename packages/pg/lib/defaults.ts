@@ -1,5 +1,3 @@
-'use strict';
-
 const defaultConfi = Object.freeze({
     // database host. defaults to localhost
     host: 'localhost',
