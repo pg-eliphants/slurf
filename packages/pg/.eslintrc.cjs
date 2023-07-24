@@ -1,4 +1,4 @@
-const tsFilePattern = '**/*.ts';
+const tsFilePattern = 'lib/**/*.ts';
 module.exports = {
     root: true,
     env: {
@@ -24,7 +24,7 @@ module.exports = {
 
     overrides: [
         {
-            files: [tsFilePattern],
+            files: [tsFilePattern, './vitest.config.ts'],
             parser: '@typescript-eslint/parser',
             parserOptions: {
                 ecmaVersion: 2020,
