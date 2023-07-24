@@ -40,12 +40,18 @@ function binaryFromEscapedString(input: string): Uint8Array {
                 while (i + backslashes < input.length && input[i + backslashes] === '\\') {
                     backslashes++;
                 }
-                for (let k = 0; k < Math.floor(backslashes / 2); ++k) {
+                for (let k = 0; k < Math.floor(backslashes >> 1); ++k) {
                     output += '\\';
                 }
-                i += Math.floor(backslashes / 2) * 2;
+                i += Math.floor(backslashes >> 1) << 1;
             }
         }
     }
-    return Uint8Array.from(Array.from(output).map((l) => l.charCodeAt(0)));
+    // blit
+    // do this in wasm!
+    const rc = new Uint8Array(output.length);
+    for (let i = 0; i < output.length; i++) {
+        rc[i] = output[i].charCodeAt(0);
+    }
+    return rc;
 }
