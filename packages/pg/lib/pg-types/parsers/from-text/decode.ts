@@ -1,4 +1,4 @@
-export function byteaToBinary(input: string): Uint8Array {
+export default function byteaToBinary(input: string): Uint8Array {
     if (input?.[0] === '\\' && input?.[1] === 'x') {
         return binaryFromHexString(input);
     }

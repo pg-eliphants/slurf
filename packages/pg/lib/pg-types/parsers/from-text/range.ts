@@ -72,11 +72,11 @@ export class Range<T = null> {
     }
 }
 
-type TransformFn<T> = (x: string) => Range<T>;
+type TransformFn<T> = (x: string) => T;
 
 const defaultTransform = (x: any) => x;
 
-export function parse<T>(input: string, transform: TransformFn<T> = defaultTransform): Range<T> {
+export default function parse<T>(input: string, transform: TransformFn<T> = defaultTransform): Range<T> {
     input = input.trim();
 
     if (input === EMPTY) {
