@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import parseArray from './array';
 import parseDate from './dates';
 import parseInterval from './interval';
@@ -5,6 +6,11 @@ import parseByteA from './decode';
 import parseRange from './range';
 
 import { parseBool, parseBigInteger, parsePoint, parseCircle } from './parse-array-transform-helpers';
+
+// this is "circular" reference
+type PropRecord = Record<string, string | number> | SubObject;
+
+interface SubObject extends Record<string, PropRecord> {}
 
 export function parseBoolArray(value: string) {
     return parseArray(value, parseBool);
@@ -52,7 +58,7 @@ export function parseByteAArray(value: string) {
 }
 
 export function parseJsonArray(value: string) {
-    return parseArray(value, JSON.parse);
+    return parseArray<PropRecord[]>(value, JSON.parse);
 }
 
 export function parseInt4Range(raw: string) {
@@ -75,14 +81,15 @@ export function parseTimestampTzRange(raw: string) {
     return parseRange(raw, parseDate);
 }
 
-export function init(register: (iod: number, fn: (a: string) => unknown) => void) {
+export function init(register: (iod: number, fn: (a: string) => unknown) => void): void {
+    register(16, parseBool);
+    register(17, parseByteA);
     register(20, parseBigInteger); // int8
     register(21, Number); // int2
     register(23, Number); // int4
     register(26, Number); // oid
     register(700, parseFloat); // float4/real
     register(701, parseFloat); // float8/double
-    register(16, parseBool);
     register(1114, parseTimestamp); // timestamp without time zone
     register(1184, parseDate); // timestamp with time zone
     register(600, parsePoint); // point
@@ -109,7 +116,7 @@ export function init(register: (iod: number, fn: (a: string) => unknown) => void
     register(1185, parseTimestampTzArray); // timestamp with time zone[]
     register(1186, parseInterval);
     register(1187, parseIntervalArray);
-    register(17, parseByteA);
+
     register(114, JSON.parse); // json
     register(3802, JSON.parse); // jsonb
     register(199, parseJsonArray); // json[]
