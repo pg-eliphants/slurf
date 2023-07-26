@@ -62,7 +62,7 @@
         }
     },
     "scripts": {
-        "test": "vitest --coverage"
+        "test": "vitest --coverage --run"
     },
     "contributes": {
         "typescriptServerPlugins": [

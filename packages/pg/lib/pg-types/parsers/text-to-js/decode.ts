@@ -5,14 +5,14 @@ export default function byteaToBinary(input: string): Uint8Array {
     return binaryFromEscapedString(input);
 }
 
-const hexDigits = new Uint8Array('0123456789abcdefg'.split('').map((s) => s.charCodeAt(0)));
+const hexDigits = '0123456789abcdef';
 
 function binaryFromHexString(input: string): Uint8Array {
     const hexString = input.slice(2, input.length - ((input.length - 2) % 2));
     const rc = new Uint8Array(hexString.length >> 1);
     for (let i = 0; i < hexString.length; i += 2) {
-        const v1 = hexDigits.indexOf(hexDigits[i]);
-        const v2 = hexDigits.indexOf(hexDigits[i + 1]);
+        const v1 = hexDigits.indexOf(hexString[i]);
+        const v2 = hexDigits.indexOf(hexString[i + 1]);
         if (v1 === -1) {
             return rc.slice(0, i << 1);
         }

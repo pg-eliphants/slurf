@@ -28,7 +28,7 @@ type ReturnType =
       })
     | undefined;
 
-export default function parse(interval: string | Partial<IntervalContext>): ReturnType {
+export default function parseInterval(interval: string | Partial<IntervalContext>): ReturnType {
     const position = {
         value: 0
     };

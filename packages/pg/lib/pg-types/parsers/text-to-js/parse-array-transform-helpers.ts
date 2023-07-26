@@ -26,7 +26,7 @@ export function parseBigInteger(value: string) {
     return value.trim();
 }
 
-export const parsePoint = function (value: string) {
+export function parsePoint(value: string) {
     if (value[0] !== '(') {
         return null;
     }
@@ -44,10 +44,10 @@ export const parsePoint = function (value: string) {
         x: parseFloat(digitsX),
         y: parseFloat(digitsY)
     };
-};
+}
 
 // circle looks like this "<(x,y),r>"
-export const parseCircle = function (value: string) {
+export function parseCircle(value: string) {
     if (value[0] !== '<' && value[1] !== '(') {
         return null;
     }
@@ -71,4 +71,4 @@ export const parseCircle = function (value: string) {
         y: parseFloat(digitsY),
         r: parseFloat(digitsR)
     };
-};
+}

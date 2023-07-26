@@ -1,5 +1,3 @@
-'use strict';
-
 export const RANGE_EMPTY = 1 << 1;
 export const RANGE_LB_INC = 1 << 2;
 export const RANGE_UB_INC = 1 << 3;
@@ -21,7 +19,7 @@ export class Range<T = null> {
         public readonly mask = 0
     ) {}
 
-    pisEmpty() {
+    isEmpty() {
         return this.hasMask(RANGE_EMPTY);
     }
 
@@ -74,9 +72,7 @@ export class Range<T = null> {
 
 type TransformFn<T> = (x: string) => T;
 
-const defaultTransform = (x: any) => x;
-
-export default function parse<T>(input: string, transform: TransformFn<T> = defaultTransform): Range<T> {
+export default function parseRange<T = string>(input: string, transform: TransformFn<T>): Range<T> {
     input = input.trim();
 
     if (input === EMPTY) {
@@ -198,23 +194,25 @@ function parseBound(input: string, ptr: number): { value: string | null; infinit
     }
 }
 
-export function serialize(range: Range, format = defaultTransform) {
+export type Format<T> = (a: T) => string;
+const defaultFormat: Format<T> = (x: T) => x as string;
+export function serialize<T>(range: Range<T>, format: Format<T> = defaultFormat) {
     if (range.hasMask(RANGE_EMPTY)) {
         return EMPTY;
     }
 
     let s = '';
-
+    range.lower;
     s += range.isLowerBoundClosed() ? '[' : '(';
-    s += range.hasLowerBound() ? serializeBound(format(range.lower)) : '';
+    s += range.hasLowerBound() ? serializeBound(format(range.lower)) : '-' + INFINITY;
     s += ',';
-    s += range.hasUpperBound() ? serializeBound(format(range.upper)) : '';
+    s += range.hasUpperBound() ? serializeBound(format(range.upper)) : INFINITY;
     s += range.isUpperBoundClosed() ? ']' : ')';
 
     return s;
 }
 
-function serializeBound(bnd: bigint | unknown[] | string) {
+function serializeBound<T>(bnd: T | T[] | string) {
     let needsQuotes = false;
     let pos = 0;
     let value = '';
@@ -270,11 +268,3 @@ function serializeBound(bnd: bigint | unknown[] | string) {
 
     return value;
 }
-
-module.exports = {
-    RANGE_EMPTY,
-    RANGE_LB_INC,
-    RANGE_UB_INC,
-    RANGE_LB_INF,
-    RANGE_UB_INF
-};
