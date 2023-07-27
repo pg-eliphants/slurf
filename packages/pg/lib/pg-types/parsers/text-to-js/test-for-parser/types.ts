@@ -1,5 +1,6 @@
 import { Range, RANGE_EMPTY, RANGE_LB_INC, RANGE_LB_INF, RANGE_UB_INF, RANGE_UB_INC } from '../range';
-
+import { utcRangeAsString } from './helpers';
+import parseInterval from '../interval';
 const BIGNUM =
     '31415926535897932384626433832795028841971693993751058.16180339887498948482045868343656381177203091798057628';
 
@@ -165,177 +166,83 @@ const instrumentation = {
             ['(0,5]', new Range('0', '5', RANGE_UB_INC)],
             ['[0,5]', new Range('0', '5', RANGE_LB_INC | RANGE_UB_INC)]
         ]
+    },
+    tstzrange: {
+        format: 'text',
+        id: 3910, // tstzrange
+        tests: [
+            ['(2010-10-31 14:54:13.74-05:30,)', utcRangeAsString({ lower: [2010, 9, 31, 20, 24, 13, 74] })],
+            ['(,2010-10-31 14:54:13.74-05:30)', utcRangeAsString({ upper: [2010, 9, 31, 20, 24, 13, 74] })],
+            [
+                '(2010-10-30 10:54:13.74-05:30,2010-10-31 14:54:13.74-05:30)',
+                utcRangeAsString({
+                    lower: [2010, 9, 30, 16, 24, 13, 74],
+                    upper: [2010, 9, 31, 20, 24, 13, 74]
+                })
+            ],
+            ['("2010-10-31 14:54:13.74-05:30",)', utcRangeAsString({ lower: [2010, 9, 31, 20, 24, 13, 74] })],
+            ['(,"2010-10-31 14:54:13.74-05:30")', utcRangeAsString({ upper: [2010, 9, 31, 20, 24, 13, 74] })],
+            [
+                '("2010-10-30 10:54:13.74-05:30","2010-10-31 14:54:13.74-05:30")',
+                utcRangeAsString({
+                    lower: [2010, 9, 30, 16, 24, 13, 74],
+                    upper: [2010, 9, 31, 20, 24, 13, 74]
+                })
+            ]
+        ]
+    },
+    tsrange: {
+        format: 'text',
+        id: 3908,
+        tests: [
+            ['(2010-10-31 14:54:13.74,)', utcRangeAsString({ lower: [2010, 9, 31, 14, 54, 13, 74] })],
+            ['(2010-10-31 14:54:13.74,infinity)', utcRangeAsString({ lower: [2010, 9, 31, 14, 54, 13, 74] })],
+            ['(,2010-10-31 14:54:13.74)', utcRangeAsString({ upper: [2010, 9, 31, 14, 54, 13, 74] })],
+            ['(-infinity,2010-10-31 14:54:13.74)', utcRangeAsString({ upper: [2010, 9, 31, 14, 54, 13, 74] })],
+            [
+                '(2010-10-30 10:54:13.74,2010-10-31 14:54:13.74)',
+                utcRangeAsString({ lower: [2010, 9, 30, 10, 54, 13, 74], upper: [2010, 9, 31, 14, 54, 13, 74] })
+            ],
+            ['("2010-10-31 14:54:13.74",)', utcRangeAsString({ lower: [2010, 9, 31, 14, 54, 13, 74] })],
+            ['("2010-10-31 14:54:13.74",infinity)', utcRangeAsString({ lower: [2010, 9, 31, 14, 54, 13, 74] })],
+            ['(,"2010-10-31 14:54:13.74")', utcRangeAsString({ upper: [2010, 9, 31, 14, 54, 13, 74] })],
+            ['(-infinity,"2010-10-31 14:54:13.74")', utcRangeAsString({ upper: [2010, 9, 31, 14, 54, 13, 74] })],
+            [
+                '("2010-10-30 10:54:13.74","2010-10-31 14:54:13.74")',
+                utcRangeAsString({ lower: [2010, 9, 30, 10, 54, 13, 74], upper: [2010, 9, 31, 14, 54, 13, 74] })
+            ]
+        ]
+    },
+    daterange: {
+        format: 'text',
+        id: 3912,
+        tests: [
+            ['(2010-10-31,)', new Range('2010-10-31', null, RANGE_UB_INF)],
+            ['(,2010-10-31)', new Range(null, '2010-10-31', RANGE_LB_INF)],
+            ['[2010-10-30,2010-10-31]', new Range('2010-10-30', '2010-10-31', RANGE_LB_INC | RANGE_UB_INC)]
+        ]
+    },
+    interval: {
+        format: 'text',
+        id: 1186, //interval
+        tests: [
+            ['01:02:03', 'toPostgres: 3 seconds 2 minutes 1 hours'],
+            [
+                '01:02:03.456',
+                {
+                    years: 0,
+                    months: 0,
+                    days: 0,
+                    hours: 1,
+                    minutes: 2,
+                    seconds: 3,
+                    milliseconds: 456
+                }
+            ],
+            ['1 year -32 days', 'toPostgres: -32 days 1 years'],
+            ['1 day -00:00:03', '-3 seconds 1 days']
+        ]
     }
-};
-
-const tsrangeEquals = ([lower, upper]) => {
-    const timestamp = (date) => new Date(Date.UTC.apply(Date, date)).toUTCString();
-    return (t, value) => {
-        if (lower !== null) {
-            t.equal(value.lower.toUTCString(), timestamp(lower));
-        }
-        if (upper !== null) {
-            t.equal(value.upper.toUTCString(), timestamp(upper));
-        }
-    };
-};
-exports.tstzrange = {
-    format: 'text',
-    id: 3910,
-    tests: [
-        ['(2010-10-31 14:54:13.74-05:30,)', tsrangeEquals([[2010, 9, 31, 20, 24, 13, 74], null])],
-        ['(,2010-10-31 14:54:13.74-05:30)', tsrangeEquals([null, [2010, 9, 31, 20, 24, 13, 74]])],
-        [
-            '(2010-10-30 10:54:13.74-05:30,2010-10-31 14:54:13.74-05:30)',
-            tsrangeEquals([
-                [2010, 9, 30, 16, 24, 13, 74],
-                [2010, 9, 31, 20, 24, 13, 74]
-            ])
-        ],
-        ['("2010-10-31 14:54:13.74-05:30",)', tsrangeEquals([[2010, 9, 31, 20, 24, 13, 74], null])],
-        ['(,"2010-10-31 14:54:13.74-05:30")', tsrangeEquals([null, [2010, 9, 31, 20, 24, 13, 74]])],
-        [
-            '("2010-10-30 10:54:13.74-05:30","2010-10-31 14:54:13.74-05:30")',
-            tsrangeEquals([
-                [2010, 9, 30, 16, 24, 13, 74],
-                [2010, 9, 31, 20, 24, 13, 74]
-            ])
-        ]
-    ]
-};
-exports.tsrange = {
-    format: 'text',
-    id: 3908,
-    tests: [
-        ['(2010-10-31 14:54:13.74,)', tsrangeEquals([[2010, 9, 31, 14, 54, 13, 74], null])],
-        ['(2010-10-31 14:54:13.74,infinity)', tsrangeEquals([[2010, 9, 31, 14, 54, 13, 74], null])],
-        ['(,2010-10-31 14:54:13.74)', tsrangeEquals([null, [2010, 9, 31, 14, 54, 13, 74]])],
-        ['(-infinity,2010-10-31 14:54:13.74)', tsrangeEquals([null, [2010, 9, 31, 14, 54, 13, 74]])],
-        [
-            '(2010-10-30 10:54:13.74,2010-10-31 14:54:13.74)',
-            tsrangeEquals([
-                [2010, 9, 30, 10, 54, 13, 74],
-                [2010, 9, 31, 14, 54, 13, 74]
-            ])
-        ],
-        ['("2010-10-31 14:54:13.74",)', tsrangeEquals([[2010, 9, 31, 14, 54, 13, 74], null])],
-        ['("2010-10-31 14:54:13.74",infinity)', tsrangeEquals([[2010, 9, 31, 14, 54, 13, 74], null])],
-        ['(,"2010-10-31 14:54:13.74")', tsrangeEquals([null, [2010, 9, 31, 14, 54, 13, 74]])],
-        ['(-infinity,"2010-10-31 14:54:13.74")', tsrangeEquals([null, [2010, 9, 31, 14, 54, 13, 74]])],
-        [
-            '("2010-10-30 10:54:13.74","2010-10-31 14:54:13.74")',
-            tsrangeEquals([
-                [2010, 9, 30, 10, 54, 13, 74],
-                [2010, 9, 31, 14, 54, 13, 74]
-            ])
-        ]
-    ]
-};
-exports.daterange = {
-    format: 'text',
-    id: 3912,
-    tests: [
-        [
-            '(2010-10-31,)',
-            function (t, value) {
-                t.deepEqual(value, new Range('2010-10-31', null, RANGE_UB_INF));
-            }
-        ],
-        [
-            '(,2010-10-31)',
-            function (t, value) {
-                t.deepEqual(value, new Range(null, '2010-10-31', RANGE_LB_INF));
-            }
-        ],
-        [
-            '[2010-10-30,2010-10-31]',
-            function (t, value) {
-                t.deepEqual(value, new Range('2010-10-30', '2010-10-31', RANGE_LB_INC | RANGE_UB_INC));
-            }
-        ]
-    ]
-};
-
-function toPostgresInterval(obj) {
-    const base = Object.create(PostgresInterval.prototype);
-    return Object.assign(base, obj);
-}
-exports.interval = {
-    format: 'text',
-    id: 1186,
-    tests: [
-        [
-            '01:02:03',
-            function (t, value) {
-                t.equal(value.toPostgres(), '3 seconds 2 minutes 1 hours');
-                t.deepEqual(
-                    value,
-                    toPostgresInterval({
-                        years: 0,
-                        months: 0,
-                        days: 0,
-                        hours: 1,
-                        minutes: 2,
-                        seconds: 3,
-                        milliseconds: 0
-                    })
-                );
-            }
-        ],
-        [
-            '01:02:03.456',
-            function (t, value) {
-                t.deepEqual(
-                    value,
-                    toPostgresInterval({
-                        years: 0,
-                        months: 0,
-                        days: 0,
-                        hours: 1,
-                        minutes: 2,
-                        seconds: 3,
-                        milliseconds: 456
-                    })
-                );
-            }
-        ],
-        [
-            '1 year -32 days',
-            function (t, value) {
-                t.equal(value.toPostgres(), '-32 days 1 years');
-                t.deepEqual(
-                    value,
-                    toPostgresInterval({
-                        years: 1,
-                        months: 0,
-                        days: -32,
-                        hours: 0,
-                        minutes: 0,
-                        seconds: 0,
-                        milliseconds: 0
-                    })
-                );
-            }
-        ],
-        [
-            '1 day -00:00:03',
-            function (t, value) {
-                t.equal(value.toPostgres(), '-3 seconds 1 days');
-                t.deepEqual(
-                    value,
-                    toPostgresInterval({
-                        years: 0,
-                        months: 0,
-                        days: 1,
-                        hours: -0,
-                        minutes: -0,
-                        seconds: -3,
-                        milliseconds: -0
-                    })
-                );
-            }
-        ]
-    ]
 };
 
 exports.bytea = {
