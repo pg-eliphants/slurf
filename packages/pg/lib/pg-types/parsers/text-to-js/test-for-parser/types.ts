@@ -1,6 +1,6 @@
 import { Range, RANGE_EMPTY, RANGE_LB_INC, RANGE_LB_INF, RANGE_UB_INF, RANGE_UB_INC } from '../range';
 import { utcRangeAsString } from './helpers';
-import parseInterval from '../interval';
+
 const BIGNUM =
     '31415926535897932384626433832795028841971693993751058.16180339887498948482045868343656381177203091798057628';
 
