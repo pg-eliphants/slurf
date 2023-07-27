@@ -195,8 +195,8 @@ function parseBound(input: string, ptr: number): { value: string | null; infinit
 }
 
 export type Format<T> = (a: T) => string;
-const defaultFormat: Format<T> = (x: T) => x as string;
-export function serialize<T>(range: Range<T>, format: Format<T> = defaultFormat) {
+const defaultFormat: Format<string> = (x: string) => x;
+export function serialize<T>(range: Range<T>, format: Format<T> = defaultFormat as Format<T>) {
     if (range.hasMask(RANGE_EMPTY)) {
         return EMPTY;
     }
@@ -216,7 +216,7 @@ function serializeBound<T>(bnd: T | T[] | string) {
     let needsQuotes = false;
     let pos = 0;
     let value = '';
-    if (bnd === null || (Array.isArray(bnd) && bnd.length === 0)) {
+    if (bnd === null || bnd === '' || (Array.isArray(bnd) && bnd.length === 0)) {
         return '""';
     }
     if (typeof bnd === 'number' || typeof bnd === 'bigint') return bnd.toString();
