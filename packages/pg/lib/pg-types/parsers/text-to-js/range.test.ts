@@ -32,56 +32,93 @@ describe('range from text', () => {
             expect(range.isEmpty()).toBeFalsy();
             expect(serialize(range)).toBe('(0,infinity)');
         });
-        it.todo('(0,10)');
+        it('parse (,"")', () => {
+            const range = parseRange('(,"")', String);
+            expect(serialize(range)).toBe('(-infinity,"")');
+        });
+        it('parse ("",)', () => {
+            const range = parseRange('("",)', String);
+            expect(serialize(range)).toBe('("",infinity)');
+        });
+    });
+    describe('fidelity and regression', () => {
+        describe('new Range(..)', () => {
+            it('(0,10)', () => {
+                const range = new Range('0', '10', 0);
+                expect(range.isBounded()).toBeTruthy();
+                expect(range.isLowerBoundClosed()).toBeFalsy();
+                expect(range.isUpperBoundClosed()).toBeFalsy();
+                expect(range.isEmpty()).toBeFalsy();
+                expect(serialize(range)).toBe('(0,10)');
+            });
+            it('(0,1]', () => {
+                const range = new Range('0', '1', RANGE_UB_INC);
+                expect(range.isBounded()).toBeTruthy();
+                expect(range.isLowerBoundClosed()).toBeFalsy();
+                expect(range.isUpperBoundClosed()).toBeTruthy();
+                expect(range.isEmpty()).toBeFalsy();
+                expect(serialize(range)).toBe('(0,1]');
+            });
+            it('[0,1]', () => {
+                const range = new Range('0', '1', RANGE_LB_INC | RANGE_UB_INC);
+                expect(range.isBounded()).toBeTruthy();
+                expect(range.isLowerBoundClosed()).toBeTruthy();
+                expect(range.isUpperBoundClosed()).toBeTruthy();
+                expect(range.isEmpty()).toBeFalsy();
+                expect(serialize(range)).toBe('[0,1]');
+            });
+            it('[0,1)', () => {
+                const range = new Range('0', '1', RANGE_LB_INC);
+                expect(range.isBounded()).toBeTruthy();
+                expect(range.isLowerBoundClosed()).toBeTruthy();
+                expect(range.isUpperBoundClosed()).toBeFalsy();
+                expect(range.isEmpty()).toBeFalsy();
+                expect(serialize(range)).toBe('[0,1)');
+            });
+        });
+        describe('parseRange (..)', () => {
+            it('[0,1]', () => {
+                const range = parseRange('[0,1]', Number);
+                expect(serialize(range)).toBe('[0,1]');
+                expect(range.isBounded()).toBeTruthy();
+                expect(range.isLowerBoundClosed()).toBeTruthy();
+                expect(range.isUpperBoundClosed()).toBeTruthy();
+                expect(range.isEmpty()).toBeFalsy();
+            });
+            it('[0,1)', () => {
+                const range = parseRange('[0,1)', Number);
+                expect(serialize(range)).toBe('[0,1)');
+                expect(range.isBounded()).toBeTruthy();
+                expect(range.isLowerBoundClosed()).toBeTruthy();
+                expect(range.isUpperBoundClosed()).toBeFalsy();
+                expect(range.isEmpty()).toBeFalsy();
+            });
+            it('[0,1)', () => {
+                const range = parseRange('(0,1)', Number);
+                expect(serialize(range)).toBe('(0,1)');
+                expect(range.isBounded()).toBeTruthy();
+                expect(range.isLowerBoundClosed()).toBeFalsy();
+                expect(range.isUpperBoundClosed()).toBeFalsy();
+                expect(range.isEmpty()).toBeFalsy();
+            });
+            it('(A,Z)', () => {
+                const range = parseRange('(A,Z)', Number);
+                console.log(range);
+                /*expect(serialize(range)).toBe('(0,1)');
+                expect(range.isBounded()).toBeTruthy();
+                expect(range.isLowerBoundClosed()).toBeFalsy();
+                expect(range.isUpperBoundClosed()).toBeFalsy();
+                expect(range.isEmpty()).toBeFalsy();*/
+            });
+        });
     });
 });
 /*
-test('parse', function (t) {
-    const string = parse;
-
-    t.deepEqual(string('empty'), new Range(null, null, RANGE_EMPTY), 'empty');
-
-    t.deepEqual(string('(,)'), new Range(null, null, RANGE_LB_INF | RANGE_UB_INF), '(,)');
-    t.deepEqual(
-        string('(-infinity,infinity)'),
-        new Range(null, null, RANGE_LB_INF | RANGE_UB_INF),
-        '(-infinity,infinity)'
-    );
-
-    t.deepEqual(string('(0,)'), new Range('0', null, RANGE_UB_INF), '(0,)');
-    t.deepEqual(string('(0,10)'), new Range('0', '10', 0), '(0,10)');
-    t.deepEqual(string('(,10)'), new Range(null, '10', RANGE_LB_INF), '(,10)');
-
-    t.deepEqual(string('(0,1]'), new Range('0', '1', RANGE_UB_INC), '(0,1]');
-    t.deepEqual(string('[0,1]'), new Range('0', '1', RANGE_LB_INC | RANGE_UB_INC), '[0,1]');
-    t.deepEqual(string('[0,1)'), new Range('0', '1', RANGE_LB_INC), '[0,1)');
-
-    t.end();
-});
-
-test('parse: integer', function (t) {
-    const integer = (value) => parse(value, (x) => parseInt(x, 10));
-
-    t.deepEqual(integer('empty'), new Range(null, null, RANGE_EMPTY), 'empty');
-
-    t.deepEqual(integer('(,)'), new Range(null, null, RANGE_LB_INF | RANGE_UB_INF), '(,)');
-
-    t.deepEqual(integer('(0,)'), new Range(0, null, RANGE_UB_INF), '(0,)');
-    t.deepEqual(integer('(0,10)'), new Range(0, 10, 0), '(0,10)');
-    t.deepEqual(integer('(,10)'), new Range(null, 10, RANGE_LB_INF), '(,10)');
-
-    t.deepEqual(integer('(0,1]'), new Range(0, 1, RANGE_UB_INC), '(0,1]');
-    t.deepEqual(integer('[0,1]'), new Range(0, 1, RANGE_LB_INC | RANGE_UB_INC), '[0,1]');
-    t.deepEqual(integer('[0,1)'), new Range(0, 1, RANGE_LB_INC), '[0,1)');
-
-    t.end();
-});
 
 test('parse: strings', function (t) {
     const check = (a, b) => t.deepEqual(parse(a), b, a);
 
-    check('(,"")', new Range(null, '', RANGE_LB_INF));
-    check('("",)', new Range('', null, RANGE_UB_INF));
+  
     check('(A,Z)', new Range('A', 'Z', 0));
     check('("A","Z")', new Range('A', 'Z', 0));
     check('("""A""","""Z""")', new Range('"A"', '"Z"', 0));

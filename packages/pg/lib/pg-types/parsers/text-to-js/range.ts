@@ -10,7 +10,7 @@ const INFINITY = 'infinity';
 export class RangeError extends Error {}
 
 export class Range<T = null> {
-    hasMask(flag: number) {
+    hasMask(flag: number): boolean {
         return (this.mask & flag) === flag;
     }
     constructor(
@@ -19,31 +19,31 @@ export class Range<T = null> {
         public readonly mask = 0
     ) {}
 
-    isEmpty() {
+    isEmpty(): boolean {
         return this.hasMask(RANGE_EMPTY);
     }
 
-    isBounded() {
+    isBounded(): boolean {
         return !this.hasMask(RANGE_LB_INF) && !this.hasMask(RANGE_UB_INF);
     }
 
-    isLowerBoundClosed() {
+    isLowerBoundClosed(): boolean {
         return this.hasLowerBound() && this.hasMask(RANGE_LB_INC);
     }
 
-    isUpperBoundClosed() {
+    isUpperBoundClosed(): boolean {
         return this.hasUpperBound() && this.hasMask(RANGE_UB_INC);
     }
 
-    hasLowerBound() {
+    hasLowerBound(): boolean {
         return !this.hasMask(RANGE_LB_INF);
     }
 
-    hasUpperBound() {
+    hasUpperBound(): boolean {
         return !this.hasMask(RANGE_UB_INF);
     }
 
-    containsPoint(point: T) {
+    containsPoint(point: T): boolean {
         const l = this.hasLowerBound();
         const u = this.hasUpperBound();
 
@@ -62,7 +62,7 @@ export class Range<T = null> {
         return true;
     }
 
-    containsRange(range: Range<T>) {
+    containsRange(range: Range<T>): boolean {
         return (
             (!range.hasLowerBound() || this.containsPoint(range.lower)) &&
             (!range.hasUpperBound() || this.containsPoint(range.upper))
@@ -196,7 +196,8 @@ function parseBound(input: string, ptr: number): { value: string | null; infinit
 
 export type Format<T> = (a: T) => string;
 const defaultFormat: Format<string> = (x: string) => x;
-export function serialize<T>(range: Range<T>, format: Format<T> = defaultFormat as Format<T>) {
+
+export function serialize<T>(range: Range<T>, format: Format<T> = defaultFormat as Format<T>): string {
     if (range.hasMask(RANGE_EMPTY)) {
         return EMPTY;
     }
