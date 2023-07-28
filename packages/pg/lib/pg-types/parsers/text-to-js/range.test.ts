@@ -103,12 +103,15 @@ describe('range from text', () => {
             });
             it('(A,Z)', () => {
                 const range = parseRange('(A,Z)');
-                console.log(range);
-                /*expect(serialize(range)).toBe('(0,1)');
-                expect(range.isBounded()).toBeTruthy();
-                expect(range.isLowerBoundClosed()).toBeFalsy();
-                expect(range.isUpperBoundClosed()).toBeFalsy();
-                expect(range.isEmpty()).toBeFalsy();*/
+                expect(range.equals(new Range('A', 'Z', 0))).toBeTruthy();
+            });
+            it('("A","Z")', () => {
+                const range = parseRange('("A","Z")');
+                expect(range.equals(new Range('A', 'Z', 0))).toBeTruthy();
+            });
+            it('("""A""","""Z""")', () => {
+                const range = parseRange('("""A""","""Z""")');
+                expect(range.equals(new Range('"A"', '"Z"', 0))).toBeTruthy();
             });
         });
     });
@@ -119,9 +122,6 @@ test('parse: strings', function (t) {
     const check = (a, b) => t.deepEqual(parse(a), b, a);
 
   
-    check('(A,Z)', new Range('A', 'Z', 0));
-    check('("A","Z")', new Range('A', 'Z', 0));
-    check('("""A""","""Z""")', new Range('"A"', '"Z"', 0));
     check('("\\"A\\"","\\"Z\\"")', new Range('"A"', '"Z"', 0));
     check('("\\(A\\)","\\(Z\\)")', new Range('(A)', '(Z)', 0));
     check('("\\[A\\]","\\[Z\\]")', new Range('[A]', '[Z]', 0));
