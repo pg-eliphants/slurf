@@ -68,6 +68,10 @@ export class Range<T = null> {
             (!range.hasUpperBound() || this.containsPoint(range.upper))
         );
     }
+
+    equals(range: Range<T>): boolean {
+        return range.mask === this.mask && range.lower === this.lower && range.upper === range.upper;
+    }
 }
 
 type TransformFn<T> = (x: string) => T;
