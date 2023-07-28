@@ -102,7 +102,7 @@ describe('range from text', () => {
                 expect(range.isEmpty()).toBeFalsy();
             });
             it('(A,Z)', () => {
-                const range = parseRange('(A,Z)', Number);
+                const range = parseRange('(A,Z)');
                 console.log(range);
                 /*expect(serialize(range)).toBe('(0,1)');
                 expect(range.isBounded()).toBeTruthy();

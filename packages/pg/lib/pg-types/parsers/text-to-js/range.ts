@@ -71,8 +71,12 @@ export class Range<T = null> {
 }
 
 type TransformFn<T> = (x: string) => T;
+const defaultTransform: TransformFn<string> = (x: string) => x;
 
-export default function parseRange<T = string>(input: string, transform: TransformFn<T>): Range<T> {
+export default function parseRange<T = string>(
+    input: string,
+    transform: TransformFn<T> = defaultTransform as TransformFn<T>
+): Range<T> {
     input = input.trim();
 
     if (input === EMPTY) {
