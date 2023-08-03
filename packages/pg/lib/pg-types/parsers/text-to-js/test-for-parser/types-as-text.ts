@@ -309,76 +309,36 @@ const instrumentation = {
                     ]
                 ]
             ]
+        },
+        point: {
+            id: 1017, //_point
+            tests: [
+                [
+                    '{"(25.1,50.5)","(10.1,40)"}',
+                    [
+                        { x: 25.1, y: 50.5 },
+                        { x: 10.1, y: 40 }
+                    ]
+                ]
+            ]
+        },
+        oid: {
+            id: 1028, //_oid
+            tests: [['{25864,25860}', [25864, 25860]]]
+        },
+        float4: {
+            id: 1021, //_float4 (float 32 bits), but as js fp64 number
+            tests: [['{1.2, 3.4}', [1.2, 3.4]]]
+        },
+        float8: {
+            id: 1022, //_float8 (float  bits)
+            tests: [['{-12345678.1234567, 12345678.12345678}', [-12345678.1234567, 12345678.12345678]]]
+        },
+        date: {
+            id: 1182, //_date
+            tests: [['{2014-01-01,2015-12-31}', ['2014-01-01', '2015-12-31']]]
         }
     }
-};
-
-exports['array/point'] = {
-    format: 'text',
-    id: 1017,
-    tests: [
-        [
-            '{"(25.1,50.5)","(10.1,40)"}',
-            function (t, value) {
-                t.deepEqual(value, [
-                    { x: 25.1, y: 50.5 },
-                    { x: 10.1, y: 40 }
-                ]);
-            }
-        ]
-    ]
-};
-
-exports['array/oid'] = {
-    format: 'text',
-    id: 1028,
-    tests: [
-        [
-            '{25864,25860}',
-            function (t, value) {
-                t.deepEqual(value, [25864, 25860]);
-            }
-        ]
-    ]
-};
-
-exports['array/float4'] = {
-    format: 'text',
-    id: 1021,
-    tests: [
-        [
-            '{1.2, 3.4}',
-            function (t, value) {
-                t.deepEqual(value, [1.2, 3.4]);
-            }
-        ]
-    ]
-};
-
-exports['array/float8'] = {
-    format: 'text',
-    id: 1022,
-    tests: [
-        [
-            '{-12345678.1234567, 12345678.12345678}',
-            function (t, value) {
-                t.deepEqual(value, [-12345678.1234567, 12345678.12345678]);
-            }
-        ]
-    ]
-};
-
-exports['array/date'] = {
-    format: 'text',
-    id: 1182,
-    tests: [
-        [
-            '{2014-01-01,2015-12-31}',
-            function (t, value) {
-                t.deepEqual(value, ['2014-01-01', '2015-12-31']);
-            }
-        ]
-    ]
 };
 
 exports['array/interval'] = {
