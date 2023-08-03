@@ -6,47 +6,38 @@ const BIGNUM =
 
 const instrumentation = {
     ['string/varchar']: {
-        format: 'text',
         id: 1043, // "varchar"
         tests: [['bang', 'bang']]
     },
     ['integer/int4']: {
-        format: 'text',
         id: 23, // "int4"
         tests: [['2147483647', 2147483647]]
     },
     ['smallint/int2']: {
-        format: 'text',
         id: 21, // int2
         tests: [['32767', 32767]]
     },
     ['bigint/int8']: {
-        format: 'text',
         id: 20, // int8
         tests: [['9223372036854775807', '9223372036854775807']]
     },
     oid: {
-        format: 'text',
         id: 26, // oid (=int32)
         tests: [['103', 103]]
     },
     numeric: {
-        format: 'text',
         id: 1700,
         tests: [[BIGNUM, BIGNUM]]
     },
     ['real/float4']: {
-        format: 'text',
         id: 700, // numeric
         tests: [['123.456', 123.456]]
     },
     'double precision / float 8': {
-        format: 'text',
         id: 701, // float8
         tests: [['12345678.12345678', 12345678.12345678]]
     },
     boolean: {
-        format: 'text',
         id: 16, //bool
         tests: [
             ['TRUE', true],
@@ -60,7 +51,6 @@ const instrumentation = {
         ]
     },
     timestamptz: {
-        format: 'text',
         id: 1184, //timestamptz
         tests: [
             ['2010-10-31 14:54:13.74-05:30', Date.UTC(2010, 9, 31, 20, 24, 13, 740)],
@@ -71,7 +61,6 @@ const instrumentation = {
         ]
     },
     timestamp: {
-        format: 'text',
         id: 1114, //timestamp
         // use toISOString() in the parsed date
         tests: [
@@ -80,7 +69,6 @@ const instrumentation = {
         ]
     },
     date: {
-        format: 'text',
         id: 1082, // date
         tests: [
             ['2010-10-31', '2010-10-31'],
@@ -88,7 +76,6 @@ const instrumentation = {
         ]
     },
     inet: {
-        format: 'text',
         id: 869, // inet
         tests: [
             ['8.8.8.8', '8.8.8.8'],
@@ -99,7 +86,6 @@ const instrumentation = {
         ]
     },
     cidr: {
-        format: 'text',
         id: 650, //cidr
         tests: [
             ['172.16.0.0/12', '172.16.0.0/12'],
@@ -110,7 +96,6 @@ const instrumentation = {
         ]
     },
     macaddr: {
-        format: 'text',
         id: 829, //macaddr
         tests: [
             ['08:00:2b:01:02:03', '08:00:2b:01:02:03'],
@@ -118,7 +103,6 @@ const instrumentation = {
         ]
     },
     numrange: {
-        format: 'text',
         id: 3906, //numrange
         tests: [
             ['empty', new Range(null, null, RANGE_EMPTY)],
@@ -136,7 +120,6 @@ const instrumentation = {
         ]
     },
     int4range: {
-        format: 'text',
         id: 3904, //int4range
         tests: [
             ['empty', new Range(null, null, RANGE_EMPTY)],
@@ -152,7 +135,6 @@ const instrumentation = {
         ]
     },
     int8range: {
-        format: 'text',
         id: 3926, //int8range
         tests: [
             ['empty', new Range(null, null, RANGE_EMPTY)],
@@ -168,7 +150,6 @@ const instrumentation = {
         ]
     },
     tstzrange: {
-        format: 'text',
         id: 3910, // tstzrange
         tests: [
             ['(2010-10-31 14:54:13.74-05:30,)', utcRangeAsString({ lower: [2010, 9, 31, 20, 24, 13, 74] })],
@@ -192,7 +173,6 @@ const instrumentation = {
         ]
     },
     tsrange: {
-        format: 'text',
         id: 3908,
         tests: [
             ['(2010-10-31 14:54:13.74,)', utcRangeAsString({ lower: [2010, 9, 31, 14, 54, 13, 74] })],
@@ -214,7 +194,6 @@ const instrumentation = {
         ]
     },
     daterange: {
-        format: 'text',
         id: 3912,
         tests: [
             ['(2010-10-31,)', new Range('2010-10-31', null, RANGE_UB_INF)],
@@ -223,7 +202,6 @@ const instrumentation = {
         ]
     },
     interval: {
-        format: 'text',
         id: 1186, //interval
         tests: [
             ['01:02:03', 'toPostgres: 3 seconds 2 minutes 1 hours'],
@@ -242,186 +220,97 @@ const instrumentation = {
             ['1 year -32 days', 'toPostgres: -32 days 1 years'],
             ['1 day -00:00:03', '-3 seconds 1 days']
         ]
+    },
+    bytea: {
+        id: 17, //bytea (blob datatype)
+        tests: [
+            ['foo\\000\\200\\\\\\377', Uint8Array.from([102, 111, 111, 0, 128, 92, 255])],
+            ['', Uint8Array.from([])]
+        ]
+    },
+    array: {
+        boolean: {
+            id: 1000, //_bool (underscore means array type)
+            tests: [['{true,false}', [true, false]]]
+        },
+        char: {
+            id: 1014, // _bpchar , array of blank padded char
+            tests: [['{foo,bar}', ['foo', 'bar']]]
+        },
+        varchar: {
+            id: 1015, // _varchar
+            tests: [['{foo,bar}', ['foo', 'bar']]]
+        },
+        text: {
+            // i think this is an error because _text has oid of 1009 not 1008
+            // 1008 is _regproc an array of procedures with no arguments
+            // example: select 'myproc'::regproc::oid;
+            // so we change it to 1009
+            // -> 16438
+            id: 1009, // changed from 1008, i think this is a bug
+            tests: [['{foo}', ['foo']]]
+        },
+        bytea: {
+            id: 1001, // _bytea
+            tests: [
+                ['{"\\\\x00000000"}', Uint8Array.from([0, 0, 0, 0])],
+                ['{NULL,"\\\\x4e554c4c"}', Uint8Array.from('x4e', 'x55', 'x4c', 'x4c')]
+            ]
+        },
+        numeric: {
+            id: 1231, // _numeric, arbitrary precision numerical values
+            // so in js we keep it as text to prevent conversion into fp64?
+            tests: [['{1.2,3.4}', ['1.2', '3.4']]]
+        },
+        int2: {
+            id: 1005, //_int2
+            tests: [['{-32768, -32767, 32766, 32767}', [-32768, -32767, 32766, 32767]]]
+        },
+        int4: {
+            id: 1007, // _int4
+            tests: [
+                [
+                    '{-2147483648, -2147483647, 2147483646, 2147483647}',
+                    [-2147483648, -2147483647, 2147483646, 2147483647]
+                ]
+            ]
+        },
+        int8: {
+            id: 1016, // _int8, 64 bit array type
+            tests: [
+                [
+                    '{-9223372036854775808, -9223372036854775807, 9223372036854775806, 9223372036854775807}',
+                    [-9223372036854775808n, -9223372036854775807n, 9223372036854775806n, 9223372036854775807n]
+                ]
+            ]
+        },
+        json: {
+            id: 199, //_json array of jsons
+            tests: [
+                [
+                    '{{1,2},{[3],"[4,5]"},{null,NULL}}',
+                    [
+                        [1, 2],
+                        [[3], [4, 5]],
+                        [null, null]
+                    ]
+                ]
+            ]
+        },
+        jsonb: {
+            id: 3807, //_jsonb lol, so, we need a mapper oid -> parse<type>
+            tests: [
+                [
+                    '{{1,2},{[3],"[4,5]"},{null,NULL}}',
+                    [
+                        [1, 2],
+                        [[3], [4, 5]],
+                        [null, null]
+                    ]
+                ]
+            ]
+        }
     }
-};
-
-exports.bytea = {
-    format: 'text',
-    id: 17, //bytea (blob datatype)
-    tests: [
-        [
-            'foo\\000\\200\\\\\\377',
-            function (t, value) {
-                const buffer = Buffer.from([102, 111, 111, 0, 128, 92, 255]);
-                t.ok(buffer.equals(value));
-            }
-        ],
-        [
-            '',
-            function (t, value) {
-                const buffer = Buffer.from([]);
-                t.ok(buffer.equals(value));
-            }
-        ]
-    ]
-};
-
-exports['array/boolean'] = {
-    format: 'text',
-    id: 1000,
-    tests: [
-        [
-            '{true,false}',
-            function (t, value) {
-                t.deepEqual(value, [true, false]);
-            }
-        ]
-    ]
-};
-
-exports['array/char'] = {
-    format: 'text',
-    id: 1014,
-    tests: [
-        [
-            '{foo,bar}',
-            function (t, value) {
-                t.deepEqual(value, ['foo', 'bar']);
-            }
-        ]
-    ]
-};
-
-exports['array/varchar'] = {
-    format: 'text',
-    id: 1015,
-    tests: [
-        [
-            '{foo,bar}',
-            function (t, value) {
-                t.deepEqual(value, ['foo', 'bar']);
-            }
-        ]
-    ]
-};
-
-exports['array/text'] = {
-    format: 'text',
-    id: 1008,
-    tests: [
-        [
-            '{foo}',
-            function (t, value) {
-                t.deepEqual(value, ['foo']);
-            }
-        ]
-    ]
-};
-
-exports['array/bytea'] = {
-    format: 'text',
-    id: 1001,
-    tests: [
-        [
-            '{"\\\\x00000000"}',
-            function (t, value) {
-                const buffer = Buffer.from('00000000', 'hex');
-                t.ok(Array.isArray(value));
-                t.equal(value.length, 1);
-                t.ok(buffer.equals(value[0]));
-            }
-        ],
-        [
-            '{NULL,"\\\\x4e554c4c"}',
-            function (t, value) {
-                const buffer = Buffer.from('4e554c4c', 'hex');
-                t.ok(Array.isArray(value));
-                t.equal(value.length, 2);
-                t.equal(value[0], null);
-                t.ok(buffer.equals(value[1]));
-            }
-        ]
-    ]
-};
-
-exports['array/numeric'] = {
-    format: 'text',
-    id: 1231,
-    tests: [
-        [
-            '{1.2,3.4}',
-            function (t, value) {
-                t.deepEqual(value, ['1.2', '3.4']);
-            }
-        ]
-    ]
-};
-
-exports['array/int2'] = {
-    format: 'text',
-    id: 1005,
-    tests: [
-        [
-            '{-32768, -32767, 32766, 32767}',
-            function (t, value) {
-                t.deepEqual(value, [-32768, -32767, 32766, 32767]);
-            }
-        ]
-    ]
-};
-
-exports['array/int4'] = {
-    format: 'text',
-    id: 1005,
-    tests: [
-        [
-            '{-2147483648, -2147483647, 2147483646, 2147483647}',
-            function (t, value) {
-                t.deepEqual(value, [-2147483648, -2147483647, 2147483646, 2147483647]);
-            }
-        ]
-    ]
-};
-
-exports['array/int8'] = {
-    format: 'text',
-    id: 1016,
-    tests: [
-        [
-            '{-9223372036854775808, -9223372036854775807, 9223372036854775806, 9223372036854775807}',
-            function (t, value) {
-                t.deepEqual(value, [
-                    '-9223372036854775808',
-                    '-9223372036854775807',
-                    '9223372036854775806',
-                    '9223372036854775807'
-                ]);
-            }
-        ]
-    ]
-};
-
-exports['array/json'] = {
-    format: 'text',
-    id: 199,
-    tests: [
-        [
-            '{{1,2},{[3],"[4,5]"},{null,NULL}}',
-            function (t, value) {
-                t.deepEqual(value, [
-                    [1, 2],
-                    [[3], [4, 5]],
-                    [null, null]
-                ]);
-            }
-        ]
-    ]
-};
-
-exports['array/jsonb'] = {
-    format: 'text',
-    id: 3807,
-    tests: exports['array/json'].tests
 };
 
 exports['array/point'] = {
