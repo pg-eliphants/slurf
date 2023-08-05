@@ -22,7 +22,12 @@
         "baseUrl": "./lib",
         "module": "esnext",
         "moduleResolution": "node",
-        "paths": {},
+        "paths": {
+            "@types": ["pg-types/types.ts"],
+            "@helpers": ["helpers.ts"],
+            "@pgtypes/*": ["./lib/pg-types/*"],
+            "@test-helpers": ["test-helpers.ts"]
+        },
         "resolveJsonModule": true,
         "types": ["node", "jest"],
         "typeRoots": ["node_modules/@types"],
