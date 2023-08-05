@@ -238,8 +238,8 @@ select js.unnest::int as id, pgt.oid, pgt.typname  from pg_type pgt left join js
  3807 |  3807 | _jsonb
       |  3831 | anyrange
       |  3838 | event_trigger
- 3904 |  3904 | int4range
-      |  3905 | _int4range
+ 3904 |  3904 | int4range           select 'int4range'::regtype::oid;
+      |  3905 | _int4range          select '_int4range'::regtype::oid;
  3906 |  3906 | numrange
  3907 |  3907 | _numrange
  3908 |  3908 | tsrange
@@ -250,8 +250,29 @@ select js.unnest::int as id, pgt.oid, pgt.typname  from pg_type pgt left join js
       |  3913 | _daterange
  3926 |  3926 | int8range
 
+                                    select 'int4multirange'::regtype::oid;
 
  
+*/
+
+/* some queries:
+auth_db=> select 'int4range'::regtype::oid;
+ oid
+------
+ 3904
+(1 row)
+
+auth_db=> select '_int4range'::regtype::oid;
+ oid
+------
+ 3905
+(1 row)
+
+auth_db=> select 'int4multirange'::regtype::oid;
+ oid
+------
+ 4451
+(1 row)
 */
 
 const textMap = {

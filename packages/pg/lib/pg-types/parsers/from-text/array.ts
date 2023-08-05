@@ -1,7 +1,4 @@
-type SubEntries<T> = { entries: EntryTerminals<T>; position: number };
-type EntryTerminal<T> = string | null | T;
-type EntryTerminals<T> = (EntryTerminal<T> | EntryTerminal<T>[])[];
-type Entries<T> = EntryTerminals<T> | SubEntries<T>;
+import type { EntryTerminals, Entries, EntryTerminal, SubEntries } from '../../types';
 
 export default function parse<T>(source: string, transform?: (a: string) => T): EntryTerminals<T> {
     return parsePostgresArray(source, transform) as EntryTerminals<T>;

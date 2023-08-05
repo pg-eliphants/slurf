@@ -1,7 +1,5 @@
 export { toBase64, toBytes };
-
-const encoder = new TextEncoder();
-const decoder = new TextDecoder();
+import { encoder, decoder } from '../helpers';
 
 function toBytes(base64: string) {
     base64 = base64.replace(/=/g, '');
