@@ -1,4 +1,5 @@
 import parseDate from './dates';
+import parseDateOriginal from './dates.original';
 
 function ms(str: string) {
     const base = '2010-01-01 01:01:01';
@@ -18,6 +19,13 @@ describe('pg-dates', function () {
         });
     });
     describe('proper working', function () {
+        it('regression test', () => {
+            const d1 = parseDateOriginal('2010-10-31 14:54:13.74-05:30') as Date;
+            const utcd1 = d1.getUTCDate();
+            const asUtc = Date.UTC(2010, 9, 31, 20, 24, 13, 74);
+            const d2 = parseDate('2010-10-31 14:54:13.74-05:30');
+            expect(d1).toEqual(d2);
+        });
         it('2010-12-11 09:09:04', function () {
             const ans = parseDate('2010-12-11 09:09:04');
             expect(ans).toEqual(new Date('2010-12-11 09:09:04'));

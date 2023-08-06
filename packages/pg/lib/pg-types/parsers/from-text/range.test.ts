@@ -1,13 +1,6 @@
-import {
-    default as parseRange,
-    Range,
-    RANGE_EMPTY,
-    RANGE_LB_INC,
-    RANGE_UB_INC,
-    RANGE_LB_INF,
-    RANGE_UB_INF,
-    serialize
-} from './range';
+import parseRange, { Range, serialize } from './range';
+
+import { RANGE_EMPTY, RANGE_LB_INC, RANGE_UB_INC, RANGE_LB_INF, RANGE_UB_INF } from '@constants';
 
 describe('range from text', () => {
     describe('errors and edge cases', function () {

@@ -2,7 +2,7 @@ import path from 'node:path';
 
 import { loadData } from '@test-helpers';
 import decode from '@pg-types/parsers/from-text/decode';
-import readNumeric from './numeric';
+import readNumeric from '../index';
 
 describe('numeric', function () {
     describe('consistent interpretations', async () => {

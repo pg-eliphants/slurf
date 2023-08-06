@@ -3,7 +3,7 @@ import parseArray from './array';
 import parseDate from './dates';
 import parseInterval from './interval';
 import byteaToBinary from './decode';
-import parseRange from './range';
+import parseRange, { Range } from './range';
 
 import { parseBool, parseBigInteger, parsePoint, parseCircle } from './parse-array-transform-helpers';
 
@@ -80,6 +80,36 @@ function parseTimestampRange(raw: string) {
 function parseTimestampTzRange(raw: string) {
     return parseRange(raw, parseDate);
 }
+
+const scalarTypes = ['number', 'string', 'bigint', 'boolean'];
+
+export function isEqual(jsObject: any, out: any) {
+    if (
+        scalarTypes.includes(typeof jsObject) ||
+        jsObject === null ||
+        jsObject === undefined ||
+        jsObject === Infinity ||
+        jsObject === -Infinity
+    ) {
+        return jsObject === out;
+    }
+    if (jsObject instanceof Date) {
+        if (typeof out === 'number') {
+            return jsObject.valueOf() === out;
+        }
+        if (typeof out === 'string') {
+            return jsObject.valueOf() === new Date(out).valueOf();
+        }
+        return false;
+    }
+    if (jsObject instanceof Range) {
+        const [arg0, arg1, arg2] = out;
+        const expected = new Range(arg0, arg1, arg2);
+        return jsObject.equals(expected);
+    }
+    return false;
+}
+
 /**
 postgres=# with js as (SELECT unnest(string_to_array('16,17,20,21,23,26,114,199,600,651,700,701,718,791,1000,1001,1005,1007,1008,1009,1014,1015,1016,1017,1021,1022,1028,1040,1041,1114,1115,1182,1183,1184,1185,1186,1187,1231,1270,2951,3802,3807,3904,3906,3907,3908,3910,3912,3926', ',') ))
 select js.unnest::int as id, pgt.oid, pgt.typname  from pg_type pgt left join js on pgt.oid::int = js.unnest::int order by 2
@@ -275,7 +305,11 @@ auth_db=> select 'int4multirange'::regtype::oid;
 (1 row)
 */
 
-const textMap = {
+type TextMap = {
+    [index: number]: (raw: string) => any;
+};
+
+const textMap: TextMap = {
     [16]: parseBool,
     [17]: byteaToBinary,
     [20]: parseBigInteger,

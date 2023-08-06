@@ -3,6 +3,7 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
     test: {
+        exclude: ['**/*.js'],
         name: 'jumbo',
         include: ['**/*.test.ts'],
         globals: true,
@@ -19,12 +20,15 @@ export default defineConfig({
         testTimeout: 1e9,
         silent: false,
         isolate: true,
-        reporters: ['verbose']
+        reporters: [
+            /*'verbose'*/
+        ]
     },
     resolve: {
         alias: {
             '@test-helpers': path.join(__dirname, 'lib/test-helpers.ts'),
-            '@pg-types': path.join(__dirname, 'lib/pg-types')
+            '@pg-types': path.join(__dirname, 'lib/pg-types'),
+            '@constants': path.join(__dirname, 'lib/constants.ts')
             //         "@pg-types": ["pg-types/types.ts"],
             // "@helpers": ["helpers.ts"],
             // "@pg-types/*": ["pg-types/*"],

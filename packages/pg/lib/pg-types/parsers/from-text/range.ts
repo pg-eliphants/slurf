@@ -1,13 +1,30 @@
-export const RANGE_EMPTY = 1 << 1;
-export const RANGE_LB_INC = 1 << 2;
-export const RANGE_UB_INC = 1 << 3;
-export const RANGE_LB_INF = 1 << 4;
-export const RANGE_UB_INF = 1 << 5;
-
-const EMPTY = 'empty';
-const INFINITY = 'infinity';
+import { EMPTY, INFINITY, RANGE_EMPTY, RANGE_LB_INC, RANGE_UB_INC, RANGE_LB_INF, RANGE_UB_INF } from '@constants';
 
 export class RangeError extends Error {}
+
+const scalarTypes = ['number', 'string', 'bigint', 'boolean'];
+export function isEqual(jsObject: any, out: any) {
+    if (
+        scalarTypes.includes(typeof jsObject) ||
+        jsObject === null ||
+        jsObject === undefined ||
+        jsObject === Infinity ||
+        jsObject === -Infinity
+    ) {
+        return jsObject === out;
+    }
+    if (jsObject instanceof Date) {
+        if (typeof out === 'number') {
+            // resolution is only seconds!
+            return jsObject.valueOf() === out;
+        }
+        if (typeof out === 'string') {
+            return jsObject.valueOf() === new Date(out).valueOf();
+        }
+        return false;
+    }
+    return false;
+}
 
 export class Range<T = null> {
     hasMask(flag: number): boolean {
@@ -70,7 +87,7 @@ export class Range<T = null> {
     }
 
     equals(range: Range<T>): boolean {
-        return range.mask === this.mask && range.lower === this.lower && range.upper === range.upper;
+        return this.mask === range.mask && isEqual(this.lower, range.lower) && isEqual(this.upper, range.upper);
     }
 }
 

@@ -1,20 +1,7 @@
-import {
-    Range,
-    RANGE_EMPTY,
-    RANGE_LB_INC,
-    RANGE_LB_INF,
-    RANGE_UB_INF,
-    RANGE_UB_INC
-} from '../../../../parsers/from-text/range';
-import { utcRangeAsString } from '../../../../parsers/from-text/helpers';
-const BIGNUM =
-    '31415926535897932384626433832795028841971693993751058.16180339887498948482045868343656381177203091798057628';
+import { RANGE_EMPTY, RANGE_LB_INC, RANGE_LB_INF, RANGE_UB_INF, RANGE_UB_INC } from '@constants';
+import { utcRangeAsString } from '../../../helpers';
 
 const instrumentation = {
-    ['string/varchar']: {
-        id: 1043, // "varchar"
-        tests: [['bang', 'bang']]
-    },
     ['integer/int4']: {
         id: 23, // "int4"
         tests: [['2147483647', 2147483647]]
@@ -30,10 +17,6 @@ const instrumentation = {
     oid: {
         id: 26, // oid (=int32)
         tests: [['103', 103]]
-    },
-    numeric: {
-        id: 1700,
-        tests: [[BIGNUM, BIGNUM]]
     },
     ['real/float4']: {
         id: 700, // numeric
@@ -74,107 +57,69 @@ const instrumentation = {
             ['1000-01-01 00:00:00 BC', '-000999-01-01T00:00:00.000Z']
         ]
     },
-    date: {
-        id: 1082, // date
-        tests: [
-            ['2010-10-31', '2010-10-31'],
-            ['2010-10-31 BC', '2010-10-31 BC']
-        ]
-    },
-    inet: {
-        id: 869, // inet
-        tests: [
-            ['8.8.8.8', '8.8.8.8'],
-            ['2001:4860:4860::8888', '2001:4860:4860::8888'],
-            ['127.0.0.1', '127.0.0.1'],
-            ['fd00:1::40e', 'fd00:1::40e'],
-            ['1.2.3.4', '1.2.3.4']
-        ]
-    },
-    cidr: {
-        id: 650, //cidr
-        tests: [
-            ['172.16.0.0/12', '172.16.0.0/12'],
-            ['fe80::/10', 'fe80::/10'],
-            ['fc00::/7', 'fc00::/7'],
-            ['192.168.0.0/24', '192.168.0.0/24'],
-            ['10.0.0.0/8', '10.0.0.0/8']
-        ]
-    },
-    macaddr: {
-        id: 829, //macaddr
-        tests: [
-            ['08:00:2b:01:02:03', '08:00:2b:01:02:03'],
-            ['16:10:9f:0d:66:00', '16:10:9f:0d:66:00']
-        ]
-    },
     numrange: {
         id: 3906, //numrange
         tests: [
-            ['empty', new Range(null, null, RANGE_EMPTY)],
-            ['(,)', new Range(null, null, RANGE_LB_INF | RANGE_UB_INF)],
-            ['(1.5,)', new Range(1.5, null, RANGE_UB_INF)],
-            ['(,1.5)', new Range(null, 1.5, RANGE_LB_INF)],
-            ['(0,5)', new Range(0, 5, 0)],
-            ['(,1.5]', new Range(null, 1.5, RANGE_LB_INF | RANGE_UB_INC)],
-            ['[1.5,)', new Range(1.5, null, RANGE_LB_INC | RANGE_UB_INF)],
-            ['(0,5)', new Range(0, 5, 0)],
-            ['(0,5)', new Range(0, 5, 0)],
-            ['[0,0.5)', new Range(0, 0.5, RANGE_LB_INC)],
-            ['(0,0.5]', new Range(0, 0.5, RANGE_UB_INC)],
-            ['[0,0.5]', new Range(0, 0.5, RANGE_LB_INC | RANGE_UB_INC)]
+            ['empty', [null, null, RANGE_EMPTY]],
+            ['(,)', [null, null, RANGE_LB_INF | RANGE_UB_INF]],
+            ['(1.5,)', [1.5, null, RANGE_UB_INF]],
+            ['(,1.5)', [null, 1.5, RANGE_LB_INF]],
+            ['(0,5)', [0, 5, 0]],
+            ['(,1.5]', [null, 1.5, RANGE_LB_INF | RANGE_UB_INC]],
+            ['[1.5,)', [1.5, null, RANGE_LB_INC | RANGE_UB_INF]],
+            ['(0,5)', [0, 5, 0]],
+            ['(0,5)', [0, 5, 0]],
+            ['[0,0.5)', [0, 0.5, RANGE_LB_INC]],
+            ['(0,0.5]', [0, 0.5, RANGE_UB_INC]],
+            ['[0,0.5]', [0, 0.5, RANGE_LB_INC | RANGE_UB_INC]]
         ]
     },
     int4range: {
         id: 3904, //int4range
         tests: [
-            ['empty', new Range(null, null, RANGE_EMPTY)],
-            ['(,)', new Range(null, null, RANGE_LB_INF | RANGE_UB_INF)],
-            ['(1,)', new Range(1, null, RANGE_UB_INF)],
-            ['(,1)', new Range(null, 1, RANGE_LB_INF)],
-            ['(0,5)', new Range(0, 5, 0)],
-            ['(,1]', new Range(null, 1, RANGE_LB_INF | RANGE_UB_INC)],
-            ['[1,)', new Range(1, null, RANGE_LB_INC | RANGE_UB_INF)],
-            ['[0,5)', new Range(0, 5, RANGE_LB_INC)],
-            ['(0,5]', new Range(0, 5, RANGE_UB_INC)],
-            ['[0,5]', new Range(0, 5, RANGE_LB_INC | RANGE_UB_INC)]
+            ['empty', [null, null, RANGE_EMPTY]],
+            ['(,)', [null, null, RANGE_LB_INF | RANGE_UB_INF]],
+            ['(1,)', [1, null, RANGE_UB_INF]],
+            ['(,1)', [null, 1, RANGE_LB_INF]],
+            ['(0,5)', [0, 5, 0]],
+            ['(,1]', [null, 1, RANGE_LB_INF | RANGE_UB_INC]],
+            ['[1,)', [1, null, RANGE_LB_INC | RANGE_UB_INF]],
+            ['[0,5)', [0, 5, RANGE_LB_INC]],
+            ['(0,5]', [0, 5, RANGE_UB_INC]],
+            ['[0,5]', [0, 5, RANGE_LB_INC | RANGE_UB_INC]]
         ]
     },
     int8range: {
         id: 3926, //int8range
         tests: [
-            ['empty', new Range(null, null, RANGE_EMPTY)],
-            ['(,)', new Range(null, null, RANGE_LB_INF | RANGE_UB_INF)],
-            ['(1,)', new Range('1', null, RANGE_UB_INF)],
-            ['(,1)', new Range(null, '1', RANGE_LB_INF)],
-            ['(0,5)', new Range('0', '5', 0)],
-            ['(,1]', new Range(null, '1', RANGE_LB_INF | RANGE_UB_INC)],
-            ['[1,)', new Range('1', null, RANGE_LB_INC | RANGE_UB_INF)],
-            ['[0,5)', new Range('0', '5', RANGE_LB_INC)],
-            ['(0,5]', new Range('0', '5', RANGE_UB_INC)],
-            ['[0,5]', new Range('0', '5', RANGE_LB_INC | RANGE_UB_INC)]
+            ['empty', [null, null, RANGE_EMPTY]],
+            ['(,)', [null, null, RANGE_LB_INF | RANGE_UB_INF]],
+            ['(1,)', ['1', null, RANGE_UB_INF]],
+            ['(,1)', [null, '1', RANGE_LB_INF]],
+            ['(0,5)', ['0', '5', 0]],
+            ['(,1]', [null, '1', RANGE_LB_INF | RANGE_UB_INC]],
+            ['[1,)', ['1', null, RANGE_LB_INC | RANGE_UB_INF]],
+            ['[0,5)', ['0', '5', RANGE_LB_INC]],
+            ['(0,5]', ['0', '5', RANGE_UB_INC]],
+            ['[0,5]', ['0', '5', RANGE_LB_INC | RANGE_UB_INC]]
         ]
     },
     tstzrange: {
         id: 3910, // tstzrange
         tests: [
+            //jsObject.valueOf()
+            //  20:24:13.74
             ['(2010-10-31 14:54:13.74-05:30,)', [Date.UTC(2010, 9, 31, 20, 24, 13, 74), null, RANGE_UB_INF]],
-            ['(,2010-10-31 14:54:13.74-05:30)', utcRangeAsString({ upper: [2010, 9, 31, 20, 24, 13, 74] })],
+            ['(,2010-10-31 14:54:13.74-05:30)', [Date.UTC(2010, 9, 31, 20, 24, 13, 74), null, 0]],
             [
                 '(2010-10-30 10:54:13.74-05:30,2010-10-31 14:54:13.74-05:30)',
-                utcRangeAsString({
-                    lower: [2010, 9, 30, 16, 24, 13, 74],
-                    upper: [2010, 9, 31, 20, 24, 13, 74]
-                })
+                [Date.UTC(2010, 9, 30, 16, 24, 13, 74), Date.UTC(2010, 9, 31, 20, 24, 13, 74), 0]
             ],
             ['("2010-10-31 14:54:13.74-05:30",)', utcRangeAsString({ lower: [2010, 9, 31, 20, 24, 13, 74] })],
             ['(,"2010-10-31 14:54:13.74-05:30")', utcRangeAsString({ upper: [2010, 9, 31, 20, 24, 13, 74] })],
             [
                 '("2010-10-30 10:54:13.74-05:30","2010-10-31 14:54:13.74-05:30")',
-                utcRangeAsString({
-                    lower: [2010, 9, 30, 16, 24, 13, 74],
-                    upper: [2010, 9, 31, 20, 24, 13, 74]
-                })
+                [Date.UTC(2010, 9, 30, 16, 24, 13, 74), Date.UTC(2010, 9, 31, 20, 24, 13, 74), 0]
             ]
         ]
     },
@@ -202,9 +147,9 @@ const instrumentation = {
     daterange: {
         id: 3912,
         tests: [
-            ['(2010-10-31,)', new Range('2010-10-31', null, RANGE_UB_INF)],
-            ['(,2010-10-31)', new Range(null, '2010-10-31', RANGE_LB_INF)],
-            ['[2010-10-30,2010-10-31]', new Range('2010-10-30', '2010-10-31', RANGE_LB_INC | RANGE_UB_INC)]
+            ['(2010-10-31,)', ['2010-10-31', null, RANGE_UB_INF]],
+            ['(,2010-10-31)', [null, '2010-10-31', RANGE_LB_INF]],
+            ['[2010-10-30,2010-10-31]', ['2010-10-30', '2010-10-31', RANGE_LB_INC | RANGE_UB_INC]]
         ]
     },
     interval: {

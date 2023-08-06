@@ -1,4 +1,4 @@
-import type { BinaryArrayTerminals } from '@types';
+import type { BinaryArrayTerminals } from '@pg-types/types';
 import { decoder } from '@helpers';
 
 export default function parseArray(value: DataView) {

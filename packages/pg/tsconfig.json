@@ -23,7 +23,8 @@
         "paths": {
             "@helpers": ["helpers.ts"],
             "@pg-types/*": ["pg-types/*"],
-            "@test-helpers": ["test-helpers.ts"]
+            "@test-helpers": ["test-helpers.ts"],
+            "@constants": ["constants.ts"]
         },
         "resolveJsonModule": true,
         "types": ["node", "jest"],
