@@ -8,9 +8,9 @@ function readDigit(buffer: DataView, index: number) {
     return digit;
 }
 
-function readNumeric(buffer: DataView): string {
+function readNumeric(buffer: DataView) {
     const ndigits = buffer.getUint16(0);
-    let weight = buffer.getUint16(2);
+    let weight = buffer.getInt16(2);
     const sign = buffer.getUint16(4);
     const dscale = buffer.getUint16(6);
 
@@ -23,7 +23,6 @@ function readNumeric(buffer: DataView): string {
         signText = '-';
         isNegativeZero = true;
     } else if (sign === 0xc000) {
-        signText = '-';
         return 'NaN';
     } else {
         throw new RangeError('Invalid numeric sign: 0x' + sign.toString(16));

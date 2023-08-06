@@ -1,4 +1,4 @@
-#binary,expected
+binary,expected
 0000ffff00000001,0.0
 0000000040000000,0
 0000ffff00000000,0
