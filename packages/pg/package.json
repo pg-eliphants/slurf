@@ -62,7 +62,8 @@
         }
     },
     "scripts": {
-        "test": "vitest --coverage --run"
+        "test": "vitest --coverage --run",
+        "pretty": "prettier -w ."
     },
     "contributes": {
         "typescriptServerPlugins": [

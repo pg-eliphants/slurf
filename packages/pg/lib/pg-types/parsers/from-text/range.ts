@@ -3,7 +3,7 @@ import { EMPTY, INFINITY, RANGE_EMPTY, RANGE_LB_INC, RANGE_UB_INC, RANGE_LB_INF,
 export class RangeError extends Error {}
 
 const scalarTypes = ['number', 'string', 'bigint', 'boolean'];
-export function isEqual(jsObject: any, out: any) {
+export function isEqual<T, K>(jsObject: T, out: K): boolean {
     if (
         scalarTypes.includes(typeof jsObject) ||
         jsObject === null ||
@@ -11,7 +11,7 @@ export function isEqual(jsObject: any, out: any) {
         jsObject === Infinity ||
         jsObject === -Infinity
     ) {
-        return jsObject === out;
+        return jsObject === (out as unknown as T);
     }
     if (jsObject instanceof Date) {
         if (typeof out === 'number') {

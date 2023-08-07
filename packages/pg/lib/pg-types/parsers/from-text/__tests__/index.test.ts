@@ -25,15 +25,16 @@ describe('scalar type parsing, text -> js', () => {
                 const _in = test[0] as string;
                 const _out = test[1];
                 it(name + '->' + _in, () => {
-                    if (name === 'tstzrange') {
+                    if (name === 'bytea') {
                         const a = 1;
                         console.log(a);
                     }
-                    const result = parser(_in as string);
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+                    const result = parser(_in);
                     if (!isEqual(result, _out)) {
                         console.info(`not equal for ${name}, in=${_in} resul=${result}, out=${_out}`);
                     }
-                    //expect(_out).toEqual(result);
+                    expect(isEqual(result, _out)).toBeTruthy();
                 });
             }
         });

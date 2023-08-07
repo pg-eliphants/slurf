@@ -46,7 +46,8 @@ module.exports = {
                 '@typescript-eslint/no-var-requires': 0,
                 '@typescript-eslint/no-loss-of-precision': 0,
                 '@typescript-eslint/require-await': 0,
-                '@typescript-eslint/no-floating-promises': 0
+                '@typescript-eslint/no-floating-promises': 0,
+                '@typescript-eslint/prefer-as-const': 'error'
             }
         }
     ]
