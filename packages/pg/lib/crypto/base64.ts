@@ -38,10 +38,13 @@ function toBase64(bytes: Uint8Array): string {
         encoded[i + 2] = encodeLookup[(y >> 6) & 0x3f];
         encoded[i + 3] = encodeLookup[y & 0x3f];
     }
-
-    let base64 = decoder.decode(new Uint8Array(encoded.buffer, 0, n));
-    if (k === 1) base64 += '==';
-    if (k === 2) base64 += '=';
+    const base64 = decoder.decode(new Uint8Array(encoded.buffer, 0, n));
+    if (k === 1) {
+        return base64 + '==';
+    }
+    if (k === 2) {
+        return base64 + '=';
+    }
     return base64;
 }
 
