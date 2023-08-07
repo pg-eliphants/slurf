@@ -103,9 +103,21 @@ export function isEqual(jsObject: any, out: any) {
         return false;
     }
     if (jsObject instanceof Range) {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         const [arg0, arg1, arg2] = out;
-        const expected = new Range(arg0, arg1, arg2);
+        const expected = new Range(arg0, arg1, arg2 as number);
         return jsObject.equals(expected);
+    }
+    if (jsObject instanceof Uint8Array && (Array.isArray(out) || out instanceof Uint8Array)) {
+        if (jsObject.length !== out.length) {
+            return false;
+        }
+        for (let i = 0; i < jsObject.length; i++) {
+            if (jsObject[i] !== out[i]) {
+                return false;
+            }
+        }
+        return true;
     }
     return false;
 }

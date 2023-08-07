@@ -10,7 +10,7 @@ export type UTCParams = {
 
 export type UTCArgs = Parameters<typeof Date.UTC>;
 
-export function utcStringFromDate(utc: UTCArgs) {
+export function utcStringFromDate(utc: UTCArgs): string {
     /**
      * Returns the number of milliseconds between midnight, January 1, 1970 Universal Coordinated Time (UTC) (or GMT) and the specified date.
      * @param year The full year designation is required for cross-century date accuracy. If year is between 0 and 99 is used, then year is assumed to be 1900 + year.
@@ -37,7 +37,7 @@ export function utcRangeAsString({ lower, upper }: { lower?: UTCArgs; upper?: UT
     return rc;
 }
 
-export function dateEquals(time1: UTCParams, time2: UTCParams) {
+export function dateEquals(time1: UTCParams, time2: UTCParams): boolean {
     let ts1 = 0,
         ts2 = 0;
     {

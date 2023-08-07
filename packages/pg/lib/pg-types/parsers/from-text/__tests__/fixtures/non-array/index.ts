@@ -126,21 +126,21 @@ const instrumentation = {
     tsrange: {
         id: 3908,
         tests: [
-            ['(2010-10-31 14:54:13.74,)', utcRangeAsString({ lower: [2010, 9, 31, 14, 54, 13, 740] })],
-            ['(2010-10-31 14:54:13.74,infinity)', utcRangeAsString({ lower: [2010, 9, 31, 14, 54, 13, 74] })],
-            ['(,2010-10-31 14:54:13.74)', utcRangeAsString({ upper: [2010, 9, 31, 14, 54, 13, 74] })],
-            ['(-infinity,2010-10-31 14:54:13.74)', utcRangeAsString({ upper: [2010, 9, 31, 14, 54, 13, 74] })],
+            ['(2010-10-31 14:54:13.74,)', [Date.UTC(2010, 9, 31, 14, 54, 13, 740), null, RANGE_UB_INF]],
+            ['(2010-10-31 14:54:13.74,infinity)', [Date.UTC(2010, 9, 31, 14, 54, 13, 740), null, RANGE_UB_INF]],
+            ['(,2010-10-31 14:54:13.74)', [null, Date.UTC(2010, 9, 31, 14, 54, 13, 740), RANGE_LB_INF]],
+            ['(-infinity,2010-10-31 14:54:13.74)', [null, Date.UTC(2010, 9, 31, 14, 54, 13, 740), RANGE_LB_INF]],
             [
                 '(2010-10-30 10:54:13.74,2010-10-31 14:54:13.74)',
-                utcRangeAsString({ lower: [2010, 9, 30, 10, 54, 13, 74], upper: [2010, 9, 31, 14, 54, 13, 74] })
+                [Date.UTC(2010, 9, 30, 10, 54, 13, 740), Date.UTC(2010, 9, 31, 14, 54, 13, 740), 0]
             ],
-            ['("2010-10-31 14:54:13.74",)', utcRangeAsString({ lower: [2010, 9, 31, 14, 54, 13, 74] })],
-            ['("2010-10-31 14:54:13.74",infinity)', utcRangeAsString({ lower: [2010, 9, 31, 14, 54, 13, 74] })],
-            ['(,"2010-10-31 14:54:13.74")', utcRangeAsString({ upper: [2010, 9, 31, 14, 54, 13, 74] })],
-            ['(-infinity,"2010-10-31 14:54:13.74")', utcRangeAsString({ upper: [2010, 9, 31, 14, 54, 13, 74] })],
+            ['("2010-10-31 14:54:13.74",)', [Date.UTC(2010, 9, 31, 14, 54, 13, 740), null, RANGE_UB_INF]],
+            ['("2010-10-31 14:54:13.74",infinity)', [Date.UTC(2010, 9, 31, 14, 54, 13, 740), null, RANGE_UB_INF]],
+            ['(,"2010-10-31 14:54:13.74")', [null, Date.UTC(2010, 9, 31, 14, 54, 13, 740), RANGE_LB_INF]],
+            ['(-infinity,"2010-10-31 14:54:13.74")', [null, Date.UTC(2010, 9, 31, 14, 54, 13, 740), RANGE_LB_INF]],
             [
                 '("2010-10-30 10:54:13.74","2010-10-31 14:54:13.74")',
-                utcRangeAsString({ lower: [2010, 9, 30, 10, 54, 13, 74], upper: [2010, 9, 31, 14, 54, 13, 74] })
+                [Date.UTC(2010, 9, 30, 10, 54, 13, 740), Date.UTC(2010, 9, 31, 14, 54, 13, 740), 0]
             ]
         ]
     },
@@ -155,7 +155,18 @@ const instrumentation = {
     interval: {
         id: 1186, //interval
         tests: [
-            ['01:02:03', 'toPostgres: 3 seconds 2 minutes 1 hours'],
+            [
+                '01:02:03',
+                {
+                    years: 0,
+                    months: 0,
+                    days: 0,
+                    hours: 1,
+                    minutes: 2,
+                    seconds: 3,
+                    milliseconds: 0
+                }
+            ],
             [
                 '01:02:03.456',
                 {
@@ -168,8 +179,8 @@ const instrumentation = {
                     milliseconds: 456
                 }
             ],
-            ['1 year -32 days', 'toPostgres: -32 days 1 years'],
-            ['1 day -00:00:03', '-3 seconds 1 days']
+            ['1 year -32 days', { years: 1, months: 0, days: -32, hours: 0, minutes: 0, seconds: 0, milliseconds: 0 }],
+            ['1 day -00:00:03', { years: 0, months: 0, days: 1, hours: 0, minutes: 0, seconds: -3, milliseconds: 0 }]
         ]
     },
     bytea: {

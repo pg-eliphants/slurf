@@ -1,4 +1,4 @@
-type IntervalContext = {
+export type IntervalContext = {
     years: number;
     months: number;
     days: number;
@@ -28,6 +28,17 @@ type ReturnType =
       })
     | undefined;
 
+export function isEqual(i1: IntervalContext, i2: IntervalContext): boolean {
+    return (
+        i1.years === i2.years &&
+        i1.months === i2.months &&
+        i1.days === i2.days &&
+        i1.hours === i2.hours &&
+        i1.minutes === i2.minutes &&
+        i1.seconds === i2.seconds &&
+        i2.milliseconds === i2.milliseconds
+    );
+}
 export default function parseInterval(interval: string | Partial<IntervalContext>): ReturnType {
     const position = {
         value: 0
@@ -190,7 +201,7 @@ export default function parseInterval(interval: string | Partial<IntervalContext
             }
 
             if (ctx.milliseconds) {
-                const value = Math.trunc((ctx.seconds + ctx.milliseconds / 1000) * 1000000) / 1000000;
+                const value = Math.trunc((ctx.seconds + ctx.milliseconds / 1_000) * 1_000_000) / 1_000_000;
 
                 postgresString += value === 1 ? value + ' second' : value + ' seconds';
             } else {
