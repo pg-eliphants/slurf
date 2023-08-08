@@ -3,9 +3,9 @@ import parseArray from './array';
 import parseDate from './dates';
 import parseInterval from './interval';
 import byteaToBinary from './decode';
-import parseRange, { Range } from './range';
+import parseRange from './range';
 
-import { parseBool, parseBigInteger, parsePoint, parseCircle } from './parse-array-transform-helpers';
+import { parseBool, parsePoint, parseCircle } from './parse-array-transform-helpers';
 
 // this is "circular" reference
 export type PropRecord = Record<string, string | number> | SubObject;
@@ -21,7 +21,7 @@ function parseIntegerArray(value: string) {
 }
 
 function parseBigIntegerArray(value: string) {
-    return parseArray(value, parseBigInteger);
+    return parseArray(value, BigInt);
 }
 
 function parsePointArray(value: string) {
@@ -70,7 +70,7 @@ function parseNumRange(raw: string) {
 }
 
 function parseInt8Range(raw: string) {
-    return parseRange(raw, parseBigInteger);
+    return parseRange(raw, BigInt);
 }
 
 function parseTimestampRange(raw: string) {
@@ -79,47 +79,6 @@ function parseTimestampRange(raw: string) {
 
 function parseTimestampTzRange(raw: string) {
     return parseRange(raw, parseDate);
-}
-
-const scalarTypes = ['number', 'string', 'bigint', 'boolean'];
-
-export function isEqual(jsObject: any, out: any) {
-    if (
-        scalarTypes.includes(typeof jsObject) ||
-        jsObject === null ||
-        jsObject === undefined ||
-        jsObject === Infinity ||
-        jsObject === -Infinity
-    ) {
-        return jsObject === out;
-    }
-    if (jsObject instanceof Date) {
-        if (typeof out === 'number') {
-            return jsObject.valueOf() === out;
-        }
-        if (typeof out === 'string') {
-            return jsObject.valueOf() === new Date(out).valueOf();
-        }
-        return false;
-    }
-    if (jsObject instanceof Range) {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        const [arg0, arg1, arg2] = out;
-        const expected = new Range(arg0, arg1, arg2 as number);
-        return jsObject.equals(expected);
-    }
-    if (jsObject instanceof Uint8Array && (Array.isArray(out) || out instanceof Uint8Array)) {
-        if (jsObject.length !== out.length) {
-            return false;
-        }
-        for (let i = 0; i < jsObject.length; i++) {
-            if (jsObject[i] !== out[i]) {
-                return false;
-            }
-        }
-        return true;
-    }
-    return false;
 }
 
 /**
@@ -318,13 +277,13 @@ auth_db=> select 'int4multirange'::regtype::oid;
 */
 
 type TextMap = {
-    [index: number]: (raw: string) => any;
+    [index: number]: (raw: string) => unknown;
 };
 
 const textMap: TextMap = {
     [16]: parseBool,
     [17]: byteaToBinary,
-    [20]: parseBigInteger,
+    [20]: BigInt,
     [21]: Number,
     [23]: Number,
     [26]: Number,

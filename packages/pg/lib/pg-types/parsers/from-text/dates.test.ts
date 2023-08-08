@@ -1,14 +1,21 @@
 import parseDate from './dates';
-import parseDateOriginal from './dates.original';
 
-function ms(str: string) {
+export function ms(str: string): number {
     const base = '2010-01-01 01:01:01';
-    const dt: Date = parseDate(base + str) as Date;
+    const dt: Date = new Date(parseDate(base + str)!);
     return dt.getMilliseconds();
 }
 
-function iso(str: string) {
-    return (parseDate(str) as Date).toISOString();
+function iso(date: string): string {
+    return new Date(parseDate(date)!).toISOString();
+}
+
+function asNumber(date: string): number {
+    return asDate(date).valueOf();
+}
+
+function asDate(date: string): Date {
+    return new Date(date);
 }
 
 describe('pg-dates', function () {
@@ -19,60 +26,40 @@ describe('pg-dates', function () {
         });
     });
     describe('proper working', function () {
-        it.skip('regression test', () => {
-            const d1 = parseDateOriginal('2010-10-31 14:54:13.74-05:30') as Date;
-            const d1h = d1.getHours();
-            const d1m = d1.getMinutes();
-            const d1s = d1.getSeconds();
-            const d1ms = d1.getMilliseconds();
-
-            const asUtc = Date.UTC(2010, 9, 31, 20, 24, 13, 74);
-            const d2 = new Date();
-            d2.setUTCFullYear(2010);
-            d2.setUTCMonth(9);
-            d2.setUTCDate(31);
-            d2.setUTCHours(20);
-            d2.setUTCMinutes(24);
-            d2.setUTCSeconds(13);
-            d2.setUTCMilliseconds(74);
-            const asutc2 = d2.valueOf();
-
-            expect(d1).toEqual(d2);
-        });
         it('2010-12-11 09:09:04', function () {
             const ans = parseDate('2010-12-11 09:09:04');
-            expect(ans).toEqual(new Date('2010-12-11 09:09:04'));
+            expect(ans).toEqual(asNumber('2010-12-11 09:09:04'));
         });
         it('2011-12-11 09:09:04 BC', function () {
             const ans = parseDate('2011-12-11 09:09:04 BC');
-            expect(ans).toEqual(new Date('-002010-12-11T09:09:04'));
+            expect(ans).toEqual(asNumber('-002010-12-11T09:09:04'));
         });
         it('0001-12-11 09:09:04 BC', function () {
             const ans = parseDate('0001-12-11 09:09:04 BC');
-            expect(ans).toEqual(new Date('0000-12-11T09:09:04'));
+            expect(ans).toEqual(asNumber('0000-12-11T09:09:04'));
         });
         it('0001-12-11 09:09:04 BC', function () {
             const ans = parseDate('0001-12-11 09:09:04 BC');
-            expect(ans).toEqual(new Date('0000-12-11T09:09:04'));
+            expect(ans).toEqual(asNumber('0000-12-11T09:09:04'));
         });
         it('0001-12-11 BC', function () {
-            const ans = parseDate('0001-12-11 BC') as Date;
+            const ans = new Date(parseDate('0001-12-11 BC')!);
             expect(ans.getFullYear()).toBe(0);
         });
         it('0013-06-01', function () {
-            const ans = parseDate('0013-06-01') as Date;
+            const ans = new Date(parseDate('0013-06-01')!);
             expect(ans.getFullYear()).toBe(13);
         });
         it('0001-12-11 BC', function () {
-            const ans = parseDate('0001-12-11 BC') as Date;
+            const ans = new Date(parseDate('0001-12-11 BC')!);
             expect(ans.getFullYear()).toBe(0);
         });
         it('0013-06-01', function () {
-            const ans = parseDate('0013-06-01') as Date;
+            const ans = new Date(parseDate('0013-06-01')!);
             expect(ans.getFullYear()).toBe(13);
         });
         it('1800-06-01', function () {
-            const ans = parseDate('1800-06-01') as Date;
+            const ans = new Date(parseDate('1800-06-01')!);
             expect(ans.getFullYear()).toBe(1800);
         });
         it('.1 is 100ms', function () {

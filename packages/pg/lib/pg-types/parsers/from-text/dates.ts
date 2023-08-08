@@ -227,7 +227,7 @@ function readDate(ctx: ParseContext) {
     return { year, month, day };
 }
 
-function parseISODate(isoDate: string): Date | null {
+function parseISODate(isoDate: string): number | null {
     const ctx = {
         pos: 0,
         len: isoDate.length,
@@ -268,21 +268,21 @@ function parseISODate(isoDate: string): Date | null {
         if (tzOffset !== 0) {
             jsDate.setTime(jsDate.getTime() - tzOffset);
         }
-        return jsDate;
+        return jsDate.valueOf();
     }
 
     const jsDate = new Date(date.year, date.month, date.day, time.hours, time.minutes, time.seconds, time.milliseconds);
     if (date.year <= 99 && date.year >= -99) {
         jsDate.setFullYear(date.year);
     }
-    return jsDate;
+    return jsDate.valueOf();
 }
 
-export default function parseDate(isoDate: string): number | Date | null {
+export default function parseDate(isoDate: string): number | null {
     return (
-        (isoDate && parseISODate(isoDate)) ||
         +(isoDate === 'infinity') * Infinity ||
         -(isoDate === '-infinity') * Infinity ||
+        (isoDate && parseISODate(isoDate)) ||
         null
     );
 }

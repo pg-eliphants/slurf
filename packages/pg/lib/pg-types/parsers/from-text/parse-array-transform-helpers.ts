@@ -1,4 +1,4 @@
-export function absorbTill(v: string, pos: number, token: string) {
+export function absorbTill(v: string, pos: number, token: string): string {
     let i = pos;
     const len = v.length;
     for (; i < len && v[i] !== token; i++);
@@ -8,7 +8,7 @@ export function absorbTill(v: string, pos: number, token: string) {
     return v.slice(pos, len);
 }
 
-export function parseBool(value: string) {
+export function parseBool(value: string): boolean {
     return (
         value === 'TRUE' ||
         value === 't' ||
@@ -26,15 +26,14 @@ export function parseBool(value: string) {
 // String(Number.MAX_SAFE_INTEGER) -> '9007199254740991'
 // Note Math.log2(1E19) = 63.1166 far beyond the safe integer MAX_SAFE_INTEGER (53 bits)
 
-export function parseBigInteger(value: string) {
-    const valStr = String(value).trim();
-    if (/^\d+$/.test(valStr)) {
-        return valStr;
-    }
-    return value.trim();
-}
+export type Point = {
+    x: number;
+    y: number;
+};
 
-export function parsePoint(value: string) {
+export type Circle = Point & { r: number };
+
+export function parsePoint(value: string): Point | null {
     if (value[0] !== '(') {
         return null;
     }
@@ -55,7 +54,7 @@ export function parsePoint(value: string) {
 }
 
 // circle looks like this "<(x,y),r>"
-export function parseCircle(value: string) {
+export function parseCircle(value: string): Circle | null {
     if (value[0] !== '<' && value[1] !== '(') {
         return null;
     }

@@ -1,8 +1,17 @@
 import fixture from './fixtures/non-array';
-import textMap, { isEqual as isEqualFallback } from '../index';
+import textMap from '../index';
 import { isEqual as isEqualInterval } from '../interval';
 import { Range } from '../range';
-const equality: { [index: string]: unknown } = {
+
+function fallBack<T extends string | number | bigint | boolean>(a: T, b: T): boolean {
+    return a === b;
+}
+
+function range<T extends string | number | bigint>(r1: Range<T>, r2: [null | T, null | T, number]): boolean {
+    return r2[0] === r1.lower && r2[1] === r1.upper && r2[2] === r1.mask;
+}
+
+const equality = {
     interval: isEqualInterval,
     tsrange: (r1: Range<Date>, r2: number[]) => {
         return (
@@ -10,8 +19,37 @@ const equality: { [index: string]: unknown } = {
             r2[1] === (r1.upper ? r1.upper.valueOf() : r1.upper) &&
             r2[2] === r1.mask
         );
+    },
+    int8: fallBack<bigint>,
+    int4: fallBack<number>,
+    int2: fallBack<number>,
+    oid: fallBack<number>,
+    boolean: fallBack<boolean>,
+    float4: fallBack<number>,
+    float8: fallBack<number>,
+    timestamptz: fallBack<number>,
+    timestamp(a: number, b: string): boolean {
+        return a === new Date(b).valueOf();
+    },
+    numrange: range<number>,
+    int4range: range<number>,
+    int8range: range<bigint>,
+    tstzrange: range<number>,
+    daterange: range<string>,
+    bytea(b1: Uint8Array, b2: Uint8Array | number[]): boolean {
+        if (b1.length !== b2.length) {
+            return false;
+        }
+        for (let i = 0; i < b1.length; i++) {
+            if (b1[i] !== b2[i]) {
+                return false;
+            }
+        }
+        return true;
     }
 };
+
+type KeyMap = keyof typeof equality;
 
 describe('scalar type parsing, text -> js', () => {
     it('check if all fixtures have a corresponsing parser', () => {
@@ -25,7 +63,7 @@ describe('scalar type parsing, text -> js', () => {
         expect(missing).toEqual([]);
     });
     for (const entries of Object.entries(fixture)) {
-        const name = entries[0];
+        const name = entries[0] as KeyMap;
         const { id, tests } = entries[1];
         if (!textMap[id]) {
             continue;
@@ -33,26 +71,12 @@ describe('scalar type parsing, text -> js', () => {
         // create testcase
         const parser = textMap[id];
         describe(name, () => {
-            console.log(name);
             for (const test of tests) {
                 const _in = test[0] as string;
-                const _out = test[1];
+                const _out = test[1] as never;
                 it(name + '->' + _in, () => {
-                    //if (name === 'tsrange') {
-                    //    const a = 1;
-                    //    console.log(a);
-                    //}
-                    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-                    const result = parser(_in);
-
-                    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-                    const isEqual = equality[name] || isEqualFallback;
-
-                    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-                    if (!isEqual(result, _out)) {
-                        console.info(`not equal for ${name}, in=${_in} resul=${result}, out=${_out}`);
-                    }
-                    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+                    const result = parser(_in) as never;
+                    const isEqual = equality[name];
                     expect(isEqual(result, _out)).toBeTruthy();
                 });
             }

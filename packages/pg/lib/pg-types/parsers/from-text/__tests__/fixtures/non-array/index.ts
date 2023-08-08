@@ -1,27 +1,27 @@
 import { RANGE_EMPTY, RANGE_LB_INC, RANGE_LB_INF, RANGE_UB_INF, RANGE_UB_INC } from '@constants';
 
 const instrumentation = {
-    ['integer/int4']: {
+    int4: {
         id: 23, // "int4"
         tests: [['2147483647', 2147483647]]
     },
-    ['smallint/int2']: {
+    int2: {
         id: 21, // int2
         tests: [['32767', 32767]]
     },
-    ['bigint/int8']: {
+    int8: {
         id: 20, // int8
-        tests: [['9223372036854775807', '9223372036854775807']]
+        tests: [['9223372036854775807', 9223372036854775807n]]
     },
     oid: {
         id: 26, // oid (=int32)
         tests: [['103', 103]]
     },
-    ['real/float4']: {
+    float4: {
         id: 700, // numeric
         tests: [['123.456', 123.456]]
     },
-    'double precision / float 8': {
+    float8: {
         id: 701, // float8
         tests: [['12345678.12345678', 12345678.12345678]]
     },
@@ -93,21 +93,19 @@ const instrumentation = {
         tests: [
             ['empty', [null, null, RANGE_EMPTY]],
             ['(,)', [null, null, RANGE_LB_INF | RANGE_UB_INF]],
-            ['(1,)', ['1', null, RANGE_UB_INF]],
-            ['(,1)', [null, '1', RANGE_LB_INF]],
-            ['(0,5)', ['0', '5', 0]],
-            ['(,1]', [null, '1', RANGE_LB_INF | RANGE_UB_INC]],
-            ['[1,)', ['1', null, RANGE_LB_INC | RANGE_UB_INF]],
-            ['[0,5)', ['0', '5', RANGE_LB_INC]],
-            ['(0,5]', ['0', '5', RANGE_UB_INC]],
-            ['[0,5]', ['0', '5', RANGE_LB_INC | RANGE_UB_INC]]
+            ['(1,)', [1n, null, RANGE_UB_INF]],
+            ['(,1)', [null, 1n, RANGE_LB_INF]],
+            ['(0,5)', [0n, 5n, 0]],
+            ['(,1]', [null, 1n, RANGE_LB_INF | RANGE_UB_INC]],
+            ['[1,)', [1n, null, RANGE_LB_INC | RANGE_UB_INF]],
+            ['[0,5)', [0n, 5n, RANGE_LB_INC]],
+            ['(0,5]', [0n, 5n, RANGE_UB_INC]],
+            ['[0,5]', [0n, 5n, RANGE_LB_INC | RANGE_UB_INC]]
         ]
     },
     tstzrange: {
         id: 3910, // tstzrange
         tests: [
-            //jsObject.valueOf()
-            //  20:24:13.74
             ['(2010-10-31 14:54:13.74-05:30,)', [Date.UTC(2010, 9, 31, 20, 24, 13, 740), null, RANGE_UB_INF]],
             ['(,2010-10-31 14:54:13.74-05:30)', [null, Date.UTC(2010, 9, 31, 20, 24, 13, 740), RANGE_LB_INF]],
             [
