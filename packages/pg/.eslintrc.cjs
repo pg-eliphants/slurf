@@ -13,7 +13,6 @@ module.exports = {
         ecmaVersion: 2020,
         requireConfigFile: false,
         sourceType: 'module',
-        extraFileExtensions: ['.mjs', '.cjs'],
         babelOptions: {
             parserOpts: {
                 plugins: ['importAssertions']
@@ -24,7 +23,7 @@ module.exports = {
 
     overrides: [
         {
-            files: [tsFilePattern, './vitest.config.ts'],
+            files: [tsFilePattern],
             parser: '@typescript-eslint/parser',
             parserOptions: {
                 ecmaVersion: 2020,

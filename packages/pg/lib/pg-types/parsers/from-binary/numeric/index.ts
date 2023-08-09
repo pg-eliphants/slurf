@@ -8,7 +8,7 @@ function readDigit(buffer: DataView, index: number) {
     return digit;
 }
 
-function readNumeric(buffer: DataView) {
+function readNumeric(buffer: DataView): string {
     const ndigits = buffer.getUint16(0);
     let weight = buffer.getInt16(2);
     const sign = buffer.getUint16(4);

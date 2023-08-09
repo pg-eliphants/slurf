@@ -1,13 +1,12 @@
 const instrumentation = {
     varchar: {
         id: 1043, // varchar
-        // the first is supposed to be 'bang' in ascii 🤣
-        tests: [['bang', 'bang']]
+        tests: [[Uint8Array.from([104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100]), 'hello world']]
     },
     int4: {
         id: 23, // int4
         // 100 in big endian format
-        tests: [[[0, 0, 0, 100], 100]]
+        tests: [[Uint8Array.from([0, 0, 0, 100]), 100]]
     },
     int8: {
         id: 20, // int8, 64bit  int
@@ -21,27 +20,27 @@ const instrumentation = {
         tests: [[[0, 0, 0, 103], 103]]
     },
     numeric: {
-        id: 1700,
+        id: 1700, // numeric
         tests: [
             [
-                [0, 2, 0, 0, 0, 0, 0, 0x64, 0, 12, 0xd, 0x48],
+                Uint8Array.from([0, 2, 0, 0, 0, 0, 0, 0x64, 0, 12, 0xd, 0x48]),
                 '12.3400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000'
             ]
         ]
     },
     float4: {
         id: 700, //float4, fp32
-        tests: [[[0x41, 0x48, 0x00, 0x00], 12.5]]
+        tests: [[Uint8Array.from([0x41, 0x48, 0x00, 0x00]), 12.5]]
     },
     boolean: {
-        id: 16, // boolean, takes 1 byte storage
+        id: 16, // bool, takes 1 byte storage
         tests: [
-            [[1], true],
-            [[0], false]
+            [Uint8Array.from([1]), true],
+            [Uint8Array.from([0]), false]
         ]
     },
     string: {
-        id: 25,
+        id: 25, // text
         tests: [[Uint8Array.from([0x73, 0x6c, 0x61, 0x64, 0x64, 0x61]), 'sladda']]
     }
 };

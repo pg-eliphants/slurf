@@ -3,6 +3,9 @@ export type EntryTerminal<T> = string | null | T;
 export type EntryTerminals<T> = (EntryTerminal<T> | EntryTerminal<T>[])[];
 export type Entries<T> = EntryTerminals<T> | SubEntries<T>;
 
-export type BinaryArrayTerminal = number | bigint | string | null | BinaryArray;
-export type BinaryArrayTerminals = (BinaryArrayTerminal | BinaryArrayTerminal[])[];
-export type BinaryArray = BinaryArrayTerminals;
+export type BinaryArrayTerminal<T extends boolean | number | bigint | string | null> = T | BinaryArray<T>;
+export type BinaryArray<T extends boolean | number | bigint | string | null> = BinaryArrayTerminals<T>;
+export type BinaryArrayTerminals<T extends boolean | number | bigint | string | null> = (
+    | BinaryArrayTerminal<T>
+    | BinaryArrayTerminal<T>[]
+)[];

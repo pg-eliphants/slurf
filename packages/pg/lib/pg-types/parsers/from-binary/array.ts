@@ -1,7 +1,9 @@
 import type { BinaryArrayTerminals } from '@pg-types/types';
 import { decoder } from '@helpers';
 
-export default function parseArray(value: DataView) {
+export default function parseArray<T extends boolean | number | bigint | string | null>(
+    value: DataView
+): BinaryArrayTerminals<T> {
     const dim = value.getInt32(0);
     // skip value.getInt32(4);
     const elementType = value.getUint32(8);
@@ -15,14 +17,14 @@ export default function parseArray(value: DataView) {
         offset += 8;
     }
 
-    const parseElement = function (elementType: number) {
+    const parseElement = function (elementType: number): T {
         // parse content length
         const length = value.getUint32(offset);
         offset += 4;
 
         // parse null values
         if (length === -1) {
-            return null;
+            return null as T;
         }
 
         let result: number | bigint | string;
@@ -30,16 +32,16 @@ export default function parseArray(value: DataView) {
             // int
             result = value.getUint32(offset);
             offset += length;
-            return result;
+            return result as T;
         } else if (elementType === 0x14) {
             // bigint
             const bigIntDataView = new DataView(value.buffer, offset, length);
             result = bigIntDataView.getBigInt64(0);
-            return result;
+            return result as T;
         } else if (elementType === 0x19) {
             // string
             result = decoder.decode(value.buffer.slice(offset, (offset += length)));
-            return result;
+            return result as T;
         } else {
             throw new Error('ElementType not implemented: ' + elementType);
         }
@@ -47,7 +49,7 @@ export default function parseArray(value: DataView) {
 
     // this is so weird, its like inversion
     function parse(dimension: Uint32Array, elementType: number, cursor = 0) {
-        const array: BinaryArrayTerminals = [];
+        const array: BinaryArrayTerminals<T> = [];
         let i;
 
         if (cursor < dimension.length - 1) {

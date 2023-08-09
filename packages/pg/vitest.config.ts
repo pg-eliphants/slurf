@@ -20,9 +20,7 @@ export default defineConfig({
         testTimeout: 1e9,
         silent: false,
         isolate: true,
-        reporters: [
-            /*'verbose'*/
-        ]
+        reporters: ['verbose']
     },
     resolve: {
         alias: {

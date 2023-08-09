@@ -1,5 +1,5 @@
 {
-    "include": ["./lib/**/*.ts", "./vitetest.config.ts"],
+    "include": ["./lib/**/*.ts"],
     "exclude": ["node_modules"],
     "typeAcquisition": {
         "enable": true,

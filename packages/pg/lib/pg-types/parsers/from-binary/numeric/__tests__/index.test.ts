@@ -1,47 +1,50 @@
 import path from 'node:path';
 
 import { loadData } from '@test-helpers';
+import type { LineInfo } from '@test-helpers';
 import decode from '@pg-types/parsers/from-text/decode';
 import readNumeric from '../index';
 
 describe('numeric', function () {
-    describe('consistent interpretations', async () => {
-        const fixture = await loadData(path.resolve(__dirname, 'fixtures/binary.csv'));
-        for (const testData of fixture) {
-            const { err, input, output, cnt } = testData;
-            if (!output) {
-                throw new Error(`line: ${cnt} has no control-data`);
+    describe('consistent interpretations', () => {
+        return loadData(path.resolve(__dirname, 'fixtures/binary.csv')).then((fixture: LineInfo[]) => {
+            for (const testData of fixture) {
+                const { err, input, output, cnt } = testData;
+                if (!output) {
+                    throw new Error(`line: ${cnt} has no control-data`);
+                }
+                if (testData.err) {
+                    throw new Error(`line ${cnt}, err=${err}`);
+                }
+                const name = output.length > 25 ? output.slice(0, 22) + '...' : output;
+                it(name, () => {
+                    const bin = decode('\\x' + input);
+                    const dataView = new DataView(bin.buffer);
+                    const result = readNumeric(dataView);
+                    expect(result).toBe(output);
+                });
             }
-            if (testData.err) {
-                throw new Error(`line ${cnt}, err=${err}`);
-            }
-            const name = output.length > 25 ? output.slice(0, 22) + '...' : output;
-            it(name, () => {
-                const bin = decode('\\x' + input);
-                const dataView = new DataView(bin.buffer);
-                const result = readNumeric(dataView);
-                expect(result).toBe(output);
-            });
-        }
+        }) as unknown as void;
     });
-    describe('decimal round trips', async () => {
-        const fixture = await loadData(path.resolve(__dirname, 'fixtures/decimal.csv'));
-        for (const testData of fixture) {
-            const { err, input, output, cnt } = testData;
-            if (!output) {
-                throw new Error(`line: ${cnt} has no control-data`);
+    describe('decimal round trips', () => {
+        return loadData(path.resolve(__dirname, 'fixtures/decimal.csv')).then((fixture: LineInfo[]) => {
+            for (const testData of fixture) {
+                const { err, input, output, cnt } = testData;
+                if (!output) {
+                    throw new Error(`line: ${cnt} has no control-data`);
+                }
+                if (testData.err) {
+                    throw new Error(`line ${cnt}, err=${err}`);
+                }
+                const name = output.length > 25 ? output.slice(0, 22) + '...' : output;
+                it(name, () => {
+                    const bin = decode('\\x' + input);
+                    const dataView = new DataView(bin.buffer);
+                    const result = readNumeric(dataView);
+                    expect(result).toBe(output);
+                });
             }
-            if (testData.err) {
-                throw new Error(`line ${cnt}, err=${err}`);
-            }
-            const name = output.length > 25 ? output.slice(0, 22) + '...' : output;
-            it(name, () => {
-                const bin = decode('\\x' + input);
-                const dataView = new DataView(bin.buffer);
-                const result = readNumeric(dataView);
-                expect(result).toBe(output);
-            });
-        }
+        }) as unknown as void;
     });
     describe('errors', () => {
         it('trailing data', () => {

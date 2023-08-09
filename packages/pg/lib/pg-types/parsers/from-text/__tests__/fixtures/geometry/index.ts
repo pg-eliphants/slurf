@@ -6,7 +6,7 @@ const intrumentation = {
     circle: {
         format: 'text',
         id: 718, //
-        tests: [['<(25,10),5>', { x: 25, y: 10, radius: 5 }]]
+        tests: [['<(25,10),5>', { x: 25, y: 10, r: 5 }]]
     }
 };
 

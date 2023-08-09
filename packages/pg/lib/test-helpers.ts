@@ -1,7 +1,7 @@
 import { createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';
 
-type LineInfo = { cnt: number; input: string; output?: string; err?: string };
+export type LineInfo = { cnt: number; input: string; output?: string; err?: string };
 
 export function loadData(fullPath: string, sep = /,/): Promise<LineInfo[]> {
     const reader = createInterface({
@@ -48,6 +48,32 @@ export function loadData(fullPath: string, sep = /,/): Promise<LineInfo[]> {
     });
 }
 
+export type RecursiveArray = {
+    length: number;
+    [key: number]: RecursiveArray | number | string | boolean | bigint | null | undefined;
+};
+
+export function isArrayEqual(a: RecursiveArray, b: RecursiveArray): boolean {
+    if (a instanceof ArrayBuffer && b instanceof ArrayBuffer) {
+        return isArrayEqual(new Uint8Array(a), new Uint8Array(b));
+    }
+    if (a.length !== b.length) {
+        return false;
+    }
+    for (let i = 0; i < a.length; i++) {
+        if (Array.isArray(a[i]) && Array.isArray(b[i])) {
+            if (!isArrayEqual(a[i] as RecursiveArray, b[i] as RecursiveArray)) {
+                return false;
+            }
+        }
+        // only scalar types here
+        if (a[i] !== b[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+/*
 export type RecursiveObject = {
     [key: string]: RecursiveObject | number | string | boolean;
 };
@@ -99,3 +125,4 @@ export function isObjectEqual(obj1: RecursiveObject, obj2: RecursiveObject): boo
     }
     return true;
 }
+*/

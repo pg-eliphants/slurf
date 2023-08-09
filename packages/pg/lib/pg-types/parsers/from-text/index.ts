@@ -4,8 +4,9 @@ import parseDate from './dates';
 import parseInterval from './interval';
 import byteaToBinary from './decode';
 import parseRange from './range';
-
-import { parseBool, parsePoint, parseCircle } from './parse-array-transform-helpers';
+import parseBool from './bool';
+import parsePoint from './point';
+import parseCircle from './circle';
 
 // this is "circular" reference
 export type PropRecord = Record<string, string | number> | SubObject;
