@@ -17,8 +17,8 @@ function readInt8(buffer) {
 	// shift the last 4 decimal digits off, producing a safe integer in high:low (2**63 // 10000 is safe)
 	var trail = (7296 * high + low) % 10000;
 	var carry = high % 10000;
-	high = high / 10000 >>> 0;
-	low = (0x100000000 * carry + low) / 10000 >>> 0;
+	high = (high / 10000) >>> 0;
+	low = ((0x100000000 * carry + low) / 10000) >>> 0;
 
 	return sign + (0x100000000 * high + low) + ('' + (10000 + trail)).slice(1);
 }

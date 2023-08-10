@@ -9,3 +9,10 @@ export type BinaryArrayTerminals<T extends boolean | number | bigint | string | 
     | BinaryArrayTerminal<T>
     | BinaryArrayTerminal<T>[]
 )[];
+
+export type Point = {
+    x: number;
+    y: number;
+};
+
+export type Circle = Point & { r: number };

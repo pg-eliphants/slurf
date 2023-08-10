@@ -28,7 +28,7 @@ const instrumentation = {
         ]
     },
     numeric: {
-        id: 1231, // _numeric, arbitrary precision numerical values
+        id: 1231, // there is _numeric, arbitrary precision numerical values
         // so in js we keep it as text to prevent conversion into fp64?
         tests: [['{1.2,3.4}', ['1.2', '3.4']]]
     },
@@ -55,7 +55,7 @@ const instrumentation = {
         id: 199, //_json array of jsons
         tests: [
             [
-                '{{1,2},{[3],"[4,5]"},{null,NULL}}',
+                '{{1,2},{[3],"[4,5]"},{hello, world},{null,NULL}}',
                 [
                     [1, 2],
                     [[3], [4, 5]],

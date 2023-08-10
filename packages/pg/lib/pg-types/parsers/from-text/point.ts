@@ -1,8 +1,6 @@
-import { absorbTill } from './helpers';
-export type Point = {
-    x: number;
-    y: number;
-};
+import { absorbTill } from './parser-helpers';
+import type { Point } from '../../types';
+
 export default function parsePoint(value: string): Point | null {
     if (value[0] !== '(') {
         return null;

@@ -1,5 +1,5 @@
 import * as types from '.';
-import {expectType} from 'tsd';
+import { expectType } from 'tsd';
 
 // builtins
 expectType<types.TypesBuiltins>(types.builtins);

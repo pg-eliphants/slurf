@@ -4,9 +4,9 @@ const fs = require('fs');
 const path = require('path');
 
 const binary = fs.readFileSync(path.join(__dirname, 'parseint8.wasm'));
-const {parseLow, parseHigh} = new WebAssembly.Instance(new WebAssembly.Module(binary)).exports;
+const { parseLow, parseHigh } = new WebAssembly.Instance(new WebAssembly.Module(binary)).exports;
 
-module.exports = buffer => {
+module.exports = (buffer) => {
 	let high = buffer.readInt32BE(0);
 	let low = buffer.readUInt32BE(4);
 	let sign = '';

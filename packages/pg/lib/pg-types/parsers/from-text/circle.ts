@@ -1,7 +1,6 @@
-import type { Point } from './point';
-import { absorbTill } from './helpers';
+import type { Circle } from '../../types';
+import { absorbTill } from './parser-helpers';
 
-export type Circle = Point & { r: number };
 // circle looks like this "<(x,y),r>"
 export default function parseCircle(value: string): Circle | null {
     if (value[0] !== '<' && value[1] !== '(') {
