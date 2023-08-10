@@ -62,6 +62,10 @@ function parseJsonArray(value: string) {
     return parseArray<PropRecord[]>(value, JSON.parse);
 }
 
+function parseNumRangeArray(value: string) {
+    return parseArray(value, parseNumRange);
+}
+
 function parseInt4Range(raw: string) {
     return parseRange(raw, Number);
 }
@@ -326,7 +330,7 @@ const textMap: TextMap = {
     [3807]: parseJsonArray,
     [3904]: parseInt4Range,
     [3906]: parseNumRange,
-    [3907]: parseStringArray,
+    [3907]: parseNumRangeArray,
     [3908]: parseTimestampRange,
     [3910]: parseTimestampTzRange,
     [3912]: parseRange,

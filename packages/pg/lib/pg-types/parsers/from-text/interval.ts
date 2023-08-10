@@ -1,12 +1,4 @@
-export type IntervalContext = {
-    years: number;
-    months: number;
-    days: number;
-    hours: number;
-    minutes: number;
-    seconds: number;
-    milliseconds: number;
-};
+import type { Interval } from '@pg-types/types';
 
 const propertiesISOEquivalent = {
     years: 'Y',
@@ -20,7 +12,7 @@ const propertiesISOEquivalent = {
 type StrRet = () => string;
 
 type ReturnType =
-    | (IntervalContext & {
+    | (Interval & {
           toPostgres: StrRet;
           toISOString: StrRet;
           toISOStringShort: StrRet;
@@ -28,7 +20,7 @@ type ReturnType =
       })
     | undefined;
 
-export function isEqual(i1: IntervalContext, i2: IntervalContext): boolean {
+export function isEqual(i1: Interval, i2: Interval): boolean {
     return (
         i1.years === i2.years &&
         i1.months === i2.months &&
@@ -39,12 +31,12 @@ export function isEqual(i1: IntervalContext, i2: IntervalContext): boolean {
         i2.milliseconds === i2.milliseconds
     );
 }
-export default function parseInterval(interval: string | Partial<IntervalContext>): ReturnType {
+export default function parseInterval(interval: string | Partial<Interval>): ReturnType {
     const position = {
         value: 0
     };
 
-    const ctx: IntervalContext = {
+    const ctx: Interval = {
         years: 0,
         months: 0,
         days: 0,
@@ -284,7 +276,7 @@ export default function parseInterval(interval: string | Partial<IntervalContext
     } else if (!interval) {
         return;
     } else if (type === 'object') {
-        Object.assign(ctx, { ...(interval as IntervalContext) });
+        Object.assign(ctx, { ...(interval as Interval) });
     }
 
     Object.defineProperties(ctx, {

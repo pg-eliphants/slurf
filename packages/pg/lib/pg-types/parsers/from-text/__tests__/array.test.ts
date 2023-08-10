@@ -1,11 +1,12 @@
 import fixture from './fixtures/array';
 import textMap from '../index';
 import { createArrayEqualityValidator } from '@test-helpers';
+import { equals } from 'rambda';
+import type { Interval } from '@pg-types/types';
+import type { Range } from '../range';
 
 const isBooleanRecursiveArrayEqual = createArrayEqualityValidator((a: boolean, b: boolean) => a === b);
-const isStringRecursiveArrayEqual = createArrayEqualityValidator((a: string, b: string) => {
-    return a === b;
-});
+const isStringRecursiveArrayEqual = createArrayEqualityValidator((a: string, b: string) => a === b);
 const isByteArrayRecursiveArrayEqual = createArrayEqualityValidator((a: Uint8Array | null, b: Uint8Array | null) => {
     if (a === null) {
         return b === null;
@@ -24,6 +25,17 @@ const isByteArrayRecursiveArrayEqual = createArrayEqualityValidator((a: Uint8Arr
 
 const isNumberRecursiveArrayEqual = createArrayEqualityValidator((a: number, b: number) => a === b);
 const isBigIntRecursiveArrayEqual = createArrayEqualityValidator((a: bigint, b: bigint) => a === b);
+const isObjectRecursiveArrayEqual = createArrayEqualityValidator((a: unknown, b: unknown) => {
+    return equals(a, b);
+});
+
+const isIntervalRecursiveArrayEqual = createArrayEqualityValidator((a: Interval, b: Interval) => {
+    return equals(a, b);
+});
+
+const isNumRangeRecursiveArrayEqual = createArrayEqualityValidator((a: Range<number>, b: Range<number>) => {
+    return equals(a, b);
+});
 
 const equality = {
     boolean: isBooleanRecursiveArrayEqual,
@@ -35,14 +47,17 @@ const equality = {
     int2: isNumberRecursiveArrayEqual,
     int4: isNumberRecursiveArrayEqual,
     int8: isBigIntRecursiveArrayEqual,
-    json: isStringRecursiveArrayEqual
-    /*jsonb: isArrayEqual,
-    oid: isArrayEqual,
-    float4: isArrayEqual,
-    float8: isArrayEqual,
-    date: isArrayEqual,
-    interval: isArrayEqual,
-    inet: isArrayEqual*/
+    json: isObjectRecursiveArrayEqual,
+    point: isObjectRecursiveArrayEqual,
+    oid: isNumberRecursiveArrayEqual,
+    float4: isNumberRecursiveArrayEqual,
+    float8: isNumberRecursiveArrayEqual,
+    date: isStringRecursiveArrayEqual,
+    interval: isIntervalRecursiveArrayEqual,
+    inet: isStringRecursiveArrayEqual,
+    cidr: isStringRecursiveArrayEqual,
+    macaddr: isStringRecursiveArrayEqual,
+    numrange: isNumRangeRecursiveArrayEqual
 };
 
 type KeyMap = keyof typeof equality;
@@ -73,7 +88,6 @@ describe('array type parsing, text -> js', () => {
                 it(name + '->' + _in, () => {
                     const result = parser(_in) as never;
                     const isEqual = equality[name];
-
                     if (isEqual) {
                         expect(isEqual(result, _out)).toBeTruthy();
                         return;

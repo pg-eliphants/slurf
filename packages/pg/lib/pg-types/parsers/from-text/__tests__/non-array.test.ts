@@ -2,7 +2,6 @@ import fixture from './fixtures/non-array';
 import textMap from '../index';
 import { isEqual as isEqualInterval } from '../interval';
 import { Range } from '../range';
-import { isArrayEqual } from '@test-helpers';
 
 function fallBack<T extends string | number | bigint | boolean>(a: T, b: T): boolean {
     return a === b;
@@ -37,7 +36,17 @@ const equality = {
     int8range: range<bigint>,
     tstzrange: range<number>,
     daterange: range<string>,
-    bytea: isArrayEqual
+    bytea(a: Uint8Array, b: Uint8Array): boolean {
+        if (a.length !== b.length) {
+            return false;
+        }
+        for (let i = 0; i < a.length; i++) {
+            if (a[i] !== b[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
 };
 
 type KeyMap = keyof typeof equality;

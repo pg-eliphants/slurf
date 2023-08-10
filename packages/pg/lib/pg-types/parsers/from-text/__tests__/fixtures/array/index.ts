@@ -55,25 +55,13 @@ const instrumentation = {
         id: 199, //_json array of jsons
         tests: [
             [
-                '{{1,2},{[3],"[4,5]"},{hello, world},{null,NULL}}',
-                [
-                    [1, 2],
-                    [[3], [4, 5]],
-                    [null, null]
-                ]
-            ]
-        ]
-    },
-    jsonb: {
-        id: 3807, //_jsonb lol, so, we need a mapper oid -> parse<type>
-        tests: [
+                //'{{1,2},{[3],"[4,5]"},{"hello","world"},{null,NULL}}',
+                '{"{\\"product\\": \\"Beer\\",\\"qty\\": 6}"}',
+                [{ product: 'Beer', qty: 6 }]
+            ],
             [
-                '{{1,2},{[3],"[4,5]"},{null,NULL}}',
-                [
-                    [1, 2],
-                    [[3], [4, 5]],
-                    [null, null]
-                ]
+                '{{"{\\"firstname\\":\\"jacob\\", \\"age\\":55, \\"salary\\":null}"},{"{ \\"someprop\\":[1,2] }"}}',
+                [[{ firstname: 'jacob', age: 55, salary: null }], [{ someprop: [1, 2] }]]
             ]
         ]
     },
@@ -111,24 +99,26 @@ const instrumentation = {
             [
                 '{01:02:03,1 day -00:00:03}',
 
-                {
-                    years: 0,
-                    months: 0,
-                    days: 0,
-                    hours: 1,
-                    minutes: 2,
-                    seconds: 3,
-                    milliseconds: 0
-                },
-                {
-                    years: 0,
-                    months: 0,
-                    days: 1,
-                    hours: -0,
-                    minutes: -0,
-                    seconds: -3,
-                    milliseconds: -0
-                }
+                [
+                    {
+                        years: 0,
+                        months: 0,
+                        days: 0,
+                        hours: 1,
+                        minutes: 2,
+                        seconds: 3,
+                        milliseconds: 0
+                    },
+                    {
+                        years: 0,
+                        months: 0,
+                        days: 1,
+                        hours: -0,
+                        minutes: -0,
+                        seconds: -3,
+                        milliseconds: -0
+                    }
+                ]
             ]
         ]
     },
@@ -155,9 +145,101 @@ const instrumentation = {
     numrange: {
         id: 3907, //_numrange , this is not a nummultirange (that is an oid 4532)
         tests: [
-            ['{"[1,2]","(4.5,8)","[10,40)","(-21.2,60.3]"}', ['[1,2]', '(4.5,8)', '[10,40)', '(-21.2,60.3]']],
-            ['{"[,20]","[3,]","[,]","(,35)","(1,)","(,)"}', ['[,20]', '[3,]', '[,]', '(,35)', '(1,)', '(,)']],
-            ['{"[,20]","[3,]","[,]","(,35)","(1,)","(,)"}', ['[,20)', '[3,)', '[,)', '[,35)', '[1,)', '[,)']]
+            [
+                '{"[1,2]","(4.5,8)","[10,40)","(-21.2,60.3]"}',
+                [
+                    {
+                        lower: 1,
+                        mask: 12,
+                        upper: 2
+                    },
+                    {
+                        lower: 4.5,
+                        mask: 0,
+                        upper: 8
+                    },
+                    {
+                        lower: 10,
+                        mask: 4,
+                        upper: 40
+                    },
+                    {
+                        lower: -21.2,
+                        mask: 8,
+                        upper: 60.3
+                    }
+                ]
+            ],
+            [
+                '{"[,20]","[3,]","[,]","(,35)","(1,)","(,)"}',
+                [
+                    {
+                        lower: null,
+                        mask: 28,
+                        upper: 20
+                    },
+                    {
+                        lower: 3,
+                        mask: 44,
+                        upper: null
+                    },
+                    {
+                        lower: null,
+                        mask: 60,
+                        upper: null
+                    },
+                    {
+                        lower: null,
+                        mask: 16,
+                        upper: 35
+                    },
+                    {
+                        lower: 1,
+                        mask: 32,
+                        upper: null
+                    },
+                    {
+                        lower: null,
+                        mask: 48,
+                        upper: null
+                    }
+                ]
+            ],
+            [
+                '{"[,20]","[3,]","[,]","(,35)","(1,)","(,)"}',
+                [
+                    {
+                        lower: null,
+                        mask: 28,
+                        upper: 20
+                    },
+                    {
+                        lower: 3,
+                        mask: 44,
+                        upper: null
+                    },
+                    {
+                        lower: null,
+                        mask: 60,
+                        upper: null
+                    },
+                    {
+                        lower: null,
+                        mask: 16,
+                        upper: 35
+                    },
+                    {
+                        lower: 1,
+                        mask: 32,
+                        upper: null
+                    },
+                    {
+                        lower: null,
+                        mask: 48,
+                        upper: null
+                    }
+                ]
+            ]
         ]
     }
 };
