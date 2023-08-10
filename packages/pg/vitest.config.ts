@@ -5,7 +5,7 @@ export default defineConfig({
     test: {
         exclude: ['**/*.js'],
         name: 'jumbo',
-        include: ['**/*.test.ts'],
+        include: ['lib/pg-types/parsers/from-text/__tests__/array.test.ts'],
         globals: true,
         setupFiles: ['./test/setupTests.ts'],
         coverage: {

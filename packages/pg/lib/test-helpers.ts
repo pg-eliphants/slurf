@@ -50,13 +50,10 @@ export function loadData(fullPath: string, sep = /,/): Promise<LineInfo[]> {
 
 export type RecursiveArray = {
     length: number;
-    [key: number]: RecursiveArray | number | string | boolean | bigint | null | undefined;
+    [key: number]: RecursiveArray | number | string | boolean | bigint | null | undefined | Uint8Array;
 };
 
 export function isArrayEqual(a: RecursiveArray, b: RecursiveArray): boolean {
-    if (a instanceof ArrayBuffer && b instanceof ArrayBuffer) {
-        return isArrayEqual(new Uint8Array(a), new Uint8Array(b));
-    }
     if (a.length !== b.length) {
         return false;
     }
@@ -65,6 +62,13 @@ export function isArrayEqual(a: RecursiveArray, b: RecursiveArray): boolean {
             if (!isArrayEqual(a[i] as RecursiveArray, b[i] as RecursiveArray)) {
                 return false;
             }
+            continue;
+        }
+        if (a[i] instanceof Uint8Array && b[i] instanceof Uint8Array) {
+            if (!isArrayEqual(a[i] as RecursiveArray, b[i] as RecursiveArray)) {
+                return false;
+            }
+            continue;
         }
         // only scalar types here
         if (a[i] !== b[i]) {

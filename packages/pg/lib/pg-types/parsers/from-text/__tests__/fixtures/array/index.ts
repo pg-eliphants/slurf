@@ -23,8 +23,8 @@ const instrumentation = {
     bytea: {
         id: 1001, // _bytea
         tests: [
-            ['{"\\\\x00000000"}', Uint8Array.from([0, 0, 0, 0])],
-            ['{NULL,"\\\\x4e554c4c"}', Uint8Array.from([0x4e, 0x55, 0x4c, 0x4c])]
+            ['{"\\\\x00000000"}', [Uint8Array.from([0, 0, 0, 0])]],
+            ['{NULL,"\\\\x4e554c4c"}', [null, Uint8Array.from([0x4e, 0x55, 0x4c, 0x4c])]]
         ]
     },
     numeric: {

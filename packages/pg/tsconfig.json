@@ -49,8 +49,8 @@
         "forceConsistentCasingInFileNames": true,
         "preserveSymlinks": true,
 
-        "lib": ["es2020"],
-        "target": "es2020",
+        "lib": ["esnext", "dom", "webworker"],
+        "target": "esnext",
 
         "explainFiles": false,
         "extendedDiagnostics": true,
