@@ -3,14 +3,15 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
     test: {
-        exclude: ['**/*.js'],
+        exclude: ['**/*.js', 'lib/test-helpers.ts'],
         name: 'jumbo',
         include: ['lib/pg-types/parsers/from-text/**/*.test.ts'],
         globals: true,
         setupFiles: ['./test/setupTests.ts'],
         coverage: {
             provider: 'v8',
-            reporter: ['text', 'json', 'html']
+            reporter: ['text', 'json', 'html'],
+            exclude: ['lib/test-helpers.ts'],
         },
         environment: 'node',
         watch: false,
