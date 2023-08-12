@@ -60,40 +60,4 @@ const equality: Record<
     }
 };
 
-//type KeyMap = keyof typeof equality;
-
 testFromFixture('scalar type parsing, text -> js', textMap, fixture, equality);
-/*
-describe('scalar type parsing, text -> js', () => {
-    it('check if all fixtures have a corresponsing parser', () => {
-        const missing: number[] = [];
-        for (const entries of Object.entries(fixture)) {
-            const id = entries[1].id;
-            if (!textMap[id]) {
-                missing.push(id);
-            }
-        }
-        expect(missing).toEqual([]);
-    });
-    for (const entries of Object.entries(fixture)) {
-        const name = entries[0] as KeyMap;
-        const { id, tests } = entries[1];
-        if (!textMap[id]) {
-            continue;
-        }
-        // create testcase
-        const parser = textMap[id];
-        describe(name, () => {
-            for (const test of tests) {
-                const _in = test[0] as string;
-                const _out = test[1] as never;
-                it(name + '->' + _in, () => {
-                    const result = parser(_in) as never;
-                    const isEqual = equality[name];
-                    expect(isEqual(result, _out)).toBeTruthy();
-                });
-            }
-        });
-    }
-});
-*/

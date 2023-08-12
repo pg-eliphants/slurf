@@ -20,6 +20,7 @@
     },
     "author": "Brian Carlson <brian.m.carlson@gmail.com>",
     "dependencies": {
+        "@mangos/debug-frontend": "0.0.1-rc4",
         "buffer-writer": "2.0.0",
         "packet-reader": "1.0.0",
         "pg-connection-string": "file:../pg-connection-string",
@@ -50,7 +51,7 @@
         "prettier": "3.0.0",
         "rambda": "^8.3.0",
         "tsx": "3.12.7",
-        "typescript": "^4.9.5",
+        "typescript": "5.1.6",
         "typescript-eslint-language-service": "5.0.5",
         "vitest": "0.33.0"
     },
