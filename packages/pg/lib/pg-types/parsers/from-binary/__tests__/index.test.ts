@@ -1,3 +1,16 @@
+import { equals } from 'rambda';
+
+import fixture from './fixtures/non-array';
+import textMap from '../index';
+
+import testFromFixture from '../../test-helper';
+
+const equality = {
+    varchar: equals
+};
+
+testFromFixture('array type parsing, text -> js', textMap, fixture, equality);
+
 /*test('types', function (t) {
     Object.keys(types).forEach(function (typeName) {
         const type = types[typeName];

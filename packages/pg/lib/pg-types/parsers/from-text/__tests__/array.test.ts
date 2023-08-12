@@ -1,7 +1,8 @@
+import { equals } from 'rambda';
+
 import fixture from './fixtures/array';
 import textMap from '../index';
 import { createArrayEqualityValidator } from '@test-helpers';
-import { equals } from 'rambda';
 import type { Interval } from '@pg-types/types';
 import type { Range } from '../range';
 

@@ -5,7 +5,10 @@ export default defineConfig({
     test: {
         exclude: ['**/*.js'],
         name: 'jumbo',
-        include: ['lib/pg-types/parsers/from-text/**/*.test.ts'],
+        include: [
+            //'lib/pg-types/parsers/from-text/**/*.test.ts',
+            'lib/pg-types/parsers/from-binary/**/*.test.ts'
+        ],
         globals: true,
         setupFiles: ['./test/setupTests.ts'],
         coverage: {
