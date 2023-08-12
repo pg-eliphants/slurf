@@ -6,7 +6,7 @@ export default defineConfig({
         exclude: ['**/*.js'],
         name: 'jumbo',
         include: [
-            //'lib/pg-types/parsers/from-text/**/*.test.ts',
+            'lib/pg-types/parsers/from-text/**/*.test.ts',
             'lib/pg-types/parsers/from-binary/**/*.test.ts'
         ],
         globals: true,
@@ -24,15 +24,14 @@ export default defineConfig({
         testTimeout: 1e9,
         silent: false,
         isolate: true,
-        reporters: ['verbose']
+        reporters: [/*'verbose'*/]
     },
     resolve: {
         alias: {
             '@test-helpers': path.join(__dirname, 'lib/test-helpers.ts'),
             '@pg-types': path.join(__dirname, 'lib/pg-types'),
-            '@constants': path.join(__dirname, 'lib/constants.ts')
-            //         "@pg-types": ["pg-types/types.ts"],
-            // "@helpers": ["helpers.ts"],
+            '@constants': path.join(__dirname, 'lib/constants.ts'),
+            '@helpers': path.join(__dirname, 'lib/helpers.ts')
             // "@pg-types/*": ["pg-types/*"],
             // "@test-helpers": ["test-helpers.ts"]
         }

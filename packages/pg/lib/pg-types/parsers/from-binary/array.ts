@@ -30,7 +30,7 @@ export default function parseArray<T extends boolean | number | bigint | string 
         let result: number | bigint | string;
         if (elementType === 0x17) {
             // int
-            result = value.getUint32(offset);
+            result = value.getInt32(offset);
             offset += length;
             return result as T;
         } else if (elementType === 0x14) {
