@@ -53,8 +53,7 @@ function parsePostgresArray<T>(source: string, transform?: (a: string) => T, nes
 
             if (dimension > 1) {
                 const parser = parsePostgresArray(source.slice(position - 1), transform, true) as SubEntries<T>;
-
-                (entries as EntryTerminals<T>).push(parser.entries as EntryTerminal<T>);
+                entries.push(parser.entries as EntryTerminal<T>);
                 position += parser.position - 2;
             }
         } else if (character === '}' && !quote) {

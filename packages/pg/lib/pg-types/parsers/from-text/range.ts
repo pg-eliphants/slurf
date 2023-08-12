@@ -31,8 +31,8 @@ export class Range<T = null> {
         return (this.mask & flag) === flag;
     }
     constructor(
-        public readonly lower: T,
-        public readonly upper: T,
+        public readonly lower: T | null,
+        public readonly upper: T | null,
         public readonly mask = 0
     ) {}
 
@@ -65,14 +65,14 @@ export class Range<T = null> {
         const u = this.hasUpperBound();
 
         if (l && u) {
-            const inLower = this.hasMask(RANGE_LB_INC) ? this.lower <= point : this.lower < point;
-            const inUpper = this.hasMask(RANGE_UB_INC) ? this.upper >= point : this.upper > point;
+            const inLower = this.hasMask(RANGE_LB_INC) ? this.lower! <= point : this.lower! < point;
+            const inUpper = this.hasMask(RANGE_UB_INC) ? this.upper! >= point : this.upper! > point;
 
             return inLower && inUpper;
         } else if (l) {
-            return this.hasMask(RANGE_LB_INC) ? this.lower <= point : this.lower < point;
+            return this.hasMask(RANGE_LB_INC) ? this.lower! <= point : this.lower! < point;
         } else if (u) {
-            return this.hasMask(RANGE_UB_INC) ? this.upper >= point : this.upper > point;
+            return this.hasMask(RANGE_UB_INC) ? this.upper! >= point : this.upper! > point;
         }
 
         // INFINITY
@@ -81,8 +81,8 @@ export class Range<T = null> {
 
     containsRange(range: Range<T>): boolean {
         return (
-            (!range.hasLowerBound() || this.containsPoint(range.lower)) &&
-            (!range.hasUpperBound() || this.containsPoint(range.upper))
+            (!range.hasLowerBound() || this.containsPoint(range.lower!)) &&
+            (!range.hasUpperBound() || this.containsPoint(range.upper!))
         );
     }
 
@@ -154,7 +154,7 @@ export default function parseRange<T = string>(
         upper = transform(ub.value!);
     }
 
-    return new Range(lower, upper, mask) as Range<T>;
+    return new Range(lower, upper, mask);
 }
 
 function parseBound(input: string, ptr: number): { value: string | null; infinite: boolean; ptr: number } {
@@ -230,9 +230,9 @@ export function serialize<T>(range: Range<T>, format: Format<T> = defaultFormat 
     let s = '';
     range.lower;
     s += range.isLowerBoundClosed() ? '[' : '(';
-    s += range.hasLowerBound() ? serializeBound(format(range.lower)) : '-' + INFINITY;
+    s += range.hasLowerBound() ? serializeBound(format(range.lower!)) : '-' + INFINITY;
     s += ',';
-    s += range.hasUpperBound() ? serializeBound(format(range.upper)) : INFINITY;
+    s += range.hasUpperBound() ? serializeBound(format(range.upper!)) : INFINITY;
     s += range.isUpperBoundClosed() ? ']' : ')';
 
     return s;

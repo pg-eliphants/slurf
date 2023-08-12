@@ -1,7 +1,6 @@
 import fixture from './fixtures/geometry';
 import textMap from '../index';
-import type { Point } from '../point';
-import type { Circle } from '../circle';
+import type { Circle, Point } from '@pg-types/types';
 
 const equality = {
     point: (p1: Point, p2: { x: number; y: number }): boolean => {

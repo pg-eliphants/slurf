@@ -7,11 +7,7 @@ import parseRange from './range';
 import parseBool from './bool';
 import parsePoint from './point';
 import parseCircle from './circle';
-
-// this is "circular" reference
-export type PropRecord = Record<string, string | number> | SubObject;
-
-interface SubObject extends Record<string, PropRecord> {}
+import type { TextMap, PropRecord } from '@pg-types/types';
 
 function parseBoolArray(value: string) {
     return parseArray(value, parseBool);
@@ -281,11 +277,7 @@ auth_db=> select 'int4multirange'::regtype::oid;
 (1 row)
 */
 
-type TextMap = {
-    [index: number]: (raw: string) => unknown;
-};
-
-const textMap: TextMap = {
+const textMap: TextMap<string> = {
     [16]: parseBool,
     [17]: byteaToBinary,
     [20]: BigInt,

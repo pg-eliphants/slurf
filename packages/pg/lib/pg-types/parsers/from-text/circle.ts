@@ -1,4 +1,4 @@
-import type { Circle } from '../../types';
+import type { Circle } from '@pg-types/types';
 import { absorbTill } from './parser-helpers';
 
 // circle looks like this "<(x,y),r>"

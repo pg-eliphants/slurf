@@ -1,12 +1,13 @@
 dist/
 *.tsbuildinfo
 TODO
-.*
+*.
 !/.gitignore
 !/.npmignore
 !/.travis.yml
 !/.eslintrc.cjs
 !/..prettierrc
+!.npmrc
 .jest-cache
 
 *.pdf
