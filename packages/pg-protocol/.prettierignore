@@ -1,0 +1,9 @@
+dist
+.*
+coverage
+!.npmrc
+!.eslintrc.cjs
+!.gitignore
+!.npmignore
+!.prettierignore
+!.prettierrc

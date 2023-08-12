@@ -1,0 +1,17 @@
+feb07da898a69238910993bfaedef6f4
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.DatabaseError = exports.serialize = exports.parse = void 0;
+const messages_1 = require("./messages");
+Object.defineProperty(exports, "DatabaseError", { enumerable: true, get: function () { return messages_1.DatabaseError; } });
+const serializer_1 = require("./serializer");
+Object.defineProperty(exports, "serialize", { enumerable: true, get: function () { return serializer_1.serialize; } });
+const parser_1 = require("./parser");
+function parse(stream, callback) {
+    const parser = new parser_1.Parser();
+    stream.on('data', (buffer) => parser.parse(buffer, callback));
+    // only when the message "ends" ( a message boundery? ) so this kinda makes sense, sure
+    return new Promise((resolve) => stream.on('end', () => resolve()));
+}
+exports.parse = parse;
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiQzpcXHJlcG9zXFxub2RlLXBvc3RncmVzXFxwYWNrYWdlc1xccGctcHJvdG9jb2xcXHNyY1xcaW5kZXgudHMiLCJtYXBwaW5ncyI6Ijs7O0FBQUEseUNBQStEO0FBWTNDLDhGQVpTLHdCQUFhLE9BWVQ7QUFYakMsNkNBQXlDO0FBV2hDLDBGQVhBLHNCQUFTLE9BV0E7QUFWbEIscUNBQW1EO0FBRW5ELFNBQWdCLEtBQUssQ0FBQyxNQUE2QixFQUFFLFFBQXlCO0lBQzFFLE1BQU0sTUFBTSxHQUFHLElBQUksZUFBTSxFQUFFLENBQUM7SUFDNUIsTUFBTSxDQUFDLEVBQUUsQ0FBQyxNQUFNLEVBQUUsQ0FBQyxNQUFjLEVBQUUsRUFBRSxDQUFDLE1BQU0sQ0FBQyxLQUFLLENBQUMsTUFBTSxFQUFFLFFBQVEsQ0FBQyxDQUFDLENBQUM7SUFFdEUsdUZBQXVGO0lBQ3ZGLE9BQU8sSUFBSSxPQUFPLENBQUMsQ0FBQyxPQUFPLEVBQUUsRUFBRSxDQUFDLE1BQU0sQ0FBQyxFQUFFLENBQUMsS0FBSyxFQUFFLEdBQUcsRUFBRSxDQUFDLE9BQU8sRUFBRSxDQUFDLENBQUMsQ0FBQztBQUN2RSxDQUFDO0FBTkQsc0JBTUMiLCJuYW1lcyI6W10sInNvdXJjZXMiOlsiQzpcXHJlcG9zXFxub2RlLXBvc3RncmVzXFxwYWNrYWdlc1xccGctcHJvdG9jb2xcXHNyY1xcaW5kZXgudHMiXSwic291cmNlc0NvbnRlbnQiOlsiaW1wb3J0IHsgLypCYWNrZW5kTWVzc2FnZSwqLyBEYXRhYmFzZUVycm9yIH0gZnJvbSAnLi9tZXNzYWdlcyc7XHJcbmltcG9ydCB7IHNlcmlhbGl6ZSB9IGZyb20gJy4vc2VyaWFsaXplcic7XHJcbmltcG9ydCB7IFBhcnNlciwgTWVzc2FnZUNhbGxiYWNrIH0gZnJvbSAnLi9wYXJzZXInO1xyXG5cclxuZXhwb3J0IGZ1bmN0aW9uIHBhcnNlKHN0cmVhbTogTm9kZUpTLlJlYWRhYmxlU3RyZWFtLCBjYWxsYmFjazogTWVzc2FnZUNhbGxiYWNrKTogUHJvbWlzZTx2b2lkPiB7XHJcbiAgICBjb25zdCBwYXJzZXIgPSBuZXcgUGFyc2VyKCk7XHJcbiAgICBzdHJlYW0ub24oJ2RhdGEnLCAoYnVmZmVyOiBCdWZmZXIpID0+IHBhcnNlci5wYXJzZShidWZmZXIsIGNhbGxiYWNrKSk7XHJcblxyXG4gICAgLy8gb25seSB3aGVuIHRoZSBtZXNzYWdlIFwiZW5kc1wiICggYSBtZXNzYWdlIGJvdW5kZXJ5PyApIHNvIHRoaXMga2luZGEgbWFrZXMgc2Vuc2UsIHN1cmVcclxuICAgIHJldHVybiBuZXcgUHJvbWlzZSgocmVzb2x2ZSkgPT4gc3RyZWFtLm9uKCdlbmQnLCAoKSA9PiByZXNvbHZlKCkpKTtcclxufVxyXG5cclxuZXhwb3J0IHsgc2VyaWFsaXplLCBEYXRhYmFzZUVycm9yIH07XHJcbiJdLCJ2ZXJzaW9uIjozfQ==
