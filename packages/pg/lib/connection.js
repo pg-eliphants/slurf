@@ -16,6 +16,8 @@ class Connection extends EventEmitter {
         super();
         config = config || {};
 
+        // ok so "stream" is either equal to net.Socket
+        // or the stream equivalent used by CloudFlare workers
         this.stream = config.stream || getStream(config.ssl);
         if (typeof this.stream === 'function') {
             this.stream = this.stream(config);
@@ -36,15 +38,22 @@ class Connection extends EventEmitter {
         });
     }
 
+    // make an actuall connection
     connect(port, host) {
         var self = this;
 
         this._connecting = true;
+        // enable Nagle's algorithm
         this.stream.setNoDelay(true);
         this.stream.connect(port, host);
 
         this.stream.once('connect', function () {
             if (self._keepAlive) {
+                // enable keep alive
+                // SO_KEEPALIVE=1
+                // TCP_KEEPIDLE = initialDelay;
+                // TCP_KEEPCNT = 10;
+                // TCP_KEEPINTVL = 1;
                 self.stream.setKeepAlive(true, self._keepAliveInitialDelayMillis);
             }
             self.emit('connect');
@@ -63,10 +72,14 @@ class Connection extends EventEmitter {
             self.emit('end');
         });
 
+        // if there is no ssl then just start handling msessages
         if (!this.ssl) {
             return this.attachListeners(this.stream);
         }
 
+        // from here-on forward, this is the SSL zone
+
+        // this is the whole ssl handshake?
         this.stream.once('data', function (buffer) {
             var responseCode = buffer.toString('utf8');
             switch (responseCode) {
@@ -86,7 +99,7 @@ class Connection extends EventEmitter {
 
             if (self.ssl !== true) {
                 Object.assign(options, self.ssl);
-
+                // why?, above operation should have done this already
                 if ('key' in self.ssl) {
                     options.key = self.ssl.key;
                 }
@@ -96,8 +109,9 @@ class Connection extends EventEmitter {
             if (net.isIP && net.isIP(host) === 0) {
                 options.servername = host;
             }
+            // the previous socket (net) is replaced by an ssl socket??
             try {
-                self.stream = getSecureStream(options);
+                self.stream = getSecureStream(options); //  return tls.connect(options);
             } catch (err) {
                 return self.emit('error', err);
             }
@@ -109,6 +123,14 @@ class Connection extends EventEmitter {
     }
 
     attachListeners(stream) {
+        /*
+        export function parse(stream: NodeJS.ReadableStream, callback: MessageCallback): Promise<void> {
+            const parser = new Parser()
+            stream.on('data', (buffer: Buffer) => parser.parse(buffer, callback))
+            
+        --> return new Promise((resolve) => stream.on('end', () => resolve()))
+        }
+        */
         parse(stream, (msg) => {
             var eventName = msg.name === 'error' ? 'errorMessage' : msg.name;
             if (this._emitMessage) {

@@ -1,4 +1,4 @@
-const defaultConfi = Object.freeze({
+const defaultConfig = Object.freeze({
     // database host. defaults to localhost
     host: 'localhost',
 

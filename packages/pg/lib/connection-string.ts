@@ -3,7 +3,8 @@
 
 //parses a connection string
 // https://www.postgresql.org/docs/current/libpq-connect.html
-// https://node-postgres.com/features/connecting
+// https://node-postgres.com/features/connectin
+
 function parse(str: string) {
     //unix socket
     if (str.charAt(0) === '/') {

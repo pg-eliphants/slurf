@@ -6,7 +6,7 @@ var defaults = require('./defaults');
 
 var parse = require('pg-connection-string').parse; // parses a connection string
 
-var val = function (key, config, envVar) {
+val = function (key, config, envVar) {
     if (envVar === undefined) {
         envVar = process.env['PG' + key.toUpperCase()];
     } else if (envVar === false) {
@@ -49,9 +49,10 @@ class ConnectionParameters {
     constructor(config) {
         // if a string is passed, it is a raw connection string so we parse it into a config
         config = typeof config === 'string' ? parse(config) : config || {};
-
-        // if the config has a connectionString defined, parse IT into the config we use
+        //
+        // If the config has a connectionString defined, parse IT into the config we use
         // this will override other default values with what is stored in connectionString
+        //
         if (config.connectionString) {
             config = Object.assign({}, config, parse(config.connectionString));
         }
