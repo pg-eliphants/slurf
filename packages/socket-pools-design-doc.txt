@@ -1,0 +1,57 @@
+- have in memory histogram about times:
+    - "resident time" for state "idle"
+    - "initialisation time" (the various lifecycle stages), frequency and time
+    - "execution time" (various stages) (in frequency and time)
+    - "future reservation times", in frequency and wait time
+    - "time intervals between socket creation"
+    - "time intervals between socket destruction"
+
+
+- events 
+    - connections closed by counterparty
+    - connections closed by app itself
+    - 
+
+-  socket-pool-controller
+-  socket-pool-socket-creator
+-  socket-pool-initializer (this can be staged spanning several layers)
+-  socket-pool-gracefull-shutdown (shutdown can be "abort", "normal")
+-  pg-pool abstract away low level socket events from upper layers
+-  always have a pool (default 1 connection)
+-  no socket available means
+    - reject request
+    - queueing does not happen in this pg-pool layer
+    - upper (upstream?) layers can ask for a future reservation if all sockets are busy
+    - upper (upstream?) layers are the responsible managing queued request for sql execution;
+- the pool is segmented into "vis" '[v]ery [i]mportant [s]ocket", applications might need to prioritize request 
+- controller can have several plugins (allowing for "remote control" via "operator")  
+
+#socket-pool-controller
+ - build in scheduler (handy for executing repetative task in time)
+ - a socket pool controller can have simple logic as in killing sockets that have been idle
+ - (example) maintaining the number of idle sockets at 20% above average usage
+ - (example) creating sockets (with jitter time delay);
+ -
+
+socket-pool-io-event-manager
+socket-pool-io-pool-idle-manager (fifo, whatever)
+socket-pool can be "first in last out" 
+socket-pool can be "first in first out", this will make it easier to drop the bottom of the queue for connects that "never" get used
+"vis" queue and "normal" queue migrate between both by controller direction
+socket-pool-stat-aggregator (collects maintains published stats from the various components and sub plugins)
+
+We need to make typescript interface defintions for all of them.
+
+what we do here first:
+ -  socket-pool-socket-creator
+ -  socket-pool-stats-aggregator
+ -  queue (for enqueue and dequeue) (this can be a simple js array object)
+ -  socket-pool-io-event-manager (abstracts the various streaming events away from upper layers)
+ -  create a socket for a specific queue
+ -  "vis" and "normal" queue always exist, "vis" is initially empty
+ -  move sockets between queues (or schedule a move)
+ -  socket-pool (build in) scheduler
+ -  partial socketpool class that have all these dependencies injected
+
+  
+ 
