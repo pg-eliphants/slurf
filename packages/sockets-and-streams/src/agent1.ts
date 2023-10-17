@@ -38,6 +38,11 @@ async function connectToCounterParty() {
     socket.setKeepAlive(true);
 
     /* stream.Readable events ex socket */
+    // emitted when resume() is called and readableFlowing !== true
+    // hence it is switching to "flowing mode"
+    socket.on('/resume', (...args: unknown[]) => {
+        console.log('/pause [%o]', args);
+    });
 
     // 'pause' event is emitted if stream.Readable.pause() is called AND "readableFlowing" is "true" or "null"
     // stream.Readable.resume() will put the stream into a flowing state (emtting events).
