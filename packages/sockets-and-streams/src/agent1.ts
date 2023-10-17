@@ -36,9 +36,45 @@ async function connectToCounterParty() {
     socket.setEncoding('utf8');
     socket.setNoDelay(true);
     socket.setKeepAlive(true);
-    /* reabable events ex socket */
+
+    /* stream.Readable events ex socket */
+
+    // 'pause' event is emitted if stream.Readable.pause() is called AND "readableFlowing" is "true" or "null"
+    // stream.Readable.resume() will put the stream into a flowing state (emtting events).
     socket.on('pause', (...args: unknown[]) => {
-        console.log('/end [%o]', args);
+        console.log('/pause [%o]', args);
+    });
+
+    // stream has readable information
+    // if 'readable' is registered
+    //    if 'data' is also registerd
+    //         then readable will  get data via .read(), aswell as emitted via 'data'
+    //  'readable' emitted before 'data' or 'end'
+    //
+    /* 
+    /readable start
+    /data, socket timeout is: 3000
+    /data, ended? false
+    /data, received type [string], data:['reply: ending socket']
+    /readable -> read() -> [reply: ending socket]
+    /readable null received
+    /readable end
+    /readable start
+    /readable null received
+    /readable end
+    */
+    socket.on('readable', () => {
+        console.log('/readable start');
+        let data: string | undefined | null;
+        do {
+            data = socket.read() as string;
+            if (data === null){
+                console.log('/readable null received');
+                continue;
+            }
+            console.log('/readable -> read() -> [%s]', data);
+        } while (data);
+        console.log('/readable end');
     });
     /* socket events */
     // Emitted when the other end of the socket signals the end of transmission,
