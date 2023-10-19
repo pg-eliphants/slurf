@@ -5,7 +5,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "tsx ./src/index.ts",
+    "devserver": "tsx ./src/agent2.ts",
+    "devclient": "tsx ./src/agent1.ts --connect-port=59599",
     "start": "tsc && node ./dist/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -13,10 +14,8 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "tsx": "^3.13.0",
-    "typescript": "^5.2.2"
-  },
-  "dependencies": {
-    "@types/node": "^20.8.6"
+    "@types/node": "20.8.6",
+    "tsx": "3.13.0",
+    "typescript": "5.2.2"
   }
 }

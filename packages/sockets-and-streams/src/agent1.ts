@@ -26,6 +26,11 @@ function createTcpNetConnectOpts(): TcpNetConnectOpts | undefined {
     return { port };
 }
 
+function isAggregateError(err: unknown): err is AggregateError {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    return (err as AggregateError)?.errors !== undefined;
+}
+
 async function connectToCounterParty() {
     console.log('connecting to counterparty');
     const options = createTcpNetConnectOpts();
@@ -36,12 +41,19 @@ async function connectToCounterParty() {
     socket.setEncoding('utf8');
     socket.setNoDelay(true);
     socket.setKeepAlive(true);
+    /* stream.Writable events ex sockets */
+    socket.on('finish', (...args: unknown[]) => {
+        console.log('/finish [%o]', args);
+        console.log('readableEnded', socket.readableEnded);
+        console.log('writableEnded', socket.writableEnded);
+        console.log('writableFinished', socket.writableFinished);
+    });
 
     /* stream.Readable events ex socket */
     // emitted when resume() is called and readableFlowing !== true
     // hence it is switching to "flowing mode"
     socket.on('/resume', (...args: unknown[]) => {
-        console.log('/pause [%o]', args);
+        console.log('/resume [%o]', args);
     });
 
     // 'pause' event is emitted if stream.Readable.pause() is called AND "readableFlowing" is "true" or "null"
@@ -73,7 +85,7 @@ async function connectToCounterParty() {
         let data: string | undefined | null;
         do {
             data = socket.read() as string;
-            if (data === null){
+            if (data === null) {
                 console.log('/readable null received');
                 continue;
             }
@@ -81,11 +93,14 @@ async function connectToCounterParty() {
         } while (data);
         console.log('/readable end');
     });
-    /* socket events */
+    /* socket events (read and writable) */
     // Emitted when the other end of the socket signals the end of transmission,
     // (independent of the fact, this side of the connection called "end()")
     socket.on('end', (...args: unknown[]) => {
         console.log('/end [%o]', args);
+        console.log('readableEnded', socket.readableEnded);
+        console.log('writableEnded', socket.writableEnded);
+        console.log('writableFinished', socket.writableFinished);
     });
     socket.on('drain', () => {
         console.log('/drain');
@@ -95,12 +110,19 @@ async function connectToCounterParty() {
         console.log('/data, ended?', socket.readableEnded);
         console.log('/data, received type [%s], data:[%o]', typeof thunk, thunk);
     });
-    socket.on('error', (err: AggregateError) => {
+    socket.on('error', (err: Error & NodeJS.ErrnoException) => {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
-        const prunedErrors = Array.from(err.errors).map((err: Error) => ({
-            message: err.message
-        }));
-        console.log('/error occurred [%o]:', prunedErrors);
+        if (err.syscall) {
+            console.log('/error occurred [%o]:', { syscall: err.syscall, name: err.name, code: err.code });
+            return;
+        }
+        if (isAggregateError(err)) {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+            const prunedErrors = Array.from(err.errors).map((err: Error) => ({
+                message: err.message
+            }));
+            console.log('/error occurred [%o]:', prunedErrors);
+        }
     });
     // timeout has no arguments
     // timeout due to idle does not depend on "keep alive"
@@ -126,9 +148,25 @@ async function connectToCounterParty() {
         socket.setTimeout(3000);
         console.log('/socket.connect(): socket connected');
         setTimeout(() => {
+            if (socket.writableEnded) {
+                console.log('socket already ended, cancel transmission');
+                return;
+            }
+            console.log('readableEnded', socket.readableEnded);
+            console.log('writableEnded', socket.writableEnded);
+            console.log('writableFinished', socket.writableFinished);
+            console.log('errored', socket.errored);
+            console.log('readyState', socket.readyState);
+            console.log('closed', socket.closed);
             socket.end('ending socket');
             console.log('end event + data sent');
-        }, 10e3);
+            console.log('readableEnded', socket.readableEnded);
+            console.log('writableEnded', socket.writableEnded);
+            console.log('writableFinished', socket.writableFinished);
+            console.log('errored', socket.errored);
+            console.log('readyState', socket.readyState);
+            console.log('closed', socket.closed);
+        }, 5e3);
     });
 }
 
