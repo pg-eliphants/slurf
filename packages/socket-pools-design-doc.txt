@@ -53,5 +53,44 @@ what we do here first:
  -  socket-pool (build in) scheduler
  -  partial socketpool class that have all these dependencies injected
 
-  
+
+- socket creattion (with SocketConstructor Options)
+    - setEncoding
+    - setNoDelay
+    - setKeepAlive
+
+- we will never pause() (maybe need this when procesing timeouts) nor listen for 'resume' or 'pause'
+- listen to lookup but only if there is an error, revealing other info is a security risk
+- we will not use 'readable' event
+- we will use 'data' event
+- we will use 'end' event
+- we will use 'drain' event (this is needed to account for backpressure)
+- we will use 'error' event (errors can happen at any lifecycle of the socket)
+    - close event will be called right after this event
+- we will use 'timeout' event (reschedule timeout and update stats)
+- we will use 'close' event
+- we will use 'finish' event
+ 
+
+- now hook up all the events for reading and writing
+- we either could use 
+
+## events (this is an adapter so only interested in socket used to initiate a connection)
+
+
+lifecycle for io-manager, these need meta states
+
+connect -> send to upper layer for optional initiation handshake
+end -> (readable) notify upper layer one side of the socket has ended
+finish -> (writable) notify upper layer one side of the socket has ended
+backPressure start -> stop writing to socket
+backPressure stop -> continue writing to socket
+timeout -> notify upper layer
+close -> send to upper layer for cleanup 
+
+there needs to be a timeout manager for strategies
+no timeout for clients that have issued LISTEN command and can be pinged at any time
+(maybe make a seperate queue for these connections hence they can listen to multiple notifcation channels at the same time)
+(maybe one single connection might be enough for listening on multiple events);
+
  

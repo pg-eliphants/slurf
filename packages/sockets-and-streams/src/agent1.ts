@@ -146,26 +146,27 @@ async function connectToCounterParty() {
     });
     socket.connect(options, () => {
         socket.setTimeout(3000);
-        console.log('/socket.connect(): socket connected');
+        console.log('callback/socket.connect()');
         setTimeout(() => {
             if (socket.writableEnded) {
                 console.log('socket already ended, cancel transmission');
                 return;
             }
-            console.log('readableEnded', socket.readableEnded);
-            console.log('writableEnded', socket.writableEnded);
-            console.log('writableFinished', socket.writableFinished);
-            console.log('errored', socket.errored);
-            console.log('readyState', socket.readyState);
-            console.log('closed', socket.closed);
-            socket.end('ending socket');
-            console.log('end event + data sent');
-            console.log('readableEnded', socket.readableEnded);
-            console.log('writableEnded', socket.writableEnded);
-            console.log('writableFinished', socket.writableFinished);
-            console.log('errored', socket.errored);
-            console.log('readyState', socket.readyState);
-            console.log('closed', socket.closed);
+            console.log(':readableEnded', socket.readableEnded);
+            console.log(':writableEnded', socket.writableEnded);
+            console.log(':writableFinished', socket.writableFinished);
+            console.log(':errored', socket.errored);
+            console.log(':readyState', socket.readyState);
+            console.log(':closed', socket.closed);
+            socket.end('e:nding socket');
+            console.log(':end event + data sent');
+            console.log(':readableEnded', socket.readableEnded);
+            console.log(':writableEnded', socket.writableEnded);
+            console.log(':writableFinished', socket.writableFinished);
+            console.log(':errored', socket.errored);
+            console.log(':readyState', socket.readyState);
+            console.log(':closed', socket.closed);
+            //  https://fr.spankbang.com/4tlyk-cubuu2/playlist/catsuits
         }, 5e3);
     });
 }
