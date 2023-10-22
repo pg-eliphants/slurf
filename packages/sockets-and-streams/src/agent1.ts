@@ -9,6 +9,13 @@ function getPort() {
     console.log('port found:', port);
     return port ? parseInt(port.slice(portOption.length)) : NaN;
 }
+function createTcpNetConnectOpts(): TcpNetConnectOpts | undefined {
+    const port = getPort();
+    if (isNaN(port)) {
+        return undefined;
+    }
+    return { port };
+}
 
 /*
     - fd <number> If specified, wrap around an existing socket with the given file descriptor, otherwise a new socket will be created.
@@ -17,14 +24,6 @@ function getPort() {
     - writable <boolean> Allow writes on the socket when an fd is passed, otherwise ignored. Default: false.
     - signal <AbortSignal> An Abort signal that may be used to destroy the socket.
 */
-
-function createTcpNetConnectOpts(): TcpNetConnectOpts | undefined {
-    const port = getPort();
-    if (isNaN(port)) {
-        return undefined;
-    }
-    return { port };
-}
 
 function isAggregateError(err: unknown): err is AggregateError {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
@@ -61,14 +60,13 @@ async function connectToCounterParty() {
     socket.on('pause', (...args: unknown[]) => {
         console.log('/pause [%o]', args);
     });
-
     // stream has readable information
     // if 'readable' is registered
     //    if 'data' is also registerd
     //         then readable will  get data via .read(), aswell as emitted via 'data'
     //  'readable' emitted before 'data' or 'end'
     //
-    /* 
+    /*
     /readable start
     /data, socket timeout is: 3000
     /data, ended? false
@@ -81,7 +79,7 @@ async function connectToCounterParty() {
     /readable end
     */
     socket.on('readable', () => {
-        console.log('/readable start');
+        console.log('/readable start, to read:[%s]', socket.readableLength);
         let data: string | undefined | null;
         do {
             data = socket.read() as string;

@@ -47,7 +47,11 @@ module.exports = {
                 '@typescript-eslint/no-loss-of-precision': 0,
                 '@typescript-eslint/require-await': 0,
                 '@typescript-eslint/no-floating-promises': 0,
-                '@typescript-eslint/prefer-as-const': 'error'
+                '@typescript-eslint/prefer-as-const': 'error',
+                '@typescript-eslint/ban-types': 0,
+                '@typescript-eslint/no-unsafe-assignment': 0,
+                '@typescript-eslint/no-unsafe-call': 0,
+                '@typescript-eslint/no-unused-vars': [['error', { varsIgnorePattern: '^_.*$' }]]
             }
         }
     ]
