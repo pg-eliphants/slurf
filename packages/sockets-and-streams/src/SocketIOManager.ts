@@ -1,6 +1,15 @@
 import type { TcpSocketConnectOpts, IpcSocketConnectOpts, ConnectOpts, Socket } from 'net';
 import type { Jitter } from './Jitter';
-import type { Pool, CreateSocketBuffer, CreateSocketSpec, SocketAttributes } from './types';
+import type {
+    Pool,
+    CreateSocketBuffer,
+    CreateSocketSpec,
+    SocketAttributes,
+    MetaSocketAttr,
+    SocketOtherOptions,
+    SocketConnectOpts,
+    PoolExActive
+} from './types';
 
 type HistogramResidentTimes = {
     [time: number]: number;
@@ -21,26 +30,65 @@ export default class SocketIOManager {
     private reservedEmpherical: SocketAttributes[];
     private idle: SocketAttributes[];
     private created: SocketAttributes[];
-
     private waits: PoolWaitTimes;
+    private jittered: Map<NodeJS.Timeout, Socket>;
+
     // private functions
-    private decorate(_socket: Socket) {
+    // this.decorate(_sock, jitter, forPool, conOpt);
+    private decorate(socket: Socket, jitter: number, forPool: Pool, otherOptions: SocketOtherOptions) {
+        let totalIdleTimes = 0;
+        socket.setNoDelay(otherOptions.noDelay);
+        socket.setKeepAlive(otherOptions.keepAlive);
+        socket.setTimeout(otherOptions.timeout);
+        let cntTO = 0;
+        socket.on('timeout', () => {
+            socket.setTimeout(otherOptions.timeout);
+            cntTO++;
+        });
+        /* socket.on('error', (err: Error & NodeJS.ErrnoException) => {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
+            if (err.syscall) {
+                console.log('/error occurred [%o]:', { syscall: err.syscall, name: err.name, code: err.code });
+                return;
+            }
+            if (isAggregateError(err)) {
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+                const prunedErrors = Array.from(err.errors).map((err: Error) => ({
+                    message: err.message
+                }));
+                console.log('/error occurred [%o]:', prunedErrors);
+            }
+        });*/
         return;
     }
     private processData(bytesWritten: number, buf: Uint8Array): boolean {
         console.log(bytesWritten, buf.length);
         return true;
     }
+    private normalizeExtraOptions(extraOpt?: SocketOtherOptions): SocketOtherOptions {
+        const { keepAlive = true, noDelay = true, timeout = 0 } = extraOpt ?? {};
+        return {
+            keepAlive,
+            noDelay,
+            timeout
+        };
+    }
     private normalizeConnectOptions(
         conOpt: (TcpSocketConnectOpts & ConnectOpts) | (IpcSocketConnectOpts & ConnectOpts)
-    ): (TcpSocketConnectOpts & ConnectOpts) | (IpcSocketConnectOpts & ConnectOpts) | never {
+    ): (TcpSocketConnectOpts & ConnectOpts) | (IpcSocketConnectOpts & ConnectOpts) {
+        // callback on the "onread" will be bound to global, nothing we can do about that, this is nodejs behavior
+        // therefor we make a copy of this(=SocketIOManager) to self,
+        const self = this;
+        // unix domain socket?
         if ((conOpt as IpcSocketConnectOpts & ConnectOpts).path) {
-            // unix domain socket
             return {
                 path: (conOpt as IpcSocketConnectOpts & ConnectOpts).path,
                 onread: {
                     buffer: this.createBuffer(),
-                    callback: this.processData.bind(this)
+                    callback(bytesWritten: number, buf: Uint8Array): boolean {
+                        // self = is socketIoManager
+                        return self.processData(bytesWritten, buf);
+                    }
                 }
             };
         }
@@ -77,15 +125,49 @@ export default class SocketIOManager {
             ...(autoSelectFamilyAttemptTimeout && { autoSelectFamilyAttemptTimeout }),
             onread: {
                 buffer: this.createBuffer(),
-                callback: this.processData.bind(this)
+                callback(bytesWritten: number, buf: Uint8Array): boolean {
+                    // self = is socketIoManager
+                    return self.processData(bytesWritten, buf);
+                }
             }
         };
     }
     //
+    private getSocketClassAndOptions(forPool: PoolExActive): {
+        SocketClass: typeof Socket;
+        conOpt: SocketConnectOpts;
+        extraOpt: SocketOtherOptions;
+    } {
+        let SocketClass: typeof Socket | undefined;
+        let conOpt: SocketConnectOpts | undefined;
+        let extraOpt: SocketOtherOptions | undefined;
+        //
+        const createSocket = (socket: typeof Socket) => {
+            SocketClass = socket;
+        };
+        const setAllOptions = (
+            conOptions: (TcpSocketConnectOpts & ConnectOpts) | (IpcSocketConnectOpts & ConnectOpts),
+            extraOptions?: SocketOtherOptions
+        ): void => {
+            conOpt = conOptions;
+            extraOpt = extraOptions;
+        };
+        this.crfn({ forPool }, createSocket, setAllOptions);
+        if (!SocketClass) {
+            throw new Error('No socket class set in callback');
+        }
+        if (!conOpt) {
+            throw new Error(`No connect options given`);
+        }
+        conOpt = this.normalizeConnectOptions(conOpt);
+        extraOpt = this.normalizeExtraOptions(extraOpt)!;
+        return { SocketClass, conOpt, extraOpt };
+    }
     constructor(
         private readonly crfn: CreateSocketSpec,
         private readonly jitter: Jitter,
-        private readonly createBuffer: CreateSocketBuffer
+        private readonly createBuffer: CreateSocketBuffer,
+        private readonly now: () => number
     ) {
         this.vis = [];
         this.reservedPermanent = [];
@@ -98,6 +180,7 @@ export default class SocketIOManager {
             active: {},
             idle: {}
         };
+        this.jittered = new Map();
     }
     //
     public getPoolWaitTimes(): PoolWaitTimes {
@@ -108,36 +191,38 @@ export default class SocketIOManager {
             idle: Object.assign({}, this.waits.idle)
         };
     }
+
     // here only the socket is created and wired up, the actial connect sequence happens somewhere else
-    public createSocketForPool(forPool: Exclude<Pool, 'active'>): void {
-        let SocketClass: typeof Socket | undefined;
-        let conOpt: (TcpSocketConnectOpts & ConnectOpts) | (IpcSocketConnectOpts & ConnectOpts) | undefined;
+    public createSocketForPool(forPool: PoolExActive): void {
+        const { SocketClass, conOpt, extraOpt } = this.getSocketClassAndOptions(forPool);
+
+        const socket = new SocketClass();
+        const placementTime = this.now();
+        const jitter = this.jitter.getRandom();
         //
-        const createSocket = (socket: typeof Socket) => {
-            SocketClass = socket;
-        };
-        const setAllOptions = (
-            conOptions: (TcpSocketConnectOpts & ConnectOpts) | (IpcSocketConnectOpts & ConnectOpts)
-        ): void => {
-            conOpt = conOptions;
-        };
-        this.crfn({ forPool }, createSocket, setAllOptions);
-        if (!SocketClass) {
-            throw new Error('No socket class set in callback');
-        }
-        if (!conOpt) {
-            throw new Error(`No connect options given`);
-        }
-        conOpt = this.normalizeConnectOptions(conOpt);
-        const _sock = new SocketClass();
-        this.decorate(_sock);
-        const structure = {
-            socket: _sock,
+        const attributes: SocketAttributes = {
+            socket,
             meta: {
-                jitter: this.jitter.getRandom(),
+                placementTime,
+                jitter,
                 pool: forPool
             }
         };
-        this.created.push(structure);
+        //
+        this.decorate(socket, jitter, forPool, extraOpt);
+        this.created.push(attributes); //
+        // generate 32 bit cryptographic random number
+        // _sock._id = <primary_key>
+        // todo:
+        const timeoutId = setTimeout(
+            (self: SocketIOManager) => {
+                if (self.jittered.delete(timeoutId)) {
+                    socket.connect(conOpt);
+                }
+            },
+            jitter,
+            this
+        );
+        this.jittered.set(timeoutId, socket);
     }
 }

@@ -1,25 +1,32 @@
 export type Pool = 'vis' | 'reserved' | 'active' | 'idle';
+export type PoolExActive = Exclude<Pool, 'active'>;
 
-import type { SocketConnectOpts, Socket } from 'net';
+import type { TcpSocketConnectOpts, IpcSocketConnectOpts, ConnectOpts, Socket } from 'net';
+import type SocketIOManager from './SocketIOManager';
+
+export type SocketOtherOptions = {
+    noDelay: boolean;
+    keepAlive: boolean;
+    timeout: number;
+};
 
 export type CreateSocketSpec = (
     hints: { forPool: Exclude<Pool, 'active'> },
     createSock: (socket: typeof Socket) => void,
-    allOptions: (conOptions: SocketConnectOpts) => void
+    allOptions: (conOptions: SocketConnectOpts, extraOpt?: SocketOtherOptions) => void
 ) => void;
 
 export type CreateSocketBuffer = () => Uint8Array;
 
-export type MetaCreateSocketAttr = {
-    jitter: number;
-};
-
 export type MetaSocketAttr = {
-    placementTime: number; // ms since epoch since placed in a queue
-    [index: string]: unknown;
+    jitter: number; // random delay in ms when connecting
+    placementTime: number;
+    pool: Pool; // current/target pool this socket was created
 };
 
 export type SocketAttributes = {
     socket: Socket;
-    meta: MetaCreateSocketAttr | MetaSocketAttr;
+    meta: MetaSocketAttr;
 };
+
+export type SocketConnectOpts = (TcpSocketConnectOpts & ConnectOpts) | (IpcSocketConnectOpts & ConnectOpts);

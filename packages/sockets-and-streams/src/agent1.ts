@@ -40,6 +40,7 @@ async function connectToCounterParty() {
     socket.setEncoding('utf8');
     socket.setNoDelay(true);
     socket.setKeepAlive(true);
+
     /* stream.Writable events ex sockets */
     socket.on('finish', (...args: unknown[]) => {
         console.log('/finish [%o]', args);
