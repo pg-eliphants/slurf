@@ -165,7 +165,7 @@ async function connectToCounterParty() {
             console.log(':errored', socket.errored);
             console.log(':readyState', socket.readyState);
             console.log(':closed', socket.closed);
-            //  https://fr.spankbang.com/4tlyk-cubuu2/playlist/catsuits
+            //
         }, 5e3);
     });
 }
