@@ -52,7 +52,7 @@ async function connectToCounterParty() {
     /* stream.Readable events ex socket */
     // emitted when resume() is called and readableFlowing !== true
     // hence it is switching to "flowing mode"
-    socket.on('/resume', (...args: unknown[]) => {
+    socket.on('resume', (...args: unknown[]) => {
         console.log('/resume [%o]', args);
     });
 

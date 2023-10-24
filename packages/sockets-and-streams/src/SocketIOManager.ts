@@ -40,11 +40,51 @@ export default class SocketIOManager {
         socket.setNoDelay(otherOptions.noDelay);
         socket.setKeepAlive(otherOptions.keepAlive);
         socket.setTimeout(otherOptions.timeout);
-        let cntTO = 0;
-        socket.on('timeout', () => {
-            socket.setTimeout(otherOptions.timeout);
-            cntTO++;
+        // Writable
+        socket.on('finish', () => {
+            console.log('/finish'); // writable surely ended when finish is emitted
+            console.log('readableEnded', socket.readableEnded);
+            console.log('writableEnded', socket.writableEnded);
+            console.log('writableFinished', socket.writableFinished);
         });
+        // Readable
+        // when pause is called (wait for 'pause' to be omitted)
+        socket.on('resume', () => {
+            console.log('/resume');
+        });
+        // Readable
+        socket.on('pause', () => {
+            console.log('/pause');
+        });
+        let nrBytesRead = socket.bytesRead;
+        let nrBytesWritten = socket.bytesWritten;
+        let cntTO = 0;
+        const timeOut = otherOptions.timeout;
+        //Misc
+        socket.on('timeout', () => {
+            if (nrBytesRead === socket.bytesRead && nrBytesWritten === socket.bytesWritten) {
+                cntTO++;
+            } else {
+                const timeBin = Math.trunc((timeOut * cntTO) / 1e3); // 1 sec bins
+                this.waits.idle[timeBin] = (this.waits.idle[timeBin] ?? 0) + 1;
+                cntTO = 0;
+            }
+            nrBytesRead = socket.bytesRead;
+            nrBytesWritten = socket.bytesWritten;
+            socket.setTimeout(otherOptions.timeout);
+        });
+        // Socket, other side signalled an end of transmission
+        socket.on('end', () => {
+            console.log('/end');
+            console.log('readableEnded', socket.readableEnded);
+            console.log('writableEnded', socket.writableEnded);
+            console.log('writableFinished', socket.writableFinished);
+        });
+        // manage backpressure, it is managed eventually by the underlying tcp/ip protocol itself
+        socket.on('drain', () => {
+            console.log('/drain');
+        });
+
         /* socket.on('error', (err: Error & NodeJS.ErrnoException) => {
             // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
             if (err.syscall) {
