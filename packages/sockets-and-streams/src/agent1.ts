@@ -1,3 +1,50 @@
+/**
+ * > sockets-and-streams@1.0.0 devclient
+> tsx ./src/agent1.ts --connect-port=59599
+
+server is listening on: { address: '::', family: 'IPv6', port: 52710 }
+connecting to counterparty
+port found: --connect-port=59599
+/lookup: [[ null, '::1', 6, 'localhost', [length]: 4 ]]
+/lookup: [[ null, '127.0.0.1', 4, 'localhost', [length]: 4 ]]
+/connect received
+callback/socket.connect()
+/ready: [[ [length]: 0 ]]
+/timeout: [[ [length]: 0 ]]
+:readableEnded false
+:writableEnded false
+:writableFinished false
+:errored null
+:readyState open
+:closed false
+end event + data sent
+:readableEnded false
+:writableEnded true
+:writableFinished false
+:errored null
+:readyState readOnly
+:closed false
+/finish [[ [length]: 0 ]]
+readableEnded false
+writableEnded true
+writableFinished true
+/readable start, to read:[21]
+/data, socket timeout is: 3000
+/data, ended? false
+/data, received type [string], data:['reply: cending socket']
+/readable -> read() -> [reply: cending socket]
+/readable null received
+/readable end
+/readable start, to read:[0]
+/readable null received
+/readable end
+/end [[ [length]: 0 ]]
+readableEnded true
+writableEnded true
+writableFinished true
+/close: hadError: [false]
+ */
+
 import { Socket } from 'net';
 import type { TcpNetConnectOpts } from 'net';
 import testServer from './server-partial';
@@ -157,8 +204,10 @@ async function connectToCounterParty() {
             console.log(':errored', socket.errored);
             console.log(':readyState', socket.readyState);
             console.log(':closed', socket.closed);
-            socket.end('e:nding socket');
-            console.log(':end event + data sent');
+
+            socket.end('cending socket');
+            console.log('%cend event + data sent', 'color:red');
+
             console.log(':readableEnded', socket.readableEnded);
             console.log(':writableEnded', socket.writableEnded);
             console.log(':writableFinished', socket.writableFinished);

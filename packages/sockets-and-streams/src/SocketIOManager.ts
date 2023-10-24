@@ -11,6 +11,8 @@ import type {
     PoolExActive
 } from './types';
 
+import { isAggregateError } from './helpers';
+
 type HistogramResidentTimes = {
     [time: number]: number;
 };
@@ -81,11 +83,11 @@ export default class SocketIOManager {
             console.log('writableFinished', socket.writableFinished);
         });
         // manage backpressure, it is managed eventually by the underlying tcp/ip protocol itself
+        // drain = resume from backpressure(d)
         socket.on('drain', () => {
             console.log('/drain');
         });
-
-        /* socket.on('error', (err: Error & NodeJS.ErrnoException) => {
+        socket.on('error', (err: Error & NodeJS.ErrnoException) => {
             // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
             if (err.syscall) {
                 console.log('/error occurred [%o]:', { syscall: err.syscall, name: err.name, code: err.code });
@@ -94,12 +96,24 @@ export default class SocketIOManager {
             if (isAggregateError(err)) {
                 // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
                 const prunedErrors = Array.from(err.errors).map((err: Error) => ({
-                    message: err.message
+                    message: String(err)
                 }));
                 console.log('/error occurred [%o]:', prunedErrors);
             }
-        });*/
-        return;
+        });
+        socket.on('close', (hadError) => {
+            console.log('/close: hadError: [%s]', hadError);
+        });
+        // there is no argument for "connect" callback
+        socket.on('connect', () => {
+            console.log('/connect received');
+        });
+        socket.on('ready', (...args: unknown[]) => {
+            console.log('/ready: [%o]', args);
+        });
+        socket.on('lookup', (...args: unknown[]) => {
+            console.log('/lookup: [%o]', args);
+        });
     }
     private processData(bytesWritten: number, buf: Uint8Array): boolean {
         console.log(bytesWritten, buf.length);
