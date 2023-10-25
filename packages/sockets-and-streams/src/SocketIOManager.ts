@@ -13,6 +13,10 @@ import type {
 
 import { isAggregateError } from './helpers';
 
+import { insertAfter, insertBefore, remove } from './list';
+
+import type { List } from './list';
+
 type HistogramResidentTimes = {
     [time: number]: number;
 };
@@ -27,11 +31,11 @@ type PoolWaitTimes = {
 
 export default class SocketIOManager {
     // this socket pools are sorted on resident times
-    private vis: SocketAttributes[];
-    private reservedPermanent: SocketAttributes[];
-    private reservedEmpherical: SocketAttributes[];
-    private idle: SocketAttributes[];
-    private created: SocketAttributes[];
+    private vis: List<SocketAttributes>;
+    private reservedPermanent: List<SocketAttributes>;
+    private reservedEmpherical: List<SocketAttributes>;
+    private idle: List<SocketAttributes>;
+    private created: List<SocketAttributes>;
     private waits: PoolWaitTimes;
     private jittered: Map<NodeJS.Timeout, Socket>;
 
@@ -223,11 +227,11 @@ export default class SocketIOManager {
         private readonly createBuffer: CreateSocketBuffer,
         private readonly now: () => number
     ) {
-        this.vis = [];
-        this.reservedPermanent = [];
-        this.reservedEmpherical = [];
-        this.idle = [];
-        this.created = [];
+        this.vis = null;
+        this.reservedPermanent = null;
+        this.reservedEmpherical = null;
+        this.idle = null;
+        this.created = null;
         this.waits = {
             vis: {},
             reserved: {},
@@ -264,7 +268,8 @@ export default class SocketIOManager {
         };
         //
         this.decorate(socket, jitter, forPool, extraOpt);
-        this.created.push(attributes); //
+        const item: List<SocketAttributes> = { next: null, prev: null, value: attributes };
+        this.created = insertBefore(this.created, item); //
         // generate 32 bit cryptographic random number
         // _sock._id = <primary_key>
         // todo:

@@ -21,7 +21,7 @@ export type CreateSocketBuffer = () => Uint8Array;
 export type MetaSocketAttr = {
     jitter: number; // random delay in ms when connecting
     placementTime: number;
-    pool: Pool; // current/target pool this socket was created
+    pool: Pool; // current/target pool
 };
 
 export type SocketAttributes = {
