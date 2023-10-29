@@ -5,7 +5,6 @@ import type {
     CreateSocketBuffer,
     CreateSocketSpec,
     SocketAttributes,
-    MetaSocketAttr,
     SocketOtherOptions,
     SocketConnectOpts,
     PoolExActive
@@ -23,10 +22,10 @@ type HistogramResidentTimes = {
 
 type PoolWaitTimes = {
     vis: HistogramResidentTimes;
-    reserved: HistogramResidentTimes;
-    active: HistogramResidentTimes;
+    reservedPermanent: HistogramResidentTimes;
+    reservedEmpherical: HistogramResidentTimes;
     idle: HistogramResidentTimes;
-    [poolName: string]: HistogramResidentTimes;
+    terminal: HistogramResidentTimes;
 };
 
 export default class SocketIOManager {
@@ -35,16 +34,16 @@ export default class SocketIOManager {
     private reservedPermanent: List<SocketAttributes>;
     private reservedEmpherical: List<SocketAttributes>;
     private idle: List<SocketAttributes>;
+    private terminal: List<SocketAttributes>;
     private created: List<SocketAttributes>;
     private waits: PoolWaitTimes;
     private jittered: Map<NodeJS.Timeout, Socket>;
 
     // private functions
     // this.decorate(_sock, jitter, forPool, conOpt);
-    private decorate(socket: Socket, jitter: number, forPool: Pool, otherOptions: SocketOtherOptions) {
+    private decorate(socket: Socket, attributes: SocketAttributes, otherOptions: SocketOtherOptions) {
+        const self = this;
         let totalIdleTimes = 0;
-        socket.setNoDelay(otherOptions.noDelay);
-        socket.setKeepAlive(otherOptions.keepAlive);
         socket.setTimeout(otherOptions.timeout);
         // Writable
         socket.on('finish', () => {
@@ -82,8 +81,8 @@ export default class SocketIOManager {
         // Socket, other side signalled an end of transmission
         socket.on('end', () => {
             console.log('/end');
-            console.log('readableEnded', socket.readableEnded);
-            console.log('writableEnded', socket.writableEnded);
+            console.log('readableEnded', socket.readableEnded); // start teardown
+            console.log('writableEnded', socket.writableEnded); // flush buffers
             console.log('writableFinished', socket.writableFinished);
         });
         // manage backpressure, it is managed eventually by the underlying tcp/ip protocol itself
@@ -91,6 +90,10 @@ export default class SocketIOManager {
         socket.on('drain', () => {
             console.log('/drain');
         });
+        /*socket.on('data', (buffer) => {
+            console.log('data received: %s', buffer.byteLength);
+        });*/
+        //
         socket.on('error', (err: Error & NodeJS.ErrnoException) => {
             // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
             if (err.syscall) {
@@ -105,6 +108,7 @@ export default class SocketIOManager {
                 console.log('/error occurred [%o]:', prunedErrors);
             }
         });
+        //
         socket.on('close', (hadError) => {
             console.log('/close: hadError: [%s]', hadError);
         });
@@ -112,22 +116,23 @@ export default class SocketIOManager {
         socket.on('connect', () => {
             console.log('/connect received');
         });
+        //
         socket.on('ready', (...args: unknown[]) => {
             console.log('/ready: [%o]', args);
         });
+        //
         socket.on('lookup', (...args: unknown[]) => {
             console.log('/lookup: [%o]', args);
         });
+        // todo: maybe return an object to query stats and for poolmigration
     }
     private processData(bytesWritten: number, buf: Uint8Array): boolean {
         console.log(bytesWritten, buf.length);
         return true;
     }
     private normalizeExtraOptions(extraOpt?: SocketOtherOptions): SocketOtherOptions {
-        const { keepAlive = true, noDelay = true, timeout = 0 } = extraOpt ?? {};
+        const { timeout = 0 } = extraOpt ?? {};
         return {
-            keepAlive,
-            noDelay,
             timeout
         };
     }
@@ -182,7 +187,7 @@ export default class SocketIOManager {
             ...(autoSelectFamily && { autoSelectFamily }),
             ...(autoSelectFamilyAttemptTimeout && { autoSelectFamilyAttemptTimeout }),
             onread: {
-                buffer: this.createBuffer(),
+                buffer: this.createBuffer,
                 callback(bytesWritten: number, buf: Uint8Array): boolean {
                     // self = is socketIoManager
                     return self.processData(bytesWritten, buf);
@@ -232,11 +237,13 @@ export default class SocketIOManager {
         this.reservedEmpherical = null;
         this.idle = null;
         this.created = null;
+        this.terminal = null;
         this.waits = {
             vis: {},
-            reserved: {},
-            active: {},
-            idle: {}
+            reservedPermanent: {},
+            reservedEmpherical: {},
+            idle: {},
+            terminal: {}
         };
         this.jittered = new Map();
     }
@@ -244,9 +251,10 @@ export default class SocketIOManager {
     public getPoolWaitTimes(): PoolWaitTimes {
         return {
             vis: Object.assign({}, this.waits.vis),
-            reserved: Object.assign({}, this.waits.reserved),
-            active: Object.assign({}, this.waits.active),
-            idle: Object.assign({}, this.waits.idle)
+            reservedPermanent: Object.assign({}, this.waits.reservedPermanent),
+            reservedEmpherical: Object.assign({}, this.waits.reservedEmpherical),
+            idle: Object.assign({}, this.waits.idle),
+            terminal: Object.assign({}, this.waits.terminal)
         };
     }
 
@@ -267,7 +275,7 @@ export default class SocketIOManager {
             }
         };
         //
-        this.decorate(socket, jitter, forPool, extraOpt);
+        this.decorate(socket, attributes, extraOpt);
         const item: List<SocketAttributes> = { next: null, prev: null, value: attributes };
         this.created = insertBefore(this.created, item); //
         // generate 32 bit cryptographic random number

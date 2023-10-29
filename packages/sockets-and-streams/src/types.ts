@@ -5,13 +5,15 @@ import type { TcpSocketConnectOpts, IpcSocketConnectOpts, ConnectOpts, Socket } 
 import type SocketIOManager from './SocketIOManager';
 
 export type SocketOtherOptions = {
-    noDelay: boolean;
-    keepAlive: boolean;
     timeout: number;
 };
 
+export type CreateSocketSpecHints = {
+    forPool: Exclude<Pool, 'active'>;
+};
+
 export type CreateSocketSpec = (
-    hints: { forPool: Exclude<Pool, 'active'> },
+    hints: CreateSocketSpecHints,
     createSock: (socket: typeof Socket) => void,
     allOptions: (conOptions: SocketConnectOpts, extraOpt?: SocketOtherOptions) => void
 ) => void;
