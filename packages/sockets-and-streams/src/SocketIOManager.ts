@@ -7,7 +7,8 @@ import type {
     SocketAttributes,
     SocketOtherOptions,
     SocketConnectOpts,
-    PoolExActive
+    PoolExActive,
+    CreateSocketConnection
 } from './types';
 
 import { isAggregateError } from './helpers';
@@ -197,16 +198,16 @@ export default class SocketIOManager {
     }
     //
     private getSocketClassAndOptions(forPool: PoolExActive): {
-        SocketClass: typeof Socket;
+        createConnection: CreateSocketConnection;
         conOpt: SocketConnectOpts;
         extraOpt: SocketOtherOptions;
     } {
-        let SocketClass: typeof Socket | undefined;
+        let createConnection: CreateSocketConnection | undefined;
         let conOpt: SocketConnectOpts | undefined;
         let extraOpt: SocketOtherOptions | undefined;
         //
-        const createSocket = (socket: typeof Socket) => {
-            SocketClass = socket;
+        const createSocket = (cc: CreateSocketConnection) => {
+            createConnection = cc;
         };
         const setAllOptions = (
             conOptions: (TcpSocketConnectOpts & ConnectOpts) | (IpcSocketConnectOpts & ConnectOpts),
@@ -216,15 +217,15 @@ export default class SocketIOManager {
             extraOpt = extraOptions;
         };
         this.crfn({ forPool }, createSocket, setAllOptions);
-        if (!SocketClass) {
-            throw new Error('No socket class set in callback');
+        if (!createConnection) {
+            throw new Error('No "createConnection" set in callback');
         }
         if (!conOpt) {
             throw new Error(`No connect options given`);
         }
         conOpt = this.normalizeConnectOptions(conOpt);
         extraOpt = this.normalizeExtraOptions(extraOpt)!;
-        return { SocketClass, conOpt, extraOpt };
+        return { createConnection, conOpt, extraOpt };
     }
     constructor(
         private readonly crfn: CreateSocketSpec,
@@ -260,9 +261,11 @@ export default class SocketIOManager {
 
     // here only the socket is created and wired up, the actial connect sequence happens somewhere else
     public createSocketForPool(forPool: PoolExActive): void {
-        const { SocketClass, conOpt, extraOpt } = this.getSocketClassAndOptions(forPool);
+        const { createConnection, conOpt, extraOpt } = this.getSocketClassAndOptions(forPool);
 
-        const socket = new SocketClass();
+        const socket = createConnection(conOpt);
+        
+        
         const placementTime = this.now();
         const jitter = this.jitter.getRandom();
         //

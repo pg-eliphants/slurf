@@ -1,7 +1,7 @@
 export type Pool = 'vis' | 'reserved' | 'active' | 'idle';
 export type PoolExActive = Exclude<Pool, 'active'>;
 
-import type { TcpSocketConnectOpts, IpcSocketConnectOpts, ConnectOpts, Socket } from 'net';
+import type { TcpSocketConnectOpts, IpcSocketConnectOpts, ConnectOpts, Socket, NetConnectOpts } from 'net';
 import type SocketIOManager from './SocketIOManager';
 
 export type SocketOtherOptions = {
@@ -12,9 +12,11 @@ export type CreateSocketSpecHints = {
     forPool: Exclude<Pool, 'active'>;
 };
 
+export type CreateSocketConnection = (options: NetConnectOpts) => Socket;
+
 export type CreateSocketSpec = (
     hints: CreateSocketSpecHints,
-    createSock: (socket: typeof Socket) => void,
+    createSock: (createSocket: CreateSocketConnection) => void,
     allOptions: (conOptions: SocketConnectOpts, extraOpt?: SocketOtherOptions) => void
 ) => void;
 
@@ -27,7 +29,7 @@ export type MetaSocketAttr = {
 };
 
 export type SocketAttributes = {
-    socket: Socket;
+    socket: Socket | null;
     meta: MetaSocketAttr;
 };
 
@@ -42,3 +44,4 @@ export interface AggregateErrorConstructor {
     (errors: Iterable<any>, message?: string): AggregateError;
     readonly prototype: AggregateError;
 }
+
