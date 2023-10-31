@@ -1,4 +1,4 @@
-import type { TcpSocketConnectOpts, IpcSocketConnectOpts, ConnectOpts, Socket } from 'net';
+import type { TcpSocketConnectOpts, IpcSocketConnectOpts, ConnectOpts, Socket, SocketConstructorOpts } from 'net';
 import type { Jitter } from './Jitter';
 import type {
     Pool,
@@ -68,16 +68,18 @@ export default class SocketIOManager {
         const timeOut = otherOptions.timeout;
         //Misc
         socket.on('timeout', () => {
+            console.log('/timeout %s', cntTO);
+            cntTO++;
+            socket.setTimeout(otherOptions.timeout);
             if (nrBytesRead === socket.bytesRead && nrBytesWritten === socket.bytesWritten) {
-                cntTO++;
-            } else {
-                const timeBin = Math.trunc((timeOut * cntTO) / 1e3); // 1 sec bins
-                this.waits.idle[timeBin] = (this.waits.idle[timeBin] ?? 0) + 1;
-                cntTO = 0;
+                return;
             }
+            const timeBin = Math.trunc((timeOut * cntTO) / 1e3); // 1 sec bins
+            this.waits.idle[timeBin] = (this.waits.idle[timeBin] ?? 0) + 1;
+            cntTO = 0;
+
             nrBytesRead = socket.bytesRead;
             nrBytesWritten = socket.bytesWritten;
-            socket.setTimeout(otherOptions.timeout);
         });
         // Socket, other side signalled an end of transmission
         socket.on('end', () => {
@@ -264,8 +266,7 @@ export default class SocketIOManager {
         const { createConnection, conOpt, extraOpt } = this.getSocketClassAndOptions(forPool);
 
         const socket = createConnection(conOpt);
-        
-        
+
         const placementTime = this.now();
         const jitter = this.jitter.getRandom();
         //

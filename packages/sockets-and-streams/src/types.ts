@@ -16,7 +16,7 @@ export type CreateSocketConnection = (options: NetConnectOpts) => Socket;
 
 export type CreateSocketSpec = (
     hints: CreateSocketSpecHints,
-    createSock: (createSocket: CreateSocketConnection) => void,
+    createConnection: (createSocket: CreateSocketConnection) => void,
     allOptions: (conOptions: SocketConnectOpts, extraOpt?: SocketOtherOptions) => void
 ) => void;
 
@@ -44,4 +44,3 @@ export interface AggregateErrorConstructor {
     (errors: Iterable<any>, message?: string): AggregateError;
     readonly prototype: AggregateError;
 }
-

@@ -14,7 +14,7 @@ export default function createTestServer(port = 0): Promise<Server | Error> {
         socket.setEncoding('utf8');
         const interval = setInterval(() => {
             console.log('writing data');
-            const rc = socket.write('\x04pong', (err) => {
+            const rc = socket.write(new Uint8Array(65536), (err) => {
                 if (err) {
                     console.log('Error writing data  %o', err);
                     return;
@@ -22,7 +22,7 @@ export default function createTestServer(port = 0): Promise<Server | Error> {
                 console.log('data written');
             });
             console.log('backpressure: %s', rc);
-        }, 5e3);
+        }, 500);
         socket.on('drain', () => {
             console.log('/drain');
         });
