@@ -7,8 +7,12 @@ import type {
     SocketAttributes,
     SocketOtherOptions,
     SocketConnectOpts,
-    PoolExActive,
-    CreateSocketConnection
+    PoolFirstResidence,
+    CreateSocketConnection,
+    PoolWaitTimes,
+    ActivityWaitTimes,
+    PoolTimeBins,
+    ActivityTimeBins
 } from './types';
 
 import { isAggregateError } from './helpers';
@@ -16,19 +20,6 @@ import { isAggregateError } from './helpers';
 import { insertAfter, insertBefore, remove } from './list';
 
 import type { List } from './list';
-
-type HistogramResidentTimes = {
-    [time: number]: number;
-};
-
-type PoolWaitTimes = {
-    vis: HistogramResidentTimes;
-    reservedPermanent: HistogramResidentTimes;
-    reservedEmpherical: HistogramResidentTimes;
-    idle: HistogramResidentTimes;
-    terminal: HistogramResidentTimes;
-    created: HistogramResidentTimes;
-};
 
 export default class SocketIOManager {
     // this socket pools are sorted on resident times
@@ -38,10 +29,62 @@ export default class SocketIOManager {
     private idle: List<SocketAttributes>;
     private terminal: List<SocketAttributes>;
     private created: List<SocketAttributes>;
-    private waits: PoolWaitTimes;
+    private poolWaits: PoolWaitTimes;
+    private activityWaits: ActivityWaitTimes;
     private jittered: Map<NodeJS.Timeout, Socket>;
 
-    // private functions
+    constructor(
+        private readonly crfn: CreateSocketSpec,
+        private readonly jitter: Jitter,
+        private readonly createBuffer: CreateSocketBuffer,
+        private readonly now: () => number,
+        private readonly reduceTimeToPoolBins: PoolTimeBins,
+        private readonly reduceTimeToActivityBins: ActivityTimeBins
+    ) {
+        this.vis = null;
+        this.reservedPermanent = null;
+        this.reservedEmpherical = null;
+        this.idle = null;
+        this.created = null;
+        this.terminal = null;
+        this.poolWaits = {
+            active: {},
+            vis: {},
+            reservedPermanent: {},
+            reservedEmpherical: {},
+            idle: {},
+            created: {},
+            terminal: {}
+        };
+        this.activityWaits = {
+            network: {},
+            iom_code: {}
+        };
+        this.jittered = new Map();
+    }
+
+    private updateProcessStats(start: number, stop: number) {
+        const delay = stop - start;
+        const bin = this.reduceTimeToActivityBins.iom_code(delay);
+        this.activityWaits.iom_code[bin] = (this.activityWaits.iom_code[bin] ?? 0) + 1;
+        return delay;
+    }
+
+    private updateNetworkStats(item: List<SocketAttributes>): number {
+        const {
+            socket,
+            meta: { networkBytes }
+        } = item!.value;
+        const { ts, bytesRead, bytesWritten } = networkBytes;
+        const now = this.now();
+        const delay = now - ts;
+        networkBytes.bytesRead = socket!.bytesRead;
+        networkBytes.bytesWritten = socket!.bytesWritten;
+        networkBytes.ts = now;
+        const bin = this.reduceTimeToActivityBins.network(delay);
+        this.activityWaits.network[bin] = (this.activityWaits.network[bin] ?? 0) + 1;
+        return delay;
+    }
     // this.decorate(_sock, jitter, forPool, conOpt);
     private decorate(socket: Socket, attributes: SocketAttributes, otherOptions: SocketOtherOptions) {
         // Writable
@@ -61,31 +104,18 @@ export default class SocketIOManager {
             console.log('/pause');
         });
 
-        //Misc
         if (otherOptions.timeout) {
-            attributes.meta.tsLastBytes = {
-                ts: Date.now(),
-                bytesRead: socket.bytesRead,
-                bytesWritten: socket.bytesWritten
-            };
             const timeOut = otherOptions.timeout;
             socket.setTimeout(timeOut);
             socket.on('timeout', () => {
-                const { ts, bytesRead, bytesWritten } = attributes.meta.tsLastBytes!;
-                const current = Date.now();
+                const { ts, bytesRead, bytesWritten } = attributes.meta.networkBytes;
+                const current = this.now();
                 const delay = current - ts;
-                console.log('/timeout %s ms', delay, timeOut);
-                if (bytesRead === socket.bytesRead && bytesWritten === socket.bytesWritten) {
-                    console.log('nothing to do', delay);
-                    return;
+                console.log('/timout delay:%s', delay);
+                if (delay > 12e3) {
+                    // migrate socket to idle queue
+                    console.log('migrate socket to idle queue');
                 }
-                const timeBin = Math.trunc(delay / 1e3); // 1 sec bins
-                this.waits.idle[timeBin] = (this.waits.idle[timeBin] ?? 0) + 1;
-                attributes.meta.tsLastBytes = {
-                    ts: current,
-                    bytesRead: socket.bytesRead,
-                    bytesWritten: socket.bytesWritten
-                };
             });
         }
         // Socket, other side signalled an end of transmission
@@ -123,11 +153,12 @@ export default class SocketIOManager {
             console.log('/close: hadError: [%s]', hadError);
         });
         // there is no argument for "connect" callback
-        socket.on('connect', () => {
-            console.log('/connect received');
+        // use "once" instead of "on", sometimes connect is re-emitted after the connect happens immediatly after a socket disconnect, its weird!
+        socket.once('connect', () => {
+            console.log('/connect received, readyState=[%s], connecting=[%s]', socket.readyState, socket.connecting);
         });
-        //
-        socket.on('ready', (...args: unknown[]) => {
+        // use "once" instead of "on", sometimes connect is re-emitted after the connect happens immediatly after a socket disconnect, its weird!
+        socket.once('ready', (...args: unknown[]) => {
             console.log('/ready: [%o]', args);
         });
         //
@@ -136,21 +167,26 @@ export default class SocketIOManager {
         });
         // todo: maybe return an object to query stats and for poolmigration
     }
-    private processData(socket: Socket, bytesWritten: number, buf: Uint8Array, item: List<SocketAttributes>): boolean {
-        if (item!.value.meta.tsLastBytes) {
-            item!.value.meta.tsLastBytes = {
-                ts: Date.now(),
-                bytesRead: socket.bytesRead,
-                bytesWritten: socket.bytesWritten
-            };
+    private processData(buf: DataView, item: List<SocketAttributes>): boolean {
+        if (!item) {
+            console.error('big bad error: "item" was null');
+            // TODO: log this as an internal consistency error
+            return false;
         }
+        const networkDelay = this.updateNetworkStats(item);
+        const s0 = this.now();
+        for (let i = 0; i < 1e9; i++) {}
+        const s1 = this.now();
+        const processTime = this.updateProcessStats(s0, s1);
+
         console.log(
-            bytesWritten,
-            buf.length,
-            this.getPoolWaitTimes(),
-            socket.readableHighWaterMark,
-            socket.remoteAddress,
-            item?.value.meta
+            'network transit:[%s ms], [%s]: bytes in buffer, [%s] total bytes received, processTime:[%s ms], networkTimes: [%o], processTimes:[%o]',
+            networkDelay,
+            buf.byteLength,
+            item.value.meta.networkBytes.bytesRead,
+            processTime,
+            this.activityWaits.network,
+            this.activityWaits.iom_code
         );
         return true;
     }
@@ -163,8 +199,6 @@ export default class SocketIOManager {
     private normalizeConnectOptions(
         conOpt: (TcpSocketConnectOpts & ConnectOpts) | (IpcSocketConnectOpts & ConnectOpts)
     ): (TcpSocketConnectOpts & ConnectOpts) | (IpcSocketConnectOpts & ConnectOpts) {
-        // callback on the "onread" will be bound to global, nothing we can do about that, this is nodejs behavior
-        // therefor we make a copy of this(=SocketIOManager) to self,        // unix domain socket?
         if ((conOpt as IpcSocketConnectOpts & ConnectOpts).path) {
             return {
                 path: (conOpt as IpcSocketConnectOpts & ConnectOpts).path
@@ -204,7 +238,7 @@ export default class SocketIOManager {
         };
     }
     //
-    private getSocketClassAndOptions(forPool: PoolExActive): {
+    private getSocketClassAndOptions(forPool: PoolFirstResidence): {
         createConnection: CreateSocketConnection;
         conOpt: SocketConnectOpts;
         extraOpt: SocketOtherOptions;
@@ -234,52 +268,31 @@ export default class SocketIOManager {
         extraOpt = this.normalizeExtraOptions(extraOpt)!;
         return { createConnection, conOpt, extraOpt };
     }
-    constructor(
-        private readonly crfn: CreateSocketSpec,
-        private readonly jitter: Jitter,
-        private readonly createBuffer: CreateSocketBuffer,
-        private readonly now: () => number
-    ) {
-        this.vis = null;
-        this.reservedPermanent = null;
-        this.reservedEmpherical = null;
-        this.idle = null;
-        this.created = null;
-        this.terminal = null;
-        this.waits = {
-            vis: {},
-            reservedPermanent: {},
-            reservedEmpherical: {},
-            idle: {},
-            created: {},
-            terminal: {}
-        };
-        this.jittered = new Map();
-    }
+
     //
     public getPoolWaitTimes(): PoolWaitTimes {
         return {
-            vis: Object.assign({}, this.waits.vis),
-            reservedPermanent: Object.assign({}, this.waits.reservedPermanent),
-            reservedEmpherical: Object.assign({}, this.waits.reservedEmpherical),
-            idle: Object.assign({}, this.waits.idle),
-            terminal: Object.assign({}, this.waits.terminal),
-            created: Object.assign({}, this.waits.created)
+            active: Object.assign({}, this.poolWaits.active),
+            vis: Object.assign({}, this.poolWaits.vis),
+            reservedPermanent: Object.assign({}, this.poolWaits.reservedPermanent),
+            reservedEmpherical: Object.assign({}, this.poolWaits.reservedEmpherical),
+            idle: Object.assign({}, this.poolWaits.idle),
+            terminal: Object.assign({}, this.poolWaits.terminal),
+            created: Object.assign({}, this.poolWaits.created)
         };
     }
 
     // here only the socket is created and wired up, the actial connect sequence happens somewhere else
-    public createSocketForPool(forPool: PoolExActive): void {
+    public createSocketForPool(forPool: PoolFirstResidence): void {
         const { createConnection, conOpt, extraOpt } = this.getSocketClassAndOptions(forPool);
-
         const self = this;
         const socket = createConnection({
             ...conOpt,
             onread: {
                 buffer: this.createBuffer,
                 callback(bytesWritten: number, buf: Uint8Array): boolean {
-                    // self = is socketIoManager
-                    return self.processData(socket, bytesWritten, buf, item);
+                    // self = is socketIoManager, keep it simple no complex stuff here
+                    return self.processData(new DataView(buf.buffer, 0, bytesWritten), item);
                 }
             }
         });
@@ -290,9 +303,18 @@ export default class SocketIOManager {
         const attributes: SocketAttributes = {
             socket,
             meta: {
-                placementTime,
                 jitter,
-                pool: forPool
+                pool: {
+                    placementTime,
+                    createdFor: forPool,
+                    lastChecked: placementTime,
+                    pool: 'created'
+                },
+                networkBytes: {
+                    ts: placementTime,
+                    bytesRead: 0,
+                    bytesWritten: 0
+                }
             }
         };
         //

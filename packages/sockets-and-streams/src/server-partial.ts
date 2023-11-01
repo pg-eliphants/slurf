@@ -14,7 +14,7 @@ export default function createTestServer(port = 0): Promise<Server | Error> {
         socket.setEncoding('utf8');
         const interval = setInterval(() => {
             console.log('writing data');
-            const rc = socket.write(new Uint8Array(15), (err) => {
+            const rc = socket.write(new Uint8Array(1026), (err) => {
                 if (err) {
                     console.log('Error writing data  %o', err);
                     return;

@@ -1,15 +1,16 @@
-export type Pool = 'vis' | 'reserved' | 'active' | 'idle';
-export type PoolExActive = Exclude<Pool, 'active'>;
-
 import type { TcpSocketConnectOpts, IpcSocketConnectOpts, ConnectOpts, Socket, NetConnectOpts } from 'net';
 import type SocketIOManager from './SocketIOManager';
 
-export type SocketOtherOptions = {
-    timeout: number;
-};
+export type Pool = 'vis' | 'reservedEmpherical' | 'reservedPermanent' | 'active' | 'idle' | 'terminal' | 'created';
+export type Activity = 'network' | 'iom_code';
+export type PoolFirstResidence = Exclude<Pool, 'active' | 'terminal' | 'reservedEmpherical' | 'created'>;
 
 export type CreateSocketSpecHints = {
-    forPool: Exclude<Pool, 'active'>;
+    forPool: PoolFirstResidence;
+};
+
+export type SocketOtherOptions = {
+    timeout: number;
 };
 
 export type CreateSocketConnection = (options: NetConnectOpts) => Socket;
@@ -20,17 +21,44 @@ export type CreateSocketSpec = (
     allOptions: (conOptions: SocketConnectOpts, extraOpt?: SocketOtherOptions) => void
 ) => void;
 
+export type reduceValueToBin = (value: number) => number;
+
+// define the bin sizes
+export type PoolTimeBins = {
+    [index in Pool]: reduceValueToBin;
+};
+
+export type ActivityTimeBins = {
+    [index in Activity]: reduceValueToBin;
+};
+
 export type CreateSocketBuffer = () => Uint8Array;
 
 export type MetaSocketAttr = {
     jitter: number; // random delay in ms when connecting
-    placementTime: number;
-    pool: Pool; // current/target pool
-    tsLastBytes?: {
+    pool: {
+        createdFor: PoolFirstResidence;
+        placementTime: number; // when the socket was placed into "pool"
+        pool: Pool;
+        lastChecked: number;
+    };
+    networkBytes: {
         ts: number;
         bytesRead: number;
         bytesWritten: number;
     };
+};
+
+type HistogramResidentTimes = {
+    [time: number]: number;
+};
+
+export type PoolWaitTimes = {
+    [index in Pool]: HistogramResidentTimes;
+};
+
+export type ActivityWaitTimes = {
+    [index in Activity]: HistogramResidentTimes;
 };
 
 export type SocketAttributes = {
