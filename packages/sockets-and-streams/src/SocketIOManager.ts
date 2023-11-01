@@ -27,6 +27,7 @@ type PoolWaitTimes = {
     reservedEmpherical: HistogramResidentTimes;
     idle: HistogramResidentTimes;
     terminal: HistogramResidentTimes;
+    created: HistogramResidentTimes;
 };
 
 export default class SocketIOManager {
@@ -43,9 +44,6 @@ export default class SocketIOManager {
     // private functions
     // this.decorate(_sock, jitter, forPool, conOpt);
     private decorate(socket: Socket, attributes: SocketAttributes, otherOptions: SocketOtherOptions) {
-        const self = this;
-        let totalIdleTimes = 0;
-        socket.setTimeout(otherOptions.timeout);
         // Writable
         socket.on('finish', () => {
             console.log('/finish'); // writable surely ended when finish is emitted
@@ -62,25 +60,34 @@ export default class SocketIOManager {
         socket.on('pause', () => {
             console.log('/pause');
         });
-        let nrBytesRead = socket.bytesRead;
-        let nrBytesWritten = socket.bytesWritten;
-        let cntTO = 0;
-        const timeOut = otherOptions.timeout;
-        //Misc
-        socket.on('timeout', () => {
-            console.log('/timeout %s', cntTO);
-            cntTO++;
-            socket.setTimeout(otherOptions.timeout);
-            if (nrBytesRead === socket.bytesRead && nrBytesWritten === socket.bytesWritten) {
-                return;
-            }
-            const timeBin = Math.trunc((timeOut * cntTO) / 1e3); // 1 sec bins
-            this.waits.idle[timeBin] = (this.waits.idle[timeBin] ?? 0) + 1;
-            cntTO = 0;
 
-            nrBytesRead = socket.bytesRead;
-            nrBytesWritten = socket.bytesWritten;
-        });
+        //Misc
+        if (otherOptions.timeout) {
+            attributes.meta.tsLastBytes = {
+                ts: Date.now(),
+                bytesRead: socket.bytesRead,
+                bytesWritten: socket.bytesWritten
+            };
+            const timeOut = otherOptions.timeout;
+            socket.setTimeout(timeOut);
+            socket.on('timeout', () => {
+                const { ts, bytesRead, bytesWritten } = attributes.meta.tsLastBytes!;
+                const current = Date.now();
+                const delay = current - ts;
+                console.log('/timeout %s ms', delay, timeOut);
+                if (bytesRead === socket.bytesRead && bytesWritten === socket.bytesWritten) {
+                    console.log('nothing to do', delay);
+                    return;
+                }
+                const timeBin = Math.trunc(delay / 1e3); // 1 sec bins
+                this.waits.idle[timeBin] = (this.waits.idle[timeBin] ?? 0) + 1;
+                attributes.meta.tsLastBytes = {
+                    ts: current,
+                    bytesRead: socket.bytesRead,
+                    bytesWritten: socket.bytesWritten
+                };
+            });
+        }
         // Socket, other side signalled an end of transmission
         socket.on('end', () => {
             console.log('/end');
@@ -129,8 +136,22 @@ export default class SocketIOManager {
         });
         // todo: maybe return an object to query stats and for poolmigration
     }
-    private processData(bytesWritten: number, buf: Uint8Array): boolean {
-        console.log(bytesWritten, buf.length);
+    private processData(socket: Socket, bytesWritten: number, buf: Uint8Array, item: List<SocketAttributes>): boolean {
+        if (item!.value.meta.tsLastBytes) {
+            item!.value.meta.tsLastBytes = {
+                ts: Date.now(),
+                bytesRead: socket.bytesRead,
+                bytesWritten: socket.bytesWritten
+            };
+        }
+        console.log(
+            bytesWritten,
+            buf.length,
+            this.getPoolWaitTimes(),
+            socket.readableHighWaterMark,
+            socket.remoteAddress,
+            item?.value.meta
+        );
         return true;
     }
     private normalizeExtraOptions(extraOpt?: SocketOtherOptions): SocketOtherOptions {
@@ -143,19 +164,10 @@ export default class SocketIOManager {
         conOpt: (TcpSocketConnectOpts & ConnectOpts) | (IpcSocketConnectOpts & ConnectOpts)
     ): (TcpSocketConnectOpts & ConnectOpts) | (IpcSocketConnectOpts & ConnectOpts) {
         // callback on the "onread" will be bound to global, nothing we can do about that, this is nodejs behavior
-        // therefor we make a copy of this(=SocketIOManager) to self,
-        const self = this;
-        // unix domain socket?
+        // therefor we make a copy of this(=SocketIOManager) to self,        // unix domain socket?
         if ((conOpt as IpcSocketConnectOpts & ConnectOpts).path) {
             return {
-                path: (conOpt as IpcSocketConnectOpts & ConnectOpts).path,
-                onread: {
-                    buffer: this.createBuffer(),
-                    callback(bytesWritten: number, buf: Uint8Array): boolean {
-                        // self = is socketIoManager
-                        return self.processData(bytesWritten, buf);
-                    }
-                }
+                path: (conOpt as IpcSocketConnectOpts & ConnectOpts).path
             };
         }
         const {
@@ -188,14 +200,7 @@ export default class SocketIOManager {
             ...(keepAlive && { keepAlive }),
             ...(keepAliveInitialDelay && { keepAliveInitialDelay }),
             ...(autoSelectFamily && { autoSelectFamily }),
-            ...(autoSelectFamilyAttemptTimeout && { autoSelectFamilyAttemptTimeout }),
-            onread: {
-                buffer: this.createBuffer,
-                callback(bytesWritten: number, buf: Uint8Array): boolean {
-                    // self = is socketIoManager
-                    return self.processData(bytesWritten, buf);
-                }
-            }
+            ...(autoSelectFamilyAttemptTimeout && { autoSelectFamilyAttemptTimeout })
         };
     }
     //
@@ -246,6 +251,7 @@ export default class SocketIOManager {
             reservedPermanent: {},
             reservedEmpherical: {},
             idle: {},
+            created: {},
             terminal: {}
         };
         this.jittered = new Map();
@@ -257,7 +263,8 @@ export default class SocketIOManager {
             reservedPermanent: Object.assign({}, this.waits.reservedPermanent),
             reservedEmpherical: Object.assign({}, this.waits.reservedEmpherical),
             idle: Object.assign({}, this.waits.idle),
-            terminal: Object.assign({}, this.waits.terminal)
+            terminal: Object.assign({}, this.waits.terminal),
+            created: Object.assign({}, this.waits.created)
         };
     }
 
@@ -265,7 +272,17 @@ export default class SocketIOManager {
     public createSocketForPool(forPool: PoolExActive): void {
         const { createConnection, conOpt, extraOpt } = this.getSocketClassAndOptions(forPool);
 
-        const socket = createConnection(conOpt);
+        const self = this;
+        const socket = createConnection({
+            ...conOpt,
+            onread: {
+                buffer: this.createBuffer,
+                callback(bytesWritten: number, buf: Uint8Array): boolean {
+                    // self = is socketIoManager
+                    return self.processData(socket, bytesWritten, buf, item);
+                }
+            }
+        });
 
         const placementTime = this.now();
         const jitter = this.jitter.getRandom();

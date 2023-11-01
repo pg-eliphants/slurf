@@ -16,7 +16,7 @@ export type CreateSocketConnection = (options: NetConnectOpts) => Socket;
 
 export type CreateSocketSpec = (
     hints: CreateSocketSpecHints,
-    createConnection: (createSocket: CreateSocketConnection) => void,
+    setSocketCreator: (createSocket: CreateSocketConnection) => void,
     allOptions: (conOptions: SocketConnectOpts, extraOpt?: SocketOtherOptions) => void
 ) => void;
 
@@ -26,6 +26,11 @@ export type MetaSocketAttr = {
     jitter: number; // random delay in ms when connecting
     placementTime: number;
     pool: Pool; // current/target pool
+    tsLastBytes?: {
+        ts: number;
+        bytesRead: number;
+        bytesWritten: number;
+    };
 };
 
 export type SocketAttributes = {
