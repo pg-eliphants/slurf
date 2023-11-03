@@ -49,11 +49,12 @@ class Connection extends EventEmitter {
 
         this.stream.once('connect', function () {
             if (self._keepAlive) {
-                // enable keep alive
+                // enable keep alive, is the same as doing the following in C "setsockopt(....)"
                 // SO_KEEPALIVE=1
                 // TCP_KEEPIDLE = initialDelay;
                 // TCP_KEEPCNT = 10;
                 // TCP_KEEPINTVL = 1;
+                // jkf: weird, so this is set AFTER the connect comes in
                 self.stream.setKeepAlive(true, self._keepAliveInitialDelayMillis);
             }
             self.emit('connect');
