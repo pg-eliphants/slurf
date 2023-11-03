@@ -165,7 +165,6 @@ export default class SocketIOManager {
         socket.on('lookup', (...args: unknown[]) => {
             console.log('/lookup: [%o]', args);
         });
-        // todo: maybe return an object to query stats and for poolmigration
     }
     private processData(buf: DataView, item: List<SocketAttributes>): boolean {
         if (!item) {
