@@ -12,7 +12,7 @@ import type {
 function test() {
     const spec: CreateSocketSpec = function (hints, setSocketCreator, allOptions) {
         setSocketCreator(createConnection);
-        allOptions({ port: 9999, keepAlive: true, noDelay: true }, { timeout: 6000 });
+        allOptions({ port: 5432, keepAlive: true, noDelay: true }, { timeout: 6000 });
     } as CreateSocketSpec;
 
     const jitter = new Jitter(() => Math.random(), 0, 0.01);

@@ -130,9 +130,9 @@ export default class SocketIOManager {
         socket.on('drain', () => {
             console.log('/drain');
         });
-        /*socket.on('data', (buffer) => {
+        socket.on('data', (buffer) => {
             console.log('data received: %s', buffer.byteLength);
-        });*/
+        });
         //
         socket.on('error', (err: Error & NodeJS.ErrnoException) => {
             // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access

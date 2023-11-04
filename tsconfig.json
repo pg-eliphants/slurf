@@ -48,8 +48,8 @@
         "forceConsistentCasingInFileNames": true,
         "preserveSymlinks": true,
 
-        "lib": ["es2020"],
-        "target": "es2020",
+        "lib": ["esnext"],
+        "target": "esnext",
 
         "explainFiles": false,
         "extendedDiagnostics": true,

@@ -44,6 +44,7 @@
         "prettier": "3.0.0",
         "ts-jest": "29.1.1",
         "tsx": "3.12.7",
+        "typescript": "5.2.2",
         "typescript-eslint-language-service": "5.0.5"
     },
     "engines": {

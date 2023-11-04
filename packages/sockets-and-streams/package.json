@@ -6,7 +6,7 @@
   "main": "index.js",
   "scripts": {
     "devserver": "tsx ./src/agent2.ts",
-    "devclient": "tsx ./src/agent1.ts --connect-port=59599",
+    "devclient": "tsx ./src/agent1.ts --connect-port=",
     "start": "tsc && node ./dist/index.js",
     "test": "tsx src/__test__/socket-manager.test.ts"
   },

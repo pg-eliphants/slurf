@@ -412,6 +412,15 @@ class Client extends EventEmitter {
     getStartupConf() {
         var params = this.connectionParameters;
 
+        // user
+        // database
+        // application_name
+        // statement_timeout
+        // replication
+        // lock_timeout
+        // idle_in_transaction_session_timeout
+        // options
+
         var data = {
             user: params.user,
             database: params.database
