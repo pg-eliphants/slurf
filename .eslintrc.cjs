@@ -51,7 +51,8 @@ module.exports = {
                 '@typescript-eslint/ban-types': 0,
                 '@typescript-eslint/no-unsafe-assignment': 0,
                 '@typescript-eslint/no-unsafe-call': 0,
-                '@typescript-eslint/no-unused-vars': [['error', { varsIgnorePattern: '^_.*$' }]]
+                '@typescript-eslint/no-unused-vars': [['error', { varsIgnorePattern: '^_.*$' }]],
+                '@typescript-eslint/no-this-alias': 0
             }
         }
     ]

@@ -15,11 +15,13 @@ import type {
     ActivityTimeBins
 } from './types';
 
+import ProtocolManager from '../protocol/ProtocolManager';
+
 import { isAggregateError } from './helpers';
 
-import { insertAfter, insertBefore, remove } from './list';
+import { insertAfter, insertBefore, remove } from '../utils/list';
 
-import type { List } from './list';
+import type { List } from '../utils/list';
 
 export default class SocketIOManager {
     // this socket pools are sorted on resident times
@@ -32,6 +34,7 @@ export default class SocketIOManager {
     private poolWaits: PoolWaitTimes;
     private activityWaits: ActivityWaitTimes;
     private jittered: Map<NodeJS.Timeout, Socket>;
+    private protocolManager: ProtocolManager | null;
 
     constructor(
         private readonly crfn: CreateSocketSpec,
@@ -61,6 +64,7 @@ export default class SocketIOManager {
             iom_code: {}
         };
         this.jittered = new Map();
+        this.protocolManager = null;
     }
 
     private updateProcessStats(start: number, stop: number) {
@@ -86,7 +90,8 @@ export default class SocketIOManager {
         return delay;
     }
     // this.decorate(_sock, jitter, forPool, conOpt);
-    private decorate(socket: Socket, attributes: SocketAttributes, otherOptions: SocketOtherOptions) {
+    private decorate(attributes: SocketAttributes, otherOptions: SocketOtherOptions) {
+        const socket = attributes.socket!;
         // Writable
         socket.on('finish', () => {
             console.log('/finish'); // writable surely ended when finish is emitted
@@ -156,6 +161,7 @@ export default class SocketIOManager {
         // use "once" instead of "on", sometimes connect is re-emitted after the connect happens immediatly after a socket disconnect, its weird!
         socket.once('connect', () => {
             console.log('/connect received, readyState=[%s], connecting=[%s]', socket.readyState, socket.connecting);
+            this.protocolManager && this.protocolManager.initStartup(attributes);
         });
         // use "once" instead of "on", sometimes connect is re-emitted after the connect happens immediatly after a socket disconnect, its weird!
         socket.once('ready', (...args: unknown[]) => {
@@ -174,7 +180,6 @@ export default class SocketIOManager {
         }
         const networkDelay = this.updateNetworkStats(item);
         const s0 = this.now();
-        for (let i = 0; i < 1e9; i++) {}
         const s1 = this.now();
         const processTime = this.updateProcessStats(s0, s1);
 
@@ -187,7 +192,10 @@ export default class SocketIOManager {
             this.activityWaits.network,
             this.activityWaits.iom_code
         );
-        return true;
+        if (!this.protocolManager) {
+            return true;
+        }
+        return this.protocolManager.binDump(item.value, buf);
     }
     private normalizeExtraOptions(extraOpt?: SocketOtherOptions): SocketOtherOptions {
         const { timeout = 0 } = extraOpt ?? {};
@@ -269,6 +277,25 @@ export default class SocketIOManager {
     }
 
     //
+    public setProtocolManager(protocolMngr: ProtocolManager): void {
+        this.protocolManager = protocolMngr;
+    }
+
+    public send(attributes: SocketAttributes, bin: Uint8Array): unknown {
+        const socket = attributes.socket!;
+        if (socket.closed) {
+            return; // todo: this socket is closed
+        }
+        if (socket.writableEnded || socket.writableFinished) {
+            return; // todo: this socket not closed but not usefull for writing
+        }
+        if (socket.writableNeedDrain) {
+            return; // todo: return status for backpressure
+        }
+        socket.write(bin);
+        return; // todo: return OK status
+    }
+
     public getPoolWaitTimes(): PoolWaitTimes {
         return {
             active: Object.assign({}, this.poolWaits.active),
@@ -290,7 +317,6 @@ export default class SocketIOManager {
             onread: {
                 buffer: this.createBuffer,
                 callback(bytesWritten: number, buf: Uint8Array): boolean {
-                    // self = is socketIoManager, keep it simple no complex stuff here
                     return self.processData(new DataView(buf.buffer, 0, bytesWritten), item);
                 }
             }
@@ -313,11 +339,14 @@ export default class SocketIOManager {
                     ts: placementTime,
                     bytesRead: 0,
                     bytesWritten: 0
+                },
+                state: {
+                    protocolState: 'none'
                 }
             }
         };
         //
-        this.decorate(socket, attributes, extraOpt);
+        this.decorate(attributes, extraOpt);
         const item: List<SocketAttributes> = { next: null, prev: null, value: attributes };
         this.created = insertBefore(this.created, item); //
         // generate 32 bit cryptographic random number

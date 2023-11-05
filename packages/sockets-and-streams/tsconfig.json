@@ -1,5 +1,5 @@
 {
-    "files": ["./src/agent1.ts", "./src/agent2.ts"],
+    "files": ["src/io/__test__/agent1.ts", "src/io/__test__/agent2.ts"],
     "compilerOptions": {
         /* Visit https://aka.ms/tsconfig to read more about this file */
 

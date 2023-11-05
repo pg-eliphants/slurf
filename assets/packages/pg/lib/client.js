@@ -419,7 +419,7 @@ class Client extends EventEmitter {
         // replication
         // lock_timeout
         // idle_in_transaction_session_timeout
-        // options
+        // options, this is like url search options?
 
         var data = {
             user: params.user,

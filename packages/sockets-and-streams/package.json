@@ -5,10 +5,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "devserver": "tsx ./src/agent2.ts",
-    "devclient": "tsx ./src/agent1.ts --connect-port=",
+    "devserver": "tsx ./src/io/__test__/agent2.ts",
+    "devclient": "tsx ./src/io/__test__/agent1.ts --connect-port=",
     "start": "tsc && node ./dist/index.js",
-    "test": "tsx src/__test__/socket-manager.test.ts"
+    "test": "tsx src/io/__test__/socket-manager.test.ts"
   },
   "keywords": [],
   "author": "",

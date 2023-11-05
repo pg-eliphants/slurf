@@ -34,7 +34,7 @@ const defaultConfig = Object.freeze({
 
     // max milliseconds a client can go unused before it is removed
     // from the pool and destroyed
-    idleTimeoutMillis: 30000,
+    idleTimeoutMillis: 30_000,
 
     client_encoding: '',
 

@@ -17,7 +17,7 @@ const enum code {
 }
 
 const startup = (opts: Record<string, string>): ArrayBuffer => {
-    // protocol version
+    // protocol version 0x3_0000 this (found on pg16 page)
     writer.addInt16(3).addInt16(0);
     for (const key of Object.keys(opts)) {
         writer.addCString(key).addCString(opts[key]);
