@@ -1,6 +1,6 @@
 export type List<T> = null | {
-    prev: List<T> | null;
-    next: List<T> | null;
+    prev?: List<T>;
+    next?: List<T>;
     value: T;
 };
 
@@ -26,7 +26,7 @@ export function insertBefore<T>(list: List<T>, item: List<T>): List<T> {
 
 export function insertAfter<T>(list: List<T>, item: List<T>): List<T> {
     item!.prev = list;
-    item!.next = list?.next ?? null;
+    item!.next = list?.next;
     if (item?.next) {
         item.next.prev = item;
     }
@@ -47,7 +47,7 @@ export function remove<T>(list: List<T>): List<T> {
     if (temp.next) {
         temp.next.prev = temp.prev;
     }
-    temp.next = null;
-    temp.prev = null;
+    delete temp.next;
+    delete temp.prev;
     return temp;
 }

@@ -17,14 +17,12 @@ function concatArrayBuffers(...bufs){
 */
 
 export default class ProtocolManager {
-    private textEncoder = globalThis.TextEncoder(); // typescript is being a dick with the TextEncoder class
     constructor(
         private readonly socketIOManager: SocketIOManager,
-        private readonly memoryManager: MemoryManager,
+        private readonly encoder: Encoder,
         private readonly getClientConfig: GetClientConfig
     ) {
         this.socketIOManager.setProtocolManager(this);
-        // validate pgClientConfig?
     }
     /**
      * 
@@ -59,8 +57,19 @@ export default class ProtocolManager {
             The parameter value.
      */
 
-    private createStartupMessage(config: Required<PGConfig>): Uint8Array {
-        return new Uint8Array();
+    private createStartupMessage(config: Required<PGConfig>): Uint8Array | undefined {
+        const bin = this.encoder
+            .init('128')
+            ?.i32(196608)
+            ?.cstr('user')
+            ?.cstr(config.user)
+            ?.cstr('database')
+            ?.cstr(config.database)
+            ?.cstr('replication')
+            ?.cstr(String(config.replication))
+            ?.cstr('')
+            ?.getWithLenght();
+        return bin;
     }
 
     public binDump(attr: SocketAttributes, data: DataView): boolean {
@@ -96,6 +105,9 @@ export default class ProtocolManager {
         // synthesize the startup message
         // send it on the socket, -> should I use the "socket.write" instance here or let the socketIOManager be the one to only "touch" the socket
         const bin = this.createStartupMessage(configFinal);
+        if (!bin) {
+            return; //todo: log error prolly out of memory issue
+        }
         const rc = this.socketIOManager.send(item, bin);
         // rc can be non "Ok", closed, errored, backpressure, etc, low level emittance whill be handled by iomaneger
         // if rc is "ok", then advance to the next state and wait for reply of pg to know what to do next

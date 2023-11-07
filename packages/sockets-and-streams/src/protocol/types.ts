@@ -10,5 +10,5 @@ export type PGConfig = {
     replication?: boolean | string;
 };
 
-export type setClientConfig = (config: PGConfig) => void;
-export type GetClientConfig = (setConfig: setClientConfig) => void;
+export type SetClientConfig = (config: PGConfig) => void;
+export type GetClientConfig = (setConfig: SetClientConfig) => void;

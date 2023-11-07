@@ -11,9 +11,22 @@ export type MemorySlabStats = {
     [index in MemoryCategories]: number;
 };
 
+const initialDefault: Record<MemoryCategories, number> = {
+    '128': 40,
+    '256': 40,
+    '512': 40,
+    '1024': 10,
+    '2048': 5,
+    '4096': 1,
+    '8192': 1,
+    '16384': 1,
+    '32768': 1,
+    '65536': 1
+};
+
 export default class MemoryManager {
     private readonly slabs: MemorySlabs;
-    constructor(initial: Record<MemoryCategories, number>) {
+    constructor(initial: Record<MemoryCategories, number> = initialDefault) {
         this.slabs = {
             128: {
                 list: null,
@@ -62,10 +75,7 @@ export default class MemoryManager {
             const partition = this.slabs[block];
             const size = initial[block];
             for (let i = 0; i < size; i++) {
-                partition.list = insertBefore(
-                    { next: null, prev: null, value: new Uint8Array(Number(block)) },
-                    partition.list
-                );
+                partition.list = insertBefore(partition.list, { value: new Uint8Array(Number(block)) });
             }
             partition.length = size;
         }

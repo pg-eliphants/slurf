@@ -1,5 +1,6 @@
 import { Socket, createConnection } from 'net';
 import SocketIOManager from '../SocketIOManager';
+import ProtocolManager from '../../protocol/ProtocolManager';
 import Jitter from '../Jitter';
 import type {
     CreateSocketSpec,
@@ -8,6 +9,9 @@ import type {
     SocketOtherOptions,
     PoolTimeBins
 } from '../types';
+import MemoryManager from '../../utils/MemoryManager';
+import type { GetClientConfig, SetClientConfig } from '../../protocol/types';
+import Encoder from '../../protocol/Encoder';
 
 function test() {
     const spec: CreateSocketSpec = function (hints, setSocketCreator, allOptions) {
@@ -48,6 +52,17 @@ function test() {
         reduceTimeToPoolBins,
         reduceTimeToActivityBins
     );
+    const memoryManager = new MemoryManager();
+    //
+    const getClientConfig: GetClientConfig = (setClientConfig: SetClientConfig) => {
+        setClientConfig({
+            user: 'postgres'
+        });
+    };
+    const textEncoder = new TextEncoder();
+    const encoder = new Encoder(memoryManager, textEncoder);
+    //
+    const protocolManager = new ProtocolManager(ioManager, encoder, getClientConfig);
     ioManager.createSocketForPool('idle');
     //ioManager.createSocketForPool('vis');
     //ioManager.createSocketForPool('idle');
