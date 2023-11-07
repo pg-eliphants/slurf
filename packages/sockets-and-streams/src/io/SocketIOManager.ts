@@ -1,4 +1,6 @@
 import type { TcpSocketConnectOpts, IpcSocketConnectOpts, ConnectOpts, Socket, SocketConstructorOpts } from 'net';
+import dump from 'buffer-hexdump';
+
 import type { Jitter } from './Jitter';
 import type {
     Pool,
@@ -293,6 +295,7 @@ export default class SocketIOManager {
             return; // todo: return status for backpressure
         }
         socket.write(bin);
+        console.log(dump(bin));
         return; // todo: return OK status
     }
 

@@ -19,5 +19,8 @@
     "tsx": "3.13.0",
     "typescript": "5.2.2",
     "vitest": "^0.34.6"
+  },
+  "dependencies": {
+    "buffer-hexdump": "1.0.0"
   }
 }

@@ -56,7 +56,8 @@ function test() {
     //
     const getClientConfig: GetClientConfig = (setClientConfig: SetClientConfig) => {
         setClientConfig({
-            user: 'postgres'
+            user: 'role_ssl_nopasswd',
+            database: 'auth_db'
         });
     };
     const textEncoder = new TextEncoder();
