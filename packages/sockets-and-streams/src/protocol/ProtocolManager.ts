@@ -42,6 +42,11 @@ export default class ProtocolManager {
         return bin;
     }
 
+    private createSSLRequest(): Uint8Array | undefined {
+        const bin = this.encoder.init('128')?.i32(80877103)?.getWithLenght();
+        return bin;
+    }
+
     public binDump(attr: SocketAttributes, data: DataView): boolean {
         console.log('binDump called');
         console.log(dump(new Uint8Array(data.buffer)));
@@ -69,22 +74,31 @@ export default class ProtocolManager {
         }
 
         const configFinal: Required<PGConfig> = normalizePGConfig(config);
-
-        // there is a bunch of handshaking back and forth that needs to be done here
-        // this is just the initial step in the "connection state machine" (there can be several state machines managing pg-client connections)
-        // get a small piece of memory off the slab
-        // synthesize the startup message
-        // send it on the socket, -> should I use the "socket.write" instance here or let the socketIOManager be the one to only "touch" the socket
-        const bin = this.createStartupMessage(configFinal);
+        if (configFinal.ssl === false) {
+            const bin = this.createStartupMessage(configFinal);
+            if (!bin) {
+                return; //todo: log error prolly out of memory issue
+            }
+            (item.meta.state.protocolState as ProtocolStateAll) = 'setup-connection-01-startup';
+            const rc = this.socketIOManager.send(item, bin);
+            // rc can be non "Ok", closed, errored, backpressure, etc, low level emittance whill be handled by iomaneger
+            // if rc is "ok", then advance to the next state and wait for reply of pg to know what to do next
+            // if backpressure is an issue at this point then the pg server might be massivly busy
+            //  -- todo: the iomanager needs to set this into a state
+            //  -- todo: schedule a send for when the drain happens
+            return;
+        }
+        //ssl
+        const bin = this.createSSLRequest();
         if (!bin) {
             return; //todo: log error prolly out of memory issue
         }
-        (item.meta.state.protocolState as ProtocolStateAll) = 'setup-connection-01-startup';
         const rc = this.socketIOManager.send(item, bin);
         // rc can be non "Ok", closed, errored, backpressure, etc, low level emittance whill be handled by iomaneger
         // if rc is "ok", then advance to the next state and wait for reply of pg to know what to do next
         // if backpressure is an issue at this point then the pg server might be massivly busy
         //  -- todo: the iomanager needs to set this into a state
         //  -- todo: schedule a send for when the drain happens
+        return;
     }
 }

@@ -8,6 +8,11 @@ export type PGConfig = {
     user: string;
     database?: string;
     replication?: boolean | string;
+    ssl?:
+        | false
+        | {
+              ca: string;
+          };
 };
 
 export type SetClientConfig = (config: PGConfig) => void;

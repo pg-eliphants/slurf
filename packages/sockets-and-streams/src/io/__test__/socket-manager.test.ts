@@ -1,4 +1,6 @@
 import { Socket, createConnection } from 'net';
+import { resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
 import SocketIOManager from '../SocketIOManager';
 import ProtocolManager from '../../protocol/ProtocolManager';
 import Jitter from '../Jitter';
@@ -22,7 +24,7 @@ function test() {
     const jitter = new Jitter(() => Math.random(), 0, 0.01);
     const createBuffer = () => new Uint8Array(512);
     const now = (function () {
-        let cnt = 1;
+        // let cnt = 1;
         return function () {
             return Date.now(); //cnt++;
         };
@@ -57,7 +59,10 @@ function test() {
     const getClientConfig: GetClientConfig = (setClientConfig: SetClientConfig) => {
         setClientConfig({
             user: 'role_ssl_nopasswd',
-            database: 'auth_db'
+            database: 'auth_db',
+            ssl: {
+                ca: readFileSync(resolve(__dirname, './ca.crt'), 'utf8')
+            }
         });
     };
     const textEncoder = new TextEncoder();
