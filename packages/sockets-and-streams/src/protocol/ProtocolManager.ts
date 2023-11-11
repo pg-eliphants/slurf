@@ -59,7 +59,13 @@ export default class ProtocolManager {
     }
 
     public binDump(attr: SocketAttributes, data: DataView): boolean {
-        console.log('binDump called');
+        const pgAttr: ProtocolAttributes = attr.protoMeta as ProtocolAttributes;
+        if (pgAttr.tag !== protocolTag) {
+            // maybe this is a bit overly defensive?
+            console.error('wrong protocol %o', attr.protoMeta);
+            return false; // counterparty getting backpressure notification
+        }
+        console.log('binDump called', pgAttr.meta.state, pgAttr.tag);
         console.log(dump(new Uint8Array(data.buffer)));
         return true; // true means do not pause the stream on this "connection"
     }

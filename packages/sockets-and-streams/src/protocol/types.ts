@@ -18,7 +18,7 @@ export type ProtocolAttributes = {
     connection: SocketAttributes;
 };
 
-export type SSLFallback = (config: PGConfig) => boolean;
+export type SSLFallback = (config: Required<PGConfig>) => boolean;
 export type SetClientConfig = (config: PGConfig) => void;
 export type GetClientConfig = (setConfig: SetClientConfig) => void;
 export type SetSSLConfig = (config: PGSSLConfig, sslFallback: SSLFallback) => void;

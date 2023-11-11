@@ -12,7 +12,7 @@ import type {
     PoolTimeBins
 } from '../types';
 import MemoryManager from '../../utils/MemoryManager';
-import type { GetClientConfig, SetClientConfig } from '../../protocol/types';
+import type { GetClientConfig, GetSSLConfig, PGConfig, SetClientConfig, SetSSLConfig } from '../../protocol/types';
 import Encoder from '../../protocol/Encoder';
 
 function test() {
@@ -59,16 +59,25 @@ function test() {
     const getClientConfig: GetClientConfig = (setClientConfig: SetClientConfig) => {
         setClientConfig({
             user: 'role_ssl_nopasswd',
-            database: 'auth_db',
-            ssl: {
-                ca: readFileSync(resolve(__dirname, './ca.crt'), 'utf8')
-            }
+            database: 'auth_db'
         });
+    };
+
+    const getSSLConfig: GetSSLConfig = (setConfig: SetSSLConfig) => {
+        setConfig(
+            {
+                ca: readFileSync(resolve(__dirname, './ca.crt'), 'utf8')
+            },
+            (config: Required<PGConfig>) => {
+                console.log('should we let this one do non ssl connection?', config);
+                return true;
+            }
+        );
     };
     const textEncoder = new TextEncoder();
     const encoder = new Encoder(memoryManager, textEncoder);
     //
-    const protocolManager = new ProtocolManager(ioManager, encoder, getClientConfig);
+    const protocolManager = new ProtocolManager(ioManager, encoder, getClientConfig, getSSLConfig);
     ioManager.createSocketForPool('idle');
     //ioManager.createSocketForPool('vis');
     //ioManager.createSocketForPool('idle');
