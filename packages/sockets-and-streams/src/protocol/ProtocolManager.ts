@@ -58,7 +58,7 @@ export default class ProtocolManager {
         return bin;
     }
 
-    public binDump(attr: SocketAttributes, data: DataView): boolean {
+    public binDump(attr: SocketAttributes, data: Uint8Array, len: number): boolean {
         const pgAttr: ProtocolAttributes = attr.protoMeta as ProtocolAttributes;
         if (pgAttr.tag !== protocolTag) {
             // maybe this is a bit overly defensive?
@@ -66,7 +66,7 @@ export default class ProtocolManager {
             return false; // counterparty getting backpressure notification
         }
         console.log('binDump called', pgAttr.meta.state, pgAttr.tag);
-        console.log(dump(new Uint8Array(data.buffer)));
+        console.log(dump(data.slice(0, len)));
         return true; // true means do not pause the stream on this "connection"
     }
 

@@ -175,7 +175,7 @@ export default class SocketIOManager {
             console.log('/lookup: [%o]', args);
         });
     }
-    private processData(buf: DataView, item: List<SocketAttributes>): boolean {
+    private processData(buf: Uint8Array, byteLength: number, item: List<SocketAttributes>): boolean {
         if (!item) {
             console.error('big bad error: "item" was null');
             // TODO: log this as an internal consistency error
@@ -198,7 +198,7 @@ export default class SocketIOManager {
         if (!this.protocolManager) {
             return true;
         }
-        return this.protocolManager.binDump(item.value, buf);
+        return this.protocolManager.binDump(item.value, buf, byteLength);
     }
     private normalizeExtraOptions(extraOpt?: SocketOtherOptions): SocketOtherOptions {
         const { timeout = 0 } = extraOpt ?? {};
@@ -327,7 +327,7 @@ export default class SocketIOManager {
             onread: {
                 buffer: this.createBuffer,
                 callback(bytesWritten: number, buf: Uint8Array): boolean {
-                    return self.processData(new DataView(buf.buffer, 0, bytesWritten), item);
+                    return self.processData(buf, bytesWritten, item);
                 }
             }
         });
