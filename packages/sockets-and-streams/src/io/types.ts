@@ -48,9 +48,6 @@ export type MetaSocketAttr = {
         bytesRead: number;
         bytesWritten: number;
     };
-    state: {
-        protocolState: ProtocolStateInitial;
-    };
 };
 
 type HistogramResidentTimes = {
@@ -67,7 +64,11 @@ export type ActivityWaitTimes = {
 
 export type SocketAttributes = {
     socket: Socket | null;
-    meta: MetaSocketAttr;
+    ioMeta: MetaSocketAttr;
+    // reference to procolState,
+    // we can keep it "unknown" because SocketIOManager will never touch it and has no knowledge
+    // whatso-ever about the the protocol (pg, mysql, memcached)
+    protoMeta?: unknown;
 };
 
 export type SocketConnectOpts = (TcpSocketConnectOpts & ConnectOpts) | (IpcSocketConnectOpts & ConnectOpts);

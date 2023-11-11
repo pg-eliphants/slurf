@@ -1,10 +1,20 @@
-import type SocketIOManager from '../io/SocketIOManager';
+import SocketIOManager from '../io/SocketIOManager';
 import { SocketAttributes } from '../io/types';
 import MemoryManager from '../utils/MemoryManager';
-import { ProtocolStateAll, GetClientConfig, PGConfig } from './types';
+import {
+    ProtocolAttributes,
+    GetClientConfig,
+    PGConfig,
+    SetClientConfig,
+    SSLFallback,
+    GetSSLConfig,
+    PGSSLConfig,
+    SetSSLConfig
+} from './types';
 import Encoder from './Encoder';
-import { normalizePGConfig } from './helpers';
+import { normalizePGConfig, validatePGConnectionParams, validatePGSSLConfig } from './helpers';
 import dump from 'buffer-hexdump';
+import { Fstartup, Iconnected, protocolTag, FSLLstartup } from './constants';
 
 /*
 function concatArrayBuffers(...bufs){
@@ -21,7 +31,8 @@ export default class ProtocolManager {
     constructor(
         private readonly socketIOManager: SocketIOManager,
         private readonly encoder: Encoder,
-        private readonly getClientConfig: GetClientConfig
+        private readonly getClientConfig: GetClientConfig,
+        private readonly getSSLConfig: GetSSLConfig
     ) {
         this.socketIOManager.setProtocolManager(this);
     }
@@ -53,33 +64,48 @@ export default class ProtocolManager {
         return true; // true means do not pause the stream on this "connection"
     }
 
-    public initStartup(item: SocketAttributes): void {
+    private requestConnectionParams(item: ProtocolAttributes): { errors?: Error[]; config?: Required<PGConfig> } {
         let config: PGConfig | undefined;
-        function setClientConfig(_config: PGConfig) {
-            config = _config;
-        }
+        const setClientConfig: SetClientConfig = ($config: PGConfig) => {
+            config = $config;
+        };
         this.getClientConfig(setClientConfig);
-        if (config === undefined) {
-            // error config must be provided
-            return;
+        const result = validatePGConnectionParams(config);
+        if (result === true) {
+            return { config: config! } as { config: Required<PGConfig> };
         }
-        if (!config.user) {
-            // error user must be provided
-            return;
-        }
+        return { errors: result.errors };
+    }
 
-        if (typeof config.user !== 'string' || config.user.length === 0) {
-            // user must be a non empty string
-            return;
+    private requestSSLConnectionParams(item: ProtocolAttributes): { errors?: Error[]; config?: PGSSLConfig } {
+        let config: PGSSLConfig | undefined;
+        let sslFallback: SSLFallback | undefined;
+        const setSSLConfig: SetSSLConfig = ($config: PGSSLConfig, $sslFallback: SSLFallback) => {
+            config = $config;
+            sslFallback = $sslFallback;
+        };
+        this.getSSLConfig(setSSLConfig);
+        const result = validatePGSSLConfig(config);
+        if (result === false) {
+            return {}; // no error, no config
         }
+        if (result === true) {
+            return { config: config! };
+        }
+        return { errors: result.errors };
+    }
+
+    /*
+
+        return { config, ssl };
 
         const configFinal: Required<PGConfig> = normalizePGConfig(config);
         if (configFinal.ssl === false) {
             const bin = this.createStartupMessage(configFinal);
             if (!bin) {
-                return; //todo: log error prolly out of memory issue
+                return; // todo: log error prolly out of memory issue
             }
-            (item.meta.state.protocolState as ProtocolStateAll) = 'setup-connection-01-startup';
+            (item.meta.state.protocolState as ProtocolStateAll) = FstartupMessage;
             const rc = this.socketIOManager.send(item, bin);
             // rc can be non "Ok", closed, errored, backpressure, etc, low level emittance whill be handled by iomaneger
             // if rc is "ok", then advance to the next state and wait for reply of pg to know what to do next
@@ -99,6 +125,49 @@ export default class ProtocolManager {
         // if backpressure is an issue at this point then the pg server might be massivly busy
         //  -- todo: the iomanager needs to set this into a state
         //  -- todo: schedule a send for when the drain happens
+        return;
+    }*/
+
+    public init(item: SocketAttributes): void {
+        // wire up the protocol object
+        const rc: ProtocolAttributes = {
+            tag: protocolTag,
+            meta: {
+                state: Iconnected
+            },
+            connection: item
+        };
+        rc.connection.protoMeta = rc;
+        // even if we have to do ssl first no harm in asking connection param and save us the trouble
+        const { errors, config } = this.requestConnectionParams(rc);
+        if (Array.isArray(errors)) {
+            // TODO log errors and TODO shutdown initiate
+            return;
+        }
+        const { errors: errorsSSL, config: configSSL } = this.requestSSLConnectionParams(rc);
+
+        if (configSSL) {
+            const bin = this.createSSLRequest();
+            if (!bin) {
+                //TODO handle this error
+                return;
+            }
+            rc.meta.state = FSLLstartup;
+            this.socketIOManager.send(item, bin);
+            return;
+        }
+
+        if (Array.isArray(errorsSSL)) {
+            // TODO log errors and TODO shutdown initiate
+            return;
+        }
+        const bin = this.createStartupMessage(config!);
+        if (!bin) {
+            //TODO handle this error
+            return;
+        }
+        rc.meta.state = Fstartup;
+        this.socketIOManager.send(item, bin);
         return;
     }
 }

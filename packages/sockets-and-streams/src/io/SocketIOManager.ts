@@ -20,7 +20,7 @@ import type {
 import ProtocolManager from '../protocol/ProtocolManager';
 
 import { isAggregateError } from './helpers';
-
+import delay from '../utils/delay';
 import { insertAfter, insertBefore, remove } from '../utils/list';
 
 import type { List } from '../utils/list';
@@ -77,9 +77,10 @@ export default class SocketIOManager {
     }
 
     private updateNetworkStats(item: List<SocketAttributes>): number {
+        // deconstruct
         const {
             socket,
-            meta: { networkBytes }
+            ioMeta: { networkBytes }
         } = item!.value;
         const { ts, bytesRead, bytesWritten } = networkBytes;
         const now = this.now();
@@ -115,7 +116,7 @@ export default class SocketIOManager {
             const timeOut = otherOptions.timeout;
             socket.setTimeout(timeOut);
             socket.on('timeout', () => {
-                const { ts, bytesRead, bytesWritten } = attributes.meta.networkBytes;
+                const { ts, bytesRead, bytesWritten } = attributes.ioMeta.networkBytes;
                 const current = this.now();
                 const delay = current - ts;
                 console.log('/timout delay:%s', delay);
@@ -163,7 +164,7 @@ export default class SocketIOManager {
         // use "once" instead of "on", sometimes connect is re-emitted after the connect happens immediatly after a socket disconnect, its weird!
         socket.once('connect', () => {
             console.log('/connect received, readyState=[%s], connecting=[%s]', socket.readyState, socket.connecting);
-            this.protocolManager && this.protocolManager.initStartup(attributes);
+            this.protocolManager && this.protocolManager.init(attributes);
         });
         // use "once" instead of "on", sometimes connect is re-emitted after the connect happens immediatly after a socket disconnect, its weird!
         socket.once('ready', (...args: unknown[]) => {
@@ -189,7 +190,7 @@ export default class SocketIOManager {
             'network transit:[%s ms], [%s]: bytes in buffer, [%s] total bytes received, processTime:[%s ms], networkTimes: [%o], processTimes:[%o]',
             networkDelay,
             buf.byteLength,
-            item.value.meta.networkBytes.bytesRead,
+            item.value.ioMeta.networkBytes.bytesRead,
             processTime,
             this.activityWaits.network,
             this.activityWaits.iom_code
@@ -312,9 +313,15 @@ export default class SocketIOManager {
     }
 
     // here only the socket is created and wired up, the actial connect sequence happens somewhere else
-    public createSocketForPool(forPool: PoolFirstResidence): void {
+    public async createSocketForPool(forPool: PoolFirstResidence): Promise<void> {
         const { createConnection, conOpt, extraOpt } = this.getSocketClassAndOptions(forPool);
         const self = this;
+        const placementTime = this.now();
+        const jitter = this.jitter.getRandom();
+
+        // wait daily ms
+        await delay(jitter);
+
         const socket = createConnection({
             ...conOpt,
             onread: {
@@ -324,13 +331,10 @@ export default class SocketIOManager {
                 }
             }
         });
-
-        const placementTime = this.now();
-        const jitter = this.jitter.getRandom();
         //
         const attributes: SocketAttributes = {
             socket,
-            meta: {
+            ioMeta: {
                 jitter,
                 pool: {
                     placementTime,
@@ -342,28 +346,12 @@ export default class SocketIOManager {
                     ts: placementTime,
                     bytesRead: 0,
                     bytesWritten: 0
-                },
-                state: {
-                    protocolState: 'none'
                 }
             }
         };
         //
         this.decorate(attributes, extraOpt);
         const item: List<SocketAttributes> = { next: null, prev: null, value: attributes };
-        this.created = insertBefore(this.created, item); //
-        // generate 32 bit cryptographic random number
-        // _sock._id = <primary_key>
-        // todo:
-        const timeoutId = setTimeout(
-            (self: SocketIOManager) => {
-                if (self.jittered.delete(timeoutId)) {
-                    socket.connect(conOpt);
-                }
-            },
-            jitter,
-            this
-        );
-        this.jittered.set(timeoutId, socket);
+        this.created = insertBefore(this.created, item);
     }
 }
