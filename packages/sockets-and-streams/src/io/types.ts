@@ -1,6 +1,5 @@
 import type { TcpSocketConnectOpts, IpcSocketConnectOpts, ConnectOpts, Socket, NetConnectOpts } from 'net';
 import type SocketIOManager from './SocketIOManager';
-import type { ProtocolStateInitial } from '../protocol/types';
 
 export type Pool = 'vis' | 'reservedEmpherical' | 'reservedPermanent' | 'active' | 'idle' | 'terminal' | 'created';
 export type Activity = 'network' | 'iom_code';

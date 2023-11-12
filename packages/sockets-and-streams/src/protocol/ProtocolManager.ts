@@ -9,12 +9,21 @@ import {
     SSLFallback,
     GetSSLConfig,
     PGSSLConfig,
-    SetSSLConfig
+    SetSSLConfig,
+    ErrorResponse
 } from './types';
 import Encoder from './Encoder';
-import { normalizePGConfig, validatePGConnectionParams, validatePGSSLConfig } from './helpers';
+import Decoder from './Decoder';
+import { normalizePGConfig, validatePGConnectionParams, validatePGSSLConfig, getChar } from './helpers';
 import dump from 'buffer-hexdump';
-import { Fstartup, Iconnected, protocolTag, FSLLstartup } from './constants';
+import {
+    Fstartup,
+    Iconnected,
+    protocolTag,
+    FSLLstartup,
+    NotificationAndErrorFields,
+    BErrorResponse
+} from './constants';
 
 /*
 function concatArrayBuffers(...bufs){
@@ -31,8 +40,10 @@ export default class ProtocolManager {
     constructor(
         private readonly socketIOManager: SocketIOManager,
         private readonly encoder: Encoder,
+        private readonly decoder: Decoder,
         private readonly getClientConfig: GetClientConfig,
-        private readonly getSSLConfig: GetSSLConfig
+        private readonly getSSLConfig: GetSSLConfig,
+        private readonly getSSLFallback: SSLFallback
     ) {
         this.socketIOManager.setProtocolManager(this);
     }
@@ -58,6 +69,55 @@ export default class ProtocolManager {
         return bin;
     }
 
+    private handleReponseSSLRequest(pattr: ProtocolAttributes, bin: Uint8Array, len: number): boolean {
+        if (!pattr.meta.continue) {
+            // we are NOT continue-ing a partial received message
+            if (len === 1) {
+                if (getChar(bin) === 'N' && len === 1) {
+                    // pg-server not have ssl configured
+                    // request to continue
+                    if (this.approveNonSSLConnection() === false) {
+                        // TODO: abort close the connection, callback to ioManager
+                        return false;
+                    }
+                    // request ioManager to upgrade socket to SSL connection
+                    // TODO: send startup Message
+                    const { errors, config } = this.requestConnectionParams();
+                    if (errors) {
+                        // TOOD: abort, close the connection, callback to ioManager
+                        return false;
+                    }
+                    const binSU = this.createStartupMessage(config!);
+                    if (!binSU) {
+                        //TODO handle this error
+                        return false;
+                    }
+                    pattr.meta.state = Fstartup;
+                    this.socketIOManager.send(pattr.connection, bin);
+                    return true;
+                }
+                if (getChar(bin) === 'S') {
+                    // TODO: do TSL socket upgrade,
+                    return true;
+                }
+                // TODO emit error and close connection
+            }
+            // at this point you got more then one byte
+            if (getChar(bin) !== 'E') {
+                // this is possibly a buffer-stuffing attack (CVE-2021-23222).
+                // https://www.postgresql.org/support/security/CVE-2021-23222/
+                // TODO: close socket, log error
+                return false;
+            }
+            // at this point a legal Error Response was given,
+            // TODO parse ErrorResponse
+            // TOOD close socket, log error
+            return false;
+        }
+        // we are continueing an error response socket
+        return true;
+    }
+
     public binDump(attr: SocketAttributes, data: Uint8Array, len: number): boolean {
         const pgAttr: ProtocolAttributes = attr.protoMeta as ProtocolAttributes;
         if (pgAttr.tag !== protocolTag) {
@@ -66,11 +126,15 @@ export default class ProtocolManager {
             return false; // counterparty getting backpressure notification
         }
         console.log('binDump called', pgAttr.meta.state, pgAttr.tag);
+        switch (pgAttr.meta.state) {
+            case FSLLstartup:
+                return this.handleReponseSSLRequest(pgAttr, data, len);
+        }
         console.log(dump(data.slice(0, len)));
         return true; // true means do not pause the stream on this "connection"
     }
 
-    private requestConnectionParams(item: ProtocolAttributes): { errors?: Error[]; config?: Required<PGConfig> } {
+    private requestConnectionParams(): { errors?: Error[]; config?: Required<PGConfig> } {
         let config: PGConfig | undefined;
         const setClientConfig: SetClientConfig = ($config: PGConfig) => {
             config = $config;
@@ -83,12 +147,22 @@ export default class ProtocolManager {
         return { errors: result.errors };
     }
 
-    private requestSSLConnectionParams(item: ProtocolAttributes): { errors?: Error[]; config?: PGSSLConfig } {
+    private approveNonSSLConnection() {
+        if (!this.getSSLFallback) {
+            return false;
+        }
+        const { errors, config } = this.requestConnectionParams();
+        if (Array.isArray(errors)) {
+            // TODO log errors and TODO shutdown initiate
+            return false;
+        }
+        return this.getSSLFallback(config!);
+    }
+
+    private requestSSLConnectionParams(): { errors?: Error[]; config?: PGSSLConfig } {
         let config: PGSSLConfig | undefined;
-        let sslFallback: SSLFallback | undefined;
-        const setSSLConfig: SetSSLConfig = ($config: PGSSLConfig, $sslFallback: SSLFallback) => {
+        const setSSLConfig: SetSSLConfig = ($config: PGSSLConfig) => {
             config = $config;
-            sslFallback = $sslFallback;
         };
         this.getSSLConfig(setSSLConfig);
         const result = validatePGSSLConfig(config);
@@ -145,12 +219,12 @@ export default class ProtocolManager {
         };
         rc.connection.protoMeta = rc;
         // even if we have to do ssl first no harm in asking connection param and save us the trouble
-        const { errors, config } = this.requestConnectionParams(rc);
+        const { errors, config } = this.requestConnectionParams();
         if (Array.isArray(errors)) {
             // TODO log errors and TODO shutdown initiate
             return;
         }
-        const { errors: errorsSSL, config: configSSL } = this.requestSSLConnectionParams(rc);
+        const { errors: errorsSSL, config: configSSL } = this.requestSSLConnectionParams();
 
         if (configSSL) {
             const bin = this.createSSLRequest();

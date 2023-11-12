@@ -1,4 +1,4 @@
-import { Socket, createConnection } from 'net';
+import { createConnection } from 'net';
 import { resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
 import SocketIOManager from '../SocketIOManager';
@@ -12,8 +12,16 @@ import type {
     PoolTimeBins
 } from '../types';
 import MemoryManager from '../../utils/MemoryManager';
-import type { GetClientConfig, GetSSLConfig, PGConfig, SetClientConfig, SetSSLConfig } from '../../protocol/types';
+import type {
+    GetClientConfig,
+    GetSSLConfig,
+    PGConfig,
+    SetClientConfig,
+    SetSSLConfig,
+    SSLFallback
+} from '../../protocol/types';
 import Encoder from '../../protocol/Encoder';
+import Decoder from '../../protocol/Decoder';
 
 function test() {
     const spec: CreateSocketSpec = function (hints, setSocketCreator, allOptions) {
@@ -64,23 +72,27 @@ function test() {
     };
 
     const getSSLConfig: GetSSLConfig = (setConfig: SetSSLConfig) => {
-        setConfig(
-            {
-                ca: readFileSync(resolve(__dirname, './ca.crt'), 'utf8')
-            },
-            (config: Required<PGConfig>) => {
-                console.log('should we let this one do non ssl connection?', config);
-                return true;
-            }
-        );
+        setConfig({
+            ca: readFileSync(resolve(__dirname, './ca.crt'), 'utf8')
+        });
     };
+
+    const sslFallback: SSLFallback = (params: Required<PGConfig>) => false;
     const textEncoder = new TextEncoder();
+    const textDecoder = new TextDecoder();
     const encoder = new Encoder(memoryManager, textEncoder);
+    const decoder = new Decoder(textDecoder);
     //
-    const protocolManager = new ProtocolManager(ioManager, encoder, getClientConfig, getSSLConfig);
+
+    const protocolManager = new ProtocolManager(
+        ioManager,
+        encoder,
+        decoder,
+        getClientConfig,
+        getSSLConfig,
+        sslFallback
+    );
     ioManager.createSocketForPool('idle');
-    //ioManager.createSocketForPool('vis');
-    //ioManager.createSocketForPool('idle');
 }
 
 test();

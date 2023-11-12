@@ -1,6 +1,17 @@
 import type { List } from './list';
 import { remove, insertBefore } from './list';
-export type MemoryCategories = '128' | '256' | '512' | '1024' | '2048' | '4096' | '8192' | '16384' | '32768' | '65536';
+export type MemoryCategories =
+    | '64'
+    | '128'
+    | '256'
+    | '512'
+    | '1024'
+    | '2048'
+    | '4096'
+    | '8192'
+    | '16384'
+    | '32768'
+    | '65536';
 export const MAX_MEM_BLOCK_SIZE = 65536;
 
 export type MemorySlabs = {
@@ -12,6 +23,7 @@ export type MemorySlabStats = {
 };
 
 const initialDefault: Record<MemoryCategories, number> = {
+    '64': 40,
     '128': 40,
     '256': 40,
     '512': 40,
@@ -28,6 +40,10 @@ export default class MemoryManager {
     private readonly slabs: MemorySlabs;
     constructor(initial: Record<MemoryCategories, number> = initialDefault) {
         this.slabs = {
+            64: {
+                list: null,
+                length: 0
+            },
             128: {
                 list: null,
                 length: 0
