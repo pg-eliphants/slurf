@@ -21,7 +21,14 @@ import Decoder from '../../protocol/Decoder';
 function test() {
     const spec: CreateSocketSpec = function (hints, setSocketCreator, allOptions) {
         setSocketCreator(createConnection);
-        allOptions({ port: 5432, keepAlive: true, noDelay: true }, { timeout: 6000 });
+        allOptions(
+            {
+                port: 5432,
+                keepAlive: true,
+                noDelay: true
+            },
+            { timeout: 6000 }
+        );
     } as CreateSocketSpec;
 
     const sslSpec: CreateSSLSocketSpec = function (hints, setSocketCreator, setSSLOptions) {
@@ -56,15 +63,7 @@ function test() {
         terminal: activityTimeReducer,
         created: activityTimeReducer
     };
-    const ioManager = new SocketIOManager(
-        spec,
-        sslSpec,
-        jitter,
-        createBuffer,
-        now,
-        reduceTimeToPoolBins,
-        reduceTimeToActivityBins
-    );
+    const ioManager = new SocketIOManager(spec, sslSpec, jitter, now, reduceTimeToPoolBins, reduceTimeToActivityBins);
     const memoryManager = new MemoryManager();
     //
     const getClientConfig: GetClientConfig = (setClientConfig: SetClientConfig) => {

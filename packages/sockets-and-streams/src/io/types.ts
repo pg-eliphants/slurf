@@ -5,8 +5,10 @@ export type Pool = 'vis' | 'reservedEmpherical' | 'reservedPermanent' | 'active'
 export type Activity = 'network' | 'iom_code';
 export type PoolFirstResidence = Exclude<Pool, 'active' | 'terminal' | 'reservedEmpherical' | 'created'>;
 
-import type { ConnectionOptions as _OptionsSLL, TLSSocket } from 'tls';
-export type PGSSLConfig = Omit<_OptionsSLL, 'host' | 'port' | 'path'>;
+import type { ConnectionOptions, TLSSocket } from 'tls';
+export interface PGSSLConfigRaw extends ConnectionOptions, ConnectOpts {}
+
+export type PGSSLConfig = Omit<PGSSLConfigRaw, 'host' | 'path' | 'port'>;
 
 export type CreateSocketSpecHints = {
     forPool: PoolFirstResidence;

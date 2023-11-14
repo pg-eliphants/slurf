@@ -23,6 +23,7 @@ import {
     BErrorResponse,
     ISLLUpgrade
 } from './constants';
+import { List } from '../utils/list';
 
 export default class ProtocolManager {
     constructor(
@@ -43,8 +44,8 @@ export default class ProtocolManager {
             ?.cstr(config.user)
             ?.cstr('database')
             ?.cstr(config.database)
-            ?.cstr('replication')
-            ?.cstr(String(config.replication))
+            //?.cstr('replication')
+            //?.cstr(String(config.replication))
             // you can add more options here, check out "client connect options"
             ?.cstr('')
             ?.getWithLenght();
@@ -52,11 +53,16 @@ export default class ProtocolManager {
     }
 
     private createSSLRequest(): Uint8Array | undefined {
-        const bin = this.encoder.init('128')?.i32(80877103)?.getWithLenght();
+        const bin = this.encoder.init('64')?.i32(80877103)?.getWithLenght();
         return bin;
     }
 
-    private handleReponseSSLRequest(pattr: ProtocolAttributes, bin: Uint8Array, len: number): boolean {
+    private handleReponseSSLRequest(
+        item: Exclude<List<SocketAttributes>, null>,
+        bin: Uint8Array,
+        len: number
+    ): boolean {
+        const pattr: ProtocolAttributes = item.value.protoMeta! as ProtocolAttributes;
         if (pattr.meta.continue) {
             // continue with message
             return true;
@@ -77,7 +83,8 @@ export default class ProtocolManager {
                 // TODO: abort, close the connection, callback to ioManager
                 return false;
             }
-            const bin = this.createStartupMessage(r.config);
+            const configFinal = normalizePGConfig(r.config);
+            const bin = this.createStartupMessage(configFinal);
             if (!bin) {
                 //TODO handle this error
                 return false;
@@ -90,7 +97,7 @@ export default class ProtocolManager {
             console.log('socket upgrade');
             console.log('socket readableflowing', pattr.connection.socket?.readableFlowing);
             pattr.meta.state = ISLLUpgrade;
-            this.socketIOManager.upgradeToSSL(pattr.connection);
+            this.socketIOManager.upgradeToSSL(item);
             // TODO: do TSL socket upgrade,
             return true;
         }
@@ -109,7 +116,8 @@ export default class ProtocolManager {
         return false;
     }
 
-    public binDump(attr: SocketAttributes, data: Uint8Array, len: number): boolean {
+    public binDump(item: Exclude<List<SocketAttributes>, null>, data: Uint8Array, len: number): boolean {
+        const attr = item.value;
         const pgAttr: ProtocolAttributes = attr.protoMeta as ProtocolAttributes;
         if (pgAttr.tag !== protocolTag) {
             // maybe this is a bit overly defensive?
@@ -119,7 +127,7 @@ export default class ProtocolManager {
         console.log('binDump called', pgAttr.meta.state, pgAttr.tag);
         switch (pgAttr.meta.state) {
             case FSLLstartup:
-                return this.handleReponseSSLRequest(pgAttr, data, len);
+                return this.handleReponseSSLRequest(item, data, len);
         }
         console.log(dump(data.slice(0, len)));
         return true; // true means do not pause the stream on this "connection"
@@ -144,6 +152,7 @@ export default class ProtocolManager {
             // log errors
             return false;
         }
+        const configFinal = normalizePGConfig(r.config);
         let setFallbackFn: SetSSLFallback | undefined;
         const getFallBack = (_setFallbackFn: SetSSLFallback) => {
             setFallbackFn = _setFallbackFn;
@@ -152,7 +161,7 @@ export default class ProtocolManager {
         if (!setFallbackFn) {
             return false;
         }
-        return setFallbackFn(r.config);
+        return setFallbackFn(configFinal);
     }
 
     /*
@@ -220,7 +229,8 @@ export default class ProtocolManager {
             // TODO
             return;
         }
-        const bin = this.createStartupMessage(r.config);
+        const configFinal = normalizePGConfig(r.config);
+        const bin = this.createStartupMessage(configFinal);
         if (!bin) {
             //TODO handle this error
             // end socket

@@ -45,7 +45,6 @@ export default class SocketIOManager {
         private readonly crfn: CreateSocketSpec,
         private readonly sslcrfn: CreateSSLSocketSpec,
         private readonly jitter: Jitter,
-        private readonly createBuffer: CreateSocketBuffer,
         private readonly now: () => number,
         private readonly reduceTimeToPoolBins: PoolTimeBins,
         private readonly reduceTimeToActivityBins: ActivityTimeBins
@@ -96,10 +95,12 @@ export default class SocketIOManager {
         this.activityWaits.network[bin] = (this.activityWaits.network[bin] ?? 0) + 1;
         return delay;
     }
-    // this.decorate(_sock, jitter, forPool, conOpt);
-    private decorate(attributes: SocketAttributes, otherOptions: SocketOtherOptions) {
+
+    private decorate(item: Exclude<List<SocketAttributes>, null>, otherOptions: SocketOtherOptions) {
+        const attributes = item.value;
         const socket = attributes.socket!;
         // Writable
+        const self = this;
         socket.on('finish', () => {
             console.log('/finish'); // writable surely ended when finish is emitted
             console.log('readableEnded', socket.readableEnded);
@@ -142,8 +143,9 @@ export default class SocketIOManager {
         socket.on('drain', () => {
             console.log('/drain');
         });
-        socket.on('data', (buffer) => {
-            console.log('data received: %s', buffer.byteLength);
+        socket.on('data', (buf: Uint8Array) => {
+            console.log('data received: %s', buf.byteLength);
+            self.processData(buf, buf.byteLength, item);
         });
         //
         socket.on('error', (err: Error & NodeJS.ErrnoException) => {
@@ -202,7 +204,7 @@ export default class SocketIOManager {
         if (!this.protocolManager) {
             return true;
         }
-        return this.protocolManager.binDump(item.value, buf, byteLength);
+        return this.protocolManager.binDump(item, buf, byteLength);
     }
     private normalizeExtraOptions(extraOpt?: SocketOtherOptions): SocketOtherOptions {
         const { timeout = 0 } = extraOpt ?? {};
@@ -403,15 +405,8 @@ export default class SocketIOManager {
         // wait daily ms
         await delay(jitter);
 
-        const socket = createConnection({
-            ...conOpt,
-            onread: {
-                buffer: this.createBuffer,
-                callback(bytesWritten: number, buf: Uint8Array): boolean {
-                    return self.processData(buf, bytesWritten, item);
-                }
-            }
-        });
+        const socket = createConnection(conOpt);
+
         //
         const attributes: SocketAttributes = {
             socket,
@@ -430,15 +425,15 @@ export default class SocketIOManager {
                 }
             }
         };
-        // at this point, the "connect" event will trigger the next step
-        this.decorate(attributes, extraOpt);
-        const item: List<SocketAttributes> = { next: null, prev: null, value: attributes };
+        const item: List<SocketAttributes> = { value: attributes };
+        this.decorate(item, extraOpt);
         this.created = insertBefore(this.created, item);
     }
 
-    public upgradeToSSL(item: SocketAttributes) {
+    public upgradeToSSL(item: Exclude<List<SocketAttributes>, null>) {
+        const attr = item.value;
         // we already checked this during "init"
-        const r = this.getSLLSocketClassAndOptions(item.ioMeta.pool.createdFor);
+        const r = this.getSLLSocketClassAndOptions(attr.ioMeta.pool.createdFor);
         if (r === false) {
             // todo: error, not possible, 1st time ok, but 2nd time no?
             return;
@@ -446,12 +441,36 @@ export default class SocketIOManager {
             // todo: error, not possible, 1st time ok, but 2nd time no?
             return;
         } else {
-            r.conOpt.socket = item.socket!;
+            r.conOpt.socket = attr.socket!;
+            //r.conOpt.minVersion = 'TLSv1.3';
+            //r.conOpt.maxVersion = 'TLSv1.3';
+            attr.socket!.removeAllListeners();
+            const { extraOpt } = this.getSocketClassAndOptions(attr.ioMeta.pool.createdFor);
+            const self = this;
             const sslSocket = r.createConnection(r.conOpt);
+            attr.socket = sslSocket;
+            this.decorate(item, extraOpt);
             sslSocket.on('secureConnect', () => {
                 console.log('/secureConnect authorized', sslSocket.authorized);
                 console.log('/secureConnect authorizationError', sslSocket.authorizationError);
+                // for debugging
+                // const certificate = sslSocket.getPeerCertificate();
+                // console.log('/cerficate', certificate);
+                //
+                this.protocolManager!.startupMsg(attr);
             });
+            sslSocket.on('tlsClientError', (exception: Error) => {
+                console.log('/tlsClientError', exception);
+            });
+            sslSocket.on('error', (error: Error) => {
+                console.log('/ssl/error:', String(error));
+            });
+            // sslSocket.on('session', (session: Uint8Array) => {
+            //     console.log('ssl/session', session.slice(0, 10));
+            // });
+            // sslSocket.on('keylog', (line: Uint8Array) => {
+            //     console.log('ssl/keylog', line.slice(0, 10));
+            // });
         }
     }
 }
