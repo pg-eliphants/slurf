@@ -1,4 +1,5 @@
 export const Iconnected = 'i:connected';
+export const ISLLUpgrade = 'i:sslUpgrade';
 export const Fstartup = 'f:startup.message';
 export const FSLLstartup = 'f:ssl.request';
 export const BErrorResponse = 'b:error.respone';

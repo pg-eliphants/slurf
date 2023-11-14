@@ -1,4 +1,4 @@
-import type { TcpSocketConnectOpts, IpcSocketConnectOpts, ConnectOpts, Socket, SocketConstructorOpts } from 'net';
+import type { TcpSocketConnectOpts, IpcSocketConnectOpts, ConnectOpts, Socket } from 'net';
 import dump from 'buffer-hexdump';
 
 import type { Jitter } from './Jitter';
@@ -14,12 +14,15 @@ import type {
     PoolWaitTimes,
     ActivityWaitTimes,
     PoolTimeBins,
-    ActivityTimeBins
+    ActivityTimeBins,
+    PGSSLConfig,
+    CreateSSLSocketSpec,
+    CreateSLLConnection
 } from './types';
 
 import ProtocolManager from '../protocol/ProtocolManager';
 
-import { isAggregateError } from './helpers';
+import { isAggregateError, validatePGSSLConfig } from './helpers';
 import delay from '../utils/delay';
 import { insertAfter, insertBefore, remove } from '../utils/list';
 
@@ -40,6 +43,7 @@ export default class SocketIOManager {
 
     constructor(
         private readonly crfn: CreateSocketSpec,
+        private readonly sslcrfn: CreateSSLSocketSpec,
         private readonly jitter: Jitter,
         private readonly createBuffer: CreateSocketBuffer,
         private readonly now: () => number,
@@ -164,7 +168,7 @@ export default class SocketIOManager {
         // use "once" instead of "on", sometimes connect is re-emitted after the connect happens immediatly after a socket disconnect, its weird!
         socket.once('connect', () => {
             console.log('/connect received, readyState=[%s], connecting=[%s]', socket.readyState, socket.connecting);
-            this.protocolManager && this.protocolManager.init(attributes);
+            this.init(attributes);
         });
         // use "once" instead of "on", sometimes connect is re-emitted after the connect happens immediatly after a socket disconnect, its weird!
         socket.once('ready', (...args: unknown[]) => {
@@ -279,6 +283,83 @@ export default class SocketIOManager {
         return { createConnection, conOpt, extraOpt };
     }
 
+    /*private requestSSLConnectionParams(): { errors?: Error[]; config?: PGSSLConfig } {
+        let config: PGSSLConfig | undefined;
+        const setSSLConfig: SetSSLConfig = ($config: PGSSLConfig) => {
+            config = $config;
+        };
+        this.getSSLConfig(setSSLConfig);
+        const result = validatePGSSLConfig(config);
+        if (result === false) {
+            return {}; // no error, no config
+        }
+        if (result === true) {
+            return { config: config! };
+        }
+        return { errors: result.errors };
+    }*/
+
+    private getSLLSocketClassAndOptions(forPool: PoolFirstResidence):
+        | {
+              createConnection: CreateSLLConnection;
+              conOpt: PGSSLConfig;
+          }
+        | { errors: Error[] }
+        | false {
+        let createConnection: CreateSLLConnection | undefined;
+        let conOpt: PGSSLConfig | undefined;
+
+        const createSocket = (cc: CreateSLLConnection) => {
+            createConnection = cc;
+        };
+
+        const setSSLOptions = (conOptions: PGSSLConfig): void => {
+            conOpt = conOptions;
+        };
+
+        this.sslcrfn({ forPool }, createSocket, setSSLOptions);
+        if (createConnection && conOpt) {
+            const result = validatePGSSLConfig(conOpt);
+            if (result === false) {
+                // todo: warning, not error, you gave a  createSSLSocket but no sockopts
+                return false;
+            } else if (result === true) {
+                // todo: log this as a warning!!
+                return { createConnection, conOpt };
+            }
+            // todo log errors
+            result.errors;
+            return { errors: result.errors };
+        } else if (!createConnection && conOpt) {
+            // error if specifiy createSSLConnection function not set when requested
+            return { errors: [new Error('SSL options specified, but createSSLConnection function not set')] };
+        }
+        // createConnection && !conOpt -> false
+        // !createConnection && !conOpt -> false
+        return false;
+    }
+
+    private init(item: SocketAttributes): void {
+        const r = this.getSLLSocketClassAndOptions(item.ioMeta.pool.createdFor);
+        if (r === false) {
+            // use normal startup connection, ssl not specified
+            if (this.protocolManager) {
+                this.protocolManager.protocalWrap(item);
+                this.protocolManager.startupMsg(item);
+            }
+        } else if ('errors' in r) {
+            // we want to use ssl but misconfigured,
+            // log error
+            // stop!  end the socket
+            // remove from pool
+        } else {
+            if (this.protocolManager) {
+                this.protocolManager.protocalWrap(item);
+                this.protocolManager.startSSL(item);
+            }
+        }
+    }
+
     //
     public setProtocolManager(protocolMngr: ProtocolManager): void {
         this.protocolManager = protocolMngr;
@@ -311,7 +392,7 @@ export default class SocketIOManager {
             created: Object.assign({}, this.poolWaits.created)
         };
     }
-
+    // Socket creation and connection starts here
     // here only the socket is created and wired up, the actial connect sequence happens somewhere else
     public async createSocketForPool(forPool: PoolFirstResidence): Promise<void> {
         const { createConnection, conOpt, extraOpt } = this.getSocketClassAndOptions(forPool);
@@ -349,9 +430,28 @@ export default class SocketIOManager {
                 }
             }
         };
-        //
+        // at this point, the "connect" event will trigger the next step
         this.decorate(attributes, extraOpt);
         const item: List<SocketAttributes> = { next: null, prev: null, value: attributes };
         this.created = insertBefore(this.created, item);
+    }
+
+    public upgradeToSSL(item: SocketAttributes) {
+        // we already checked this during "init"
+        const r = this.getSLLSocketClassAndOptions(item.ioMeta.pool.createdFor);
+        if (r === false) {
+            // todo: error, not possible, 1st time ok, but 2nd time no?
+            return;
+        } else if ('errors' in r) {
+            // todo: error, not possible, 1st time ok, but 2nd time no?
+            return;
+        } else {
+            r.conOpt.socket = item.socket!;
+            const sslSocket = r.createConnection(r.conOpt);
+            sslSocket.on('secureConnect', () => {
+                console.log('/secureConnect authorized', sslSocket.authorized);
+                console.log('/secureConnect authorizationError', sslSocket.authorizationError);
+            });
+        }
     }
 }

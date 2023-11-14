@@ -1,10 +1,12 @@
 import { createConnection } from 'net';
+import { connect as tslConnect } from 'node:tls';
 import { resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
 import SocketIOManager from '../SocketIOManager';
 import ProtocolManager from '../../protocol/ProtocolManager';
 import Jitter from '../Jitter';
 import type {
+    CreateSSLSocketSpec,
     CreateSocketSpec,
     CreateSocketSpecHints,
     SocketConnectOpts,
@@ -12,14 +14,7 @@ import type {
     PoolTimeBins
 } from '../types';
 import MemoryManager from '../../utils/MemoryManager';
-import type {
-    GetClientConfig,
-    GetSSLConfig,
-    PGConfig,
-    SetClientConfig,
-    SetSSLConfig,
-    SSLFallback
-} from '../../protocol/types';
+import type { GetClientConfig, GetSLLFallbackSpec, PGConfig, SetClientConfig } from '../../protocol/types';
 import Encoder from '../../protocol/Encoder';
 import Decoder from '../../protocol/Decoder';
 
@@ -28,6 +23,13 @@ function test() {
         setSocketCreator(createConnection);
         allOptions({ port: 5432, keepAlive: true, noDelay: true }, { timeout: 6000 });
     } as CreateSocketSpec;
+
+    const sslSpec: CreateSSLSocketSpec = function (hints, setSocketCreator, setSSLOptions) {
+        setSocketCreator(tslConnect);
+        setSSLOptions({
+            ca: readFileSync(resolve(__dirname, './ca.crt'), 'utf8')
+        });
+    };
 
     const jitter = new Jitter(() => Math.random(), 0, 0.01);
     const createBuffer = () => new Uint8Array(512);
@@ -56,6 +58,7 @@ function test() {
     };
     const ioManager = new SocketIOManager(
         spec,
+        sslSpec,
         jitter,
         createBuffer,
         now,
@@ -71,27 +74,19 @@ function test() {
         });
     };
 
-    const getSSLConfig: GetSSLConfig = (setConfig: SetSSLConfig) => {
-        setConfig({
-            ca: readFileSync(resolve(__dirname, './ca.crt'), 'utf8')
+    const getSSLFallback: GetSLLFallbackSpec = (setConfig) => {
+        setConfig((config: PGConfig) => {
+            return false;
         });
     };
 
-    const sslFallback: SSLFallback = (params: Required<PGConfig>) => false;
     const textEncoder = new TextEncoder();
     const textDecoder = new TextDecoder();
     const encoder = new Encoder(memoryManager, textEncoder);
     const decoder = new Decoder(textDecoder);
     //
 
-    const protocolManager = new ProtocolManager(
-        ioManager,
-        encoder,
-        decoder,
-        getClientConfig,
-        getSSLConfig,
-        sslFallback
-    );
+    const protocolManager = new ProtocolManager(ioManager, encoder, decoder, getClientConfig, getSSLFallback);
     ioManager.createSocketForPool('idle');
 }
 

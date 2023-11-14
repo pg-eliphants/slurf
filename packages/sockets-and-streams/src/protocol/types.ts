@@ -1,13 +1,9 @@
-import type { SocketAttributes } from '../io/types';
+import type { SocketAttributes, PGSSLConfig } from '../io/types';
 import { toBeContinued, errMissing, errOverflow } from './constants';
 export type PGConfig = {
     user: string;
     database?: string;
     replication?: boolean | string;
-};
-
-export type PGSSLConfig = {
-    ca: string;
 };
 
 export type ProtocolAttributes = {
@@ -21,11 +17,11 @@ export type ProtocolAttributes = {
     connection: SocketAttributes;
 };
 
-export type SSLFallback = (config: Required<PGConfig>) => boolean;
 export type SetClientConfig = (config: PGConfig) => void;
 export type GetClientConfig = (setConfig: SetClientConfig) => void;
-export type SetSSLConfig = (config: PGSSLConfig) => void;
-export type GetSSLConfig = (setSSLConfig: SetSSLConfig) => void;
+
+export type SetSSLFallback = (config: Required<PGConfig>) => boolean;
+export type GetSLLFallbackSpec = (setFallbackFn: (fallback: SetSSLFallback) => void) => void;
 
 export type Fields =
     | 'S'

@@ -5,6 +5,9 @@ export type Pool = 'vis' | 'reservedEmpherical' | 'reservedPermanent' | 'active'
 export type Activity = 'network' | 'iom_code';
 export type PoolFirstResidence = Exclude<Pool, 'active' | 'terminal' | 'reservedEmpherical' | 'created'>;
 
+import type { ConnectionOptions as _OptionsSLL, TLSSocket } from 'tls';
+export type PGSSLConfig = Omit<_OptionsSLL, 'host' | 'port' | 'path'>;
+
 export type CreateSocketSpecHints = {
     forPool: PoolFirstResidence;
 };
@@ -19,6 +22,14 @@ export type CreateSocketSpec = (
     hints: CreateSocketSpecHints,
     setSocketCreator: (createSocket: CreateSocketConnection) => void,
     allOptions: (conOptions: SocketConnectOpts, extraOpt?: SocketOtherOptions) => void
+) => void;
+
+export type CreateSLLConnection = (options: PGSSLConfig) => TLSSocket;
+
+export type CreateSSLSocketSpec = (
+    hints: CreateSocketSpecHints,
+    setSocketCreator: (createSocket: CreateSLLConnection) => void,
+    setSSLOptions: (options: PGSSLConfig) => void
 ) => void;
 
 export type reduceValueToBin = (value: number) => number;
