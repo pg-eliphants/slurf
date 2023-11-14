@@ -3,8 +3,6 @@ import dump from 'buffer-hexdump';
 
 import type { Jitter } from './Jitter';
 import type {
-    Pool,
-    CreateSocketBuffer,
     CreateSocketSpec,
     SocketAttributes,
     SocketOtherOptions,

@@ -3,7 +3,7 @@ import { toBeContinued, errMissing, errOverflow } from './constants';
 export type PGConfig = {
     user: string;
     database?: string;
-    replication?: boolean | string;
+    replication?: boolean;
 };
 
 export type ProtocolAttributes = {

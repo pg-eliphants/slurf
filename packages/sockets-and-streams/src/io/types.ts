@@ -45,8 +45,6 @@ export type ActivityTimeBins = {
     [index in Activity]: reduceValueToBin;
 };
 
-export type CreateSocketBuffer = () => Uint8Array;
-
 export type MetaSocketAttr = {
     jitter: number; // random delay in ms when connecting
     pool: {

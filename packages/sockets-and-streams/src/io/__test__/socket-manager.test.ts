@@ -39,7 +39,6 @@ function test() {
     };
 
     const jitter = new Jitter(() => Math.random(), 0, 0.01);
-    const createBuffer = () => new Uint8Array(512);
     const now = (function () {
         // let cnt = 1;
         return function () {
