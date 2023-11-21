@@ -57,19 +57,9 @@ last int32 is the secret of this backend for the cancelation
 
 - `[K] [00 00 00 0C] [.. .. .. ..] [.. .. .. ..]`
 
-## Bind (frontend)
-
-- `[B] [.. .. .. ..] cstr(portal) cstr(prepared statement) int16  int16[c] int16 (repeat)[int32, byte(n)] int16 int16[r]`
-
 ## BindComplete 
 
 - `["2"] [00 00 00 04]`
-
-## CancelRequest (frontend)
-
-the last int32 is the sectret previously sent by message "K"
-
-- `[16] [04 D2 16 2E] [.. .. .. ..] [.. .. .. ..]`
 
 ## CloseComplete 
 
