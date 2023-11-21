@@ -150,3 +150,21 @@ Byte(n): _Data that forms part of a COPY data stream. Messages sent from the bac
 ## ParameterStatus
 
 - `['S'] [.. .. .. ..] cstr cstr`
+
+## ParseComplete
+
+- `['1'] [.. .. .. ..] [message?]`
+
+## PortalSuspended
+
+- `['s'] [00 00 00 04]`
+
+## ReadyForQuery 
+
+_Current backend transaction status indicator. Possible values are 'I' if idle (not in a transaction block); 'T' if in a transaction block; or 'E' if in a failed transaction block (queries will be rejected until block is ended)._
+
+- `['Z'] [00 00 00 05] Byte1`
+
+## RowDescription
+
+- `['T'] [.. .. .. ..] [nn nn] repeat(n, cstr, int32, int16, int32, int16, Int32, Int16`
