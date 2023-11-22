@@ -186,10 +186,15 @@ export default class SocketIOManager {
             return false;
         }
         const networkDelay = this.updateNetworkStats(item);
+
+        if (!this.protocolManager) {
+            return true;
+        }
         const s0 = this.now();
+        const rc = this.protocolManager.binDump(item, buf, byteLength);
         const s1 = this.now();
         const processTime = this.updateProcessStats(s0, s1);
-
+        // debug some stats
         console.log(
             'network transit:[%s ms], [%s]: bytes in buffer, [%s] total bytes received, processTime:[%s ms], networkTimes: [%o], processTimes:[%o]',
             networkDelay,
@@ -199,10 +204,7 @@ export default class SocketIOManager {
             this.activityWaits.network,
             this.activityWaits.iom_code
         );
-        if (!this.protocolManager) {
-            return true;
-        }
-        return this.protocolManager.binDump(item, buf, byteLength);
+        return rc;
     }
     private normalizeExtraOptions(extraOpt?: SocketOtherOptions): SocketOtherOptions {
         const { timeout = 0 } = extraOpt ?? {};
