@@ -8,6 +8,7 @@ export type IsMatch = (bin: Uint8Array, start: number) => MessageState;
 export type ParseContext = {
     buffer: Uint8Array;
     cursor: number;
+    txtDecoder: TextDecoder;
     current?: {
         currentMessage?: BackEndMessageTypes;
         matchLength: MatcherLength;

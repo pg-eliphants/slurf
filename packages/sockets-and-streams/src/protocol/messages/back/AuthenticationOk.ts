@@ -42,9 +42,13 @@ export function match(bin: Uint8Array, start: number): MessageState {
     return MSG_NOT;
 }
 
-export function parseMessage(ctx: ParseContext): boolean {
-    if (match(ctx.buffer, ctx.cursor) === MSG_IS) {
+export function parseMessage(ctx: ParseContext): boolean | undefined {
+    const matched = match(ctx.buffer, ctx.cursor);
+    if (matched === MSG_IS){
         return true;
     }
-    return false;
+    else if (matched === MSG_NOT){
+        return false;
+    }
+    return undefined;
 }
