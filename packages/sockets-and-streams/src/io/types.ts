@@ -2,7 +2,7 @@ import type { TcpSocketConnectOpts, IpcSocketConnectOpts, ConnectOpts, Socket, N
 import type SocketIOManager from './SocketIOManager';
 
 export type Pool = 'vis' | 'reservedEmpherical' | 'reservedPermanent' | 'active' | 'idle' | 'terminal' | 'created';
-export type Activity = 'network' | 'iom_code';
+export type Activity = 'network' | 'iom_code' | 'connect';
 export type PoolFirstResidence = Exclude<Pool, 'active' | 'terminal' | 'reservedEmpherical' | 'created'>;
 
 import type { ConnectionOptions, TLSSocket } from 'tls';

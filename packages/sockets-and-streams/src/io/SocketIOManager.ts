@@ -36,7 +36,6 @@ export default class SocketIOManager {
     private created: List<SocketAttributes>;
     private poolWaits: PoolWaitTimes;
     private activityWaits: ActivityWaitTimes;
-    private jittered: Map<NodeJS.Timeout, Socket>;
     private protocolManager: ProtocolManager | null;
 
     constructor(
@@ -64,9 +63,9 @@ export default class SocketIOManager {
         };
         this.activityWaits = {
             network: {},
-            iom_code: {}
+            iom_code: {},
+            connect: {}
         };
-        this.jittered = new Map();
         this.protocolManager = null;
     }
 
@@ -94,7 +93,11 @@ export default class SocketIOManager {
         return delay;
     }
 
-    private decorate(item: Exclude<List<SocketAttributes>, null>, otherOptions: SocketOtherOptions) {
+    private decorate(
+        item: Exclude<List<SocketAttributes>, null>,
+        otherOptions: SocketOtherOptions,
+        creationTime: number
+    ) {
         const attributes = item.value;
         const socket = attributes.socket!;
         // Writable
@@ -167,6 +170,9 @@ export default class SocketIOManager {
         // there is no argument for "connect" callback
         // use "once" instead of "on", sometimes connect is re-emitted after the connect happens immediatly after a socket disconnect, its weird!
         socket.once('connect', () => {
+            const delay = Date.now() - creationTime;
+            const bin = this.reduceTimeToActivityBins.connect(delay);
+            this.activityWaits.connect[bin] = (this.activityWaits.connect[bin] ?? 0) + 1;
             console.log('/connect received, readyState=[%s], connecting=[%s]', socket.readyState, socket.connecting);
             this.init(attributes);
         });
@@ -191,18 +197,20 @@ export default class SocketIOManager {
             return true;
         }
         const s0 = this.now();
+        // this will measure computation down the whole chain of the driver
         const rc = this.protocolManager.binDump(item, buf, byteLength);
         const s1 = this.now();
         const processTime = this.updateProcessStats(s0, s1);
         // debug some stats
         console.log(
-            'network transit:[%s ms], [%s]: bytes in buffer, [%s] total bytes received, processTime:[%s ms], networkTimes: [%o], processTimes:[%o]',
+            'network transit:[%s ms], [%s]: bytes in buffer, [%s] total bytes received, processTime:[%s ms], networkTimes: [%o], processTimes:[%o], connect:[%o]',
             networkDelay,
             buf.byteLength,
             item.value.ioMeta.networkBytes.bytesRead,
             processTime,
             this.activityWaits.network,
-            this.activityWaits.iom_code
+            this.activityWaits.iom_code,
+            this.activityWaits.connect
         );
         return rc;
     }
@@ -284,22 +292,6 @@ export default class SocketIOManager {
         extraOpt = this.normalizeExtraOptions(extraOpt)!;
         return { createConnection, conOpt, extraOpt };
     }
-
-    /*private requestSSLConnectionParams(): { errors?: Error[]; config?: PGSSLConfig } {
-        let config: PGSSLConfig | undefined;
-        const setSSLConfig: SetSSLConfig = ($config: PGSSLConfig) => {
-            config = $config;
-        };
-        this.getSSLConfig(setSSLConfig);
-        const result = validatePGSSLConfig(config);
-        if (result === false) {
-            return {}; // no error, no config
-        }
-        if (result === true) {
-            return { config: config! };
-        }
-        return { errors: result.errors };
-    }*/
 
     private getSLLSocketClassAndOptions(forPool: PoolFirstResidence):
         | {
@@ -426,7 +418,7 @@ export default class SocketIOManager {
             }
         };
         const item: List<SocketAttributes> = { value: attributes };
-        this.decorate(item, extraOpt);
+        this.decorate(item, extraOpt, Date.now());
         this.created = insertBefore(this.created, item);
     }
 
@@ -449,7 +441,7 @@ export default class SocketIOManager {
             const self = this;
             const sslSocket = r.createConnection(r.conOpt);
             attr.socket = sslSocket;
-            this.decorate(item, extraOpt);
+            this.decorate(item, extraOpt, Date.now());
             sslSocket.on('secureConnect', () => {
                 console.log('/secureConnect authorized', sslSocket.authorized);
                 console.log('/secureConnect authorizationError', sslSocket.authorizationError);

@@ -51,7 +51,8 @@ function test() {
     };
     const reduceTimeToActivityBins = {
         network: activityTimeReducer,
-        iom_code: activityTimeReducer
+        iom_code: activityTimeReducer,
+        connect: activityTimeReducer
     };
     const reduceTimeToPoolBins: PoolTimeBins = {
         vis: activityTimeReducer,
