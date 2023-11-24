@@ -6,13 +6,13 @@ import { MessageState } from '../types';
 export function matcherLength() {
     return 9; // number of bytes
 }
-export function messageLength(bin: Uint8Array) {
+export function messageLength(bin: Uint8Array, start: number) {
     return 9;
 }
 
 export function match(bin: Uint8Array, start: number): MessageState {
     const len = bin.length - start;
-    if (len < messageLength(bin)) {
+    if (len < messageLength(bin, start)) {
         // partial or is not this message
         if (len >= 1) {
             if (bin[start] !== AUTH_CLASS) {
@@ -27,7 +27,7 @@ export function match(bin: Uint8Array, start: number): MessageState {
         return MSG_UNDECIDED;
     }
     if (
-        bin[start] !== AUTH_CLASS &&
+        bin[start] === AUTH_CLASS &&
         bin[start + 1] === 0 &&
         bin[start + 2] === 0 &&
         bin[start + 3] === 0 &&
@@ -44,10 +44,9 @@ export function match(bin: Uint8Array, start: number): MessageState {
 
 export function parseMessage(ctx: ParseContext): boolean | undefined {
     const matched = match(ctx.buffer, ctx.cursor);
-    if (matched === MSG_IS){
+    if (matched === MSG_IS) {
         return true;
-    }
-    else if (matched === MSG_NOT){
+    } else if (matched === MSG_NOT) {
         return false;
     }
     return undefined;
