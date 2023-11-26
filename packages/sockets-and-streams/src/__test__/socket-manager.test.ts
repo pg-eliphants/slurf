@@ -2,7 +2,7 @@ import { createConnection } from 'net';
 import { connect as tslConnect } from 'node:tls';
 import { resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
-import { SocketIOManager } from '../io/SocketIOManager';
+import SocketIOManager from '../io/SocketIOManager';
 import ProtocolManager from '../protocol/ProtocolManager';
 import Jitter from '../io/Jitter';
 import type {

@@ -1,4 +1,4 @@
-import { SocketIOManager } from '../io/SocketIOManager';
+import SocketIOManager from '../io/SocketIOManager';
 import { SocketAttributes, PGSSLConfig } from '../io/types';
 import { GetClientConfig, PGConfig, SetClientConfig } from './types';
 import { normalizePGConfig, validatePGConnectionParams } from './helpers';

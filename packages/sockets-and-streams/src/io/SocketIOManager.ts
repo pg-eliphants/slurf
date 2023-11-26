@@ -53,7 +53,7 @@ export interface ISocketIOManager<T = any> {
     upgradeToSSL(item: Exclude<List<SocketAttributes>, null>);
 }
 
-export class SocketIOManager<T = any> implements ISocketIOManager<T> {
+export default class SocketIOManager<T = any> implements ISocketIOManager<T> {
     // pools
     // pools
     // pools
