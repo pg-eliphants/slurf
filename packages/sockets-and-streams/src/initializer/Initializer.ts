@@ -165,6 +165,9 @@ export default class Initializer {
         }
         if (startupSent) {
             // handle further authentication related responses from server
+            // - E
+            // - various R
+            console.log('HERE WE ARE');
             return true;
         }
         // forbidden state
