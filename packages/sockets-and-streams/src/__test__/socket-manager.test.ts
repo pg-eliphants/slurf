@@ -2,21 +2,22 @@ import { createConnection } from 'net';
 import { connect as tslConnect } from 'node:tls';
 import { resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
-import SocketIOManager from '../SocketIOManager';
-import ProtocolManager from '../../protocol/ProtocolManager';
-import Jitter from '../Jitter';
+import { SocketIOManager } from '../io/SocketIOManager';
+import ProtocolManager from '../protocol/ProtocolManager';
+import Jitter from '../io/Jitter';
 import type {
     CreateSSLSocketSpec,
     CreateSocketSpec,
     CreateSocketSpecHints,
     SocketConnectOpts,
     SocketOtherOptions,
-    PoolTimeBins
-} from '../types';
-import MemoryManager from '../../utils/MemoryManager';
-import type { GetClientConfig, GetSLLFallbackSpec, PGConfig, SetClientConfig } from '../../protocol/types';
-import Encoder from '../../protocol/Encoder';
-import Decoder from '../../protocol/Decoder';
+    PoolTimeBins,
+    ActivityTimeBins
+} from '../io/types';
+import MemoryManager from '../utils/MemoryManager';
+import type { GetClientConfig, GetSLLFallbackSpec, PGConfig, SetClientConfig } from '../protocol/types';
+import Encoder from '../protocol/Encoder';
+import Initializer from '../initializer/Initializer';
 
 function test() {
     const spec: CreateSocketSpec = function (hints, setSocketCreator, allOptions) {
@@ -46,13 +47,14 @@ function test() {
         };
     })();
     const activityTimeReducer = (delay: number) => {
-        const bin = Math.trunc(Math.sqrt(Math.max(delay, 0)));
+        const bin = delay; //Math.trunc(Math.sqrt(Math.max(delay, 0)));
         return bin;
     };
-    const reduceTimeToActivityBins = {
+    const reduceTimeToActivityBins: ActivityTimeBins = {
         network: activityTimeReducer,
         iom_code: activityTimeReducer,
-        connect: activityTimeReducer
+        connect: activityTimeReducer,
+        sslConnect: activityTimeReducer
     };
     const reduceTimeToPoolBins: PoolTimeBins = {
         vis: activityTimeReducer,
@@ -72,6 +74,7 @@ function test() {
             database: 'auth_db'
         });
     };
+    const protocolManager = new ProtocolManager(ioManager, getClientConfig);
 
     const getSSLFallback: GetSLLFallbackSpec = (setConfig) => {
         setConfig((config: PGConfig) => {
@@ -80,12 +83,10 @@ function test() {
     };
 
     const textEncoder = new TextEncoder();
-    const textDecoder = new TextDecoder();
     const encoder = new Encoder(memoryManager, textEncoder);
-    const decoder = new Decoder(textDecoder);
     //
-
-    const protocolManager = new ProtocolManager(ioManager, encoder, decoder, getClientConfig, getSSLFallback);
+    const initializer = new Initializer(encoder, ioManager, protocolManager, getSSLFallback);
+    ioManager.setInitializer(initializer);
     ioManager.createSocketForPool('idle');
 }
 

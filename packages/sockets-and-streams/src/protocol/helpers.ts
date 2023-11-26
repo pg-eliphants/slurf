@@ -1,9 +1,5 @@
 import type { PGConfig } from './types';
 
-export function getChar(bin: Uint8Array, idx = 0) {
-    return String.fromCharCode(bin[idx]);
-}
-
 export function normalizePGConfig(options: PGConfig): Required<PGConfig> {
     const { user, database, replication } = options;
     const rc: Required<PGConfig> = {

@@ -42,7 +42,7 @@ export function match(bin: Uint8Array, start: number): MessageState {
     return MSG_NOT;
 }
 
-export function parseMessage(ctx: ParseContext): boolean | undefined {
+export function parseMessage(ctx: ParseContext): undefined | boolean {
     const matched = match(ctx.buffer, ctx.cursor);
     if (matched === MSG_IS) {
         return true;

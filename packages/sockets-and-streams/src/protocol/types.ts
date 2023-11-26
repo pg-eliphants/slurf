@@ -1,5 +1,4 @@
-import type { SocketAttributes, PGSSLConfig } from '../io/types';
-import { toBeContinued, errMissing, errOverflow } from './constants';
+import type { SocketAttributes } from '../io/types';
 export type PGConfig = {
     user: string;
     database?: string;
@@ -46,7 +45,3 @@ export type Fields =
 export type ErrorResponse = {
     [T in Fields]?: string;
 };
-
-export type ToBeContinued = typeof toBeContinued;
-export type ErrMissing = typeof errMissing;
-export type ErrOverflow = typeof errOverflow;

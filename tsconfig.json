@@ -7,6 +7,7 @@
         "disableFilenameBasedTypeAcquisition": true
     },
     "compilerOptions": {
+        "alwaysStrict": true,
         "allowUnreachableCode": true,
         "allowUnusedLabels": true,
         "noImplicitAny": true,

@@ -15,7 +15,9 @@ import type {
     ActivityTimeBins,
     PGSSLConfig,
     CreateSSLSocketSpec,
-    CreateSLLConnection
+    CreateSLLConnection,
+    Activity,
+    SendingStatus
 } from './types';
 
 import ProtocolManager from '../protocol/ProtocolManager';
@@ -25,18 +27,62 @@ import delay from '../utils/delay';
 import { insertAfter, insertBefore, remove } from '../utils/list';
 
 import type { List } from '../utils/list';
+import Initializer from '../initializer/Initializer';
+import { SEND_NOT_OK, SEND_STATUS_BACKPRESSURE, SEND_STATUS_OK } from './constants';
 
-export default class SocketIOManager {
-    // this socket pools are sorted on resident times
-    private vis: List<SocketAttributes>;
-    private reservedPermanent: List<SocketAttributes>;
-    private reservedEmpherical: List<SocketAttributes>;
-    private idle: List<SocketAttributes>;
-    private terminal: List<SocketAttributes>;
-    private created: List<SocketAttributes>;
-    private poolWaits: PoolWaitTimes;
-    private activityWaits: ActivityWaitTimes;
+export interface ISocketIOManager<T = any> {
+    setProtocolManager(protocolMngr: ProtocolManager): void;
+    setInitializer(Initializer): void;
+    send<T>(attributes: SocketAttributes<T>, bin: Uint8Array): SendingStatus;
+    getPoolWaitTimes(): PoolWaitTimes;
+    createSocketForPool(forPool: PoolFirstResidence): Promise<void>;
+    getSLLSocketClassAndOptions(forPool: PoolFirstResidence):
+        | {
+              createSSLConnection: CreateSLLConnection;
+              conOpt: PGSSLConfig;
+          }
+        | { errors: Error[] }
+        | false;
+    getSocketClassAndOptions(forPool: PoolFirstResidence):
+        | {
+              createConnection: CreateSocketConnection;
+              conOpt: SocketConnectOpts;
+              extraOpt: SocketOtherOptions;
+          }
+        | { errors: Error[] };
+    upgradeToSSL(item: Exclude<List<SocketAttributes>, null>);
+}
+
+export class SocketIOManager<T = any> implements ISocketIOManager<T> {
+    // pools
+    // pools
+    // pools
+
+    // [v]ery [i]mportant [s]ocket
+    private vis: List<SocketAttributes<T>>;
+    // sockets reserved by the user and not a pooled in a pool
+    private reservedPermanent: List<SocketAttributes<T>>;
+    // sockets taken out of the pool just for execution of one query/task
+    private reservedEmpherical: List<SocketAttributes<T>>;
+    // sockets that have not been used for some time
+    private idle: List<SocketAttributes<T>>;
+    // connections of these sockets are planned for gracefull shutdown
+    private terminal: List<SocketAttributes<T>>;
+    // sockets created and connected
+    private created: List<SocketAttributes<T>>;
+
+    // statistics
+    // statistics
+    // statistics
+    // the "resident time" histogram of all the pools above
+    private readonly poolWaits: PoolWaitTimes;
+    // time waits during task "network", "iom_code", "connect"
+    private readonly activityWaits: ActivityWaitTimes;
+
+    // reference to protocol manager
     private protocolManager: ProtocolManager | null;
+
+    private initializer: Initializer | null;
 
     constructor(
         private readonly crfn: CreateSocketSpec,
@@ -52,6 +98,8 @@ export default class SocketIOManager {
         this.idle = null;
         this.created = null;
         this.terminal = null;
+
+        // wait times
         this.poolWaits = {
             active: {},
             vis: {},
@@ -64,39 +112,45 @@ export default class SocketIOManager {
         this.activityWaits = {
             network: {},
             iom_code: {},
-            connect: {}
+            connect: {},
+            sslConnect: {}
         };
+        //
         this.protocolManager = null;
+        this.initializer = null;
     }
 
-    private updateProcessStats(start: number, stop: number) {
+    private markTime(item: List<SocketAttributes>) {
+        return (item!.value.ioMeta.time.ts = this.now());
+    }
+
+    private updateActivityWaitTimes(activity: Activity, start: number, stop: number) {
         const delay = stop - start;
-        const bin = this.reduceTimeToActivityBins.iom_code(delay);
-        this.activityWaits.iom_code[bin] = (this.activityWaits.iom_code[bin] ?? 0) + 1;
+        const bin = this.reduceTimeToActivityBins[activity](delay);
+        this.activityWaits[activity][bin] = (this.activityWaits[activity][bin] ?? 0) + 1;
         return delay;
     }
 
     private updateNetworkStats(item: List<SocketAttributes>): number {
-        // deconstruct
+        const now = this.now();
         const {
             socket,
-            ioMeta: { networkBytes }
+            ioMeta: {
+                networkBytes,
+                time: { ts }
+            }
         } = item!.value;
-        const { ts, bytesRead, bytesWritten } = networkBytes;
-        const now = this.now();
-        const delay = now - ts;
+        item!.value.ioMeta.time.ts = now;
         networkBytes.bytesRead = socket!.bytesRead;
         networkBytes.bytesWritten = socket!.bytesWritten;
-        networkBytes.ts = now;
-        const bin = this.reduceTimeToActivityBins.network(delay);
-        this.activityWaits.network[bin] = (this.activityWaits.network[bin] ?? 0) + 1;
+        const delay = this.updateActivityWaitTimes('network', ts, now);
         return delay;
     }
 
     private decorate(
+        // opaque value for the io manager
         item: Exclude<List<SocketAttributes>, null>,
-        otherOptions: SocketOtherOptions,
-        creationTime: number
+        otherOptions: SocketOtherOptions
     ) {
         const attributes = item.value;
         const socket = attributes.socket!;
@@ -122,31 +176,40 @@ export default class SocketIOManager {
             const timeOut = otherOptions.timeout;
             socket.setTimeout(timeOut);
             socket.on('timeout', () => {
-                const { ts, bytesRead, bytesWritten } = attributes.ioMeta.networkBytes;
+                socket.setTimeout(timeOut);
+                const {
+                    networkBytes: { bytesRead, bytesWritten },
+                    time: { ts }
+                } = attributes.ioMeta;
                 const current = this.now();
                 const delay = current - ts;
                 console.log('/timout delay:%s', delay);
                 if (delay > 12e3) {
                     // migrate socket to idle queue
-                    console.log('migrate socket to idle queue');
+                    console.log('should migrate socket to idle queue');
                 }
             });
         }
         // Socket, other side signalled an end of transmission
         socket.on('end', () => {
-            console.log('/end');
-            console.log('readableEnded', socket.readableEnded); // start teardown
-            console.log('writableEnded', socket.writableEnded); // flush buffers
-            console.log('writableFinished', socket.writableFinished);
+            console.log('/event/end');
+            console.log('/event/end/endreadableEnded', socket.readableEnded); // start teardown
+            console.log('/event/end/writableEnded', socket.writableEnded); // flush buffers
+            console.log('/event/end/writableFinished', socket.writableFinished);
         });
         // manage backpressure, it is managed eventually by the underlying tcp/ip protocol itself
         // drain = resume from backpressure(d)
         socket.on('drain', () => {
-            console.log('/drain');
+            console.log('/event/drain');
         });
         socket.on('data', (buf: Uint8Array) => {
-            console.log('data received: %s', buf.byteLength);
-            self.processData(buf, buf.byteLength, item);
+            console.log('/event/data received: %s', buf.byteLength);
+            console.log(dump(buf));
+            item.value.socket = socket;
+            if (self.processData(buf, item) === false) {
+                socket.end();
+                remove(item);
+            }
         });
         //
         socket.on('error', (err: Error & NodeJS.ErrnoException) => {
@@ -170,11 +233,31 @@ export default class SocketIOManager {
         // there is no argument for "connect" callback
         // use "once" instead of "on", sometimes connect is re-emitted after the connect happens immediatly after a socket disconnect, its weird!
         socket.once('connect', () => {
-            const delay = Date.now() - creationTime;
-            const bin = this.reduceTimeToActivityBins.connect(delay);
-            this.activityWaits.connect[bin] = (this.activityWaits.connect[bin] ?? 0) + 1;
-            console.log('/connect received, readyState=[%s], connecting=[%s]', socket.readyState, socket.connecting);
-            this.init(attributes);
+            console.log('/event/connect');
+            const t0 = attributes.ioMeta.time.ts;
+            const t1 = self.markTime(item);
+            self.updateActivityWaitTimes('connect', t0, t1);
+            if (!this.initializer) {
+                // todo: log errors
+                // todo: close socket
+                console.log('iomanager has no initializer');
+                socket.end();
+                remove(item);
+                return;
+            }
+            // note: startup will be resonsible to callaback to socketIoManager to terminate connection on error
+            const rc = this.initializer.startupAfterConnect(attributes);
+            const t2 = self.markTime(item);
+            self.updateActivityWaitTimes('iom_code', t1, t2);
+            // todo, trace or debug
+            if (rc === false) {
+                // just close socket, remove from pool, errors msg already handled
+                console.log('initializer.startup failed');
+                socket.end();
+                remove(item);
+                return;
+            }
+            console.log('/event/connect time=[%o]', self.activityWaits);
         });
         // use "once" instead of "on", sometimes connect is re-emitted after the connect happens immediatly after a socket disconnect, its weird!
         socket.once('ready', (...args: unknown[]) => {
@@ -185,33 +268,29 @@ export default class SocketIOManager {
             console.log('/lookup: [%o]', args);
         });
     }
-    private processData(buf: Uint8Array, byteLength: number, item: List<SocketAttributes>): boolean {
-        if (!item) {
-            console.error('big bad error: "item" was null');
-            // TODO: log this as an internal consistency error
-            return false;
+    private processData(buf: Uint8Array, item: Exclude<List<SocketAttributes>, null>): boolean {
+        this.updateNetworkStats(item);
+        const start = item!.value.ioMeta.time.ts;
+        let rc = false;
+        if (item.value.ioMeta.pool.current === 'created') {
+            if (this.initializer === null) {
+                // todo: log errors
+                // todo: close socket
+                return false;
+            }
+            rc = this.initializer.handleData(item, buf);
+        } else {
+            if (this.protocolManager === null) {
+                // todo: log errors
+                // todo: close socket
+                return false;
+            }
+            rc = this.protocolManager.binDump(item, buf);
         }
-        const networkDelay = this.updateNetworkStats(item);
-
-        if (!this.protocolManager) {
-            return true;
-        }
-        const s0 = this.now();
-        // this will measure computation down the whole chain of the driver
-        const rc = this.protocolManager.binDump(item, buf, byteLength);
-        const s1 = this.now();
-        const processTime = this.updateProcessStats(s0, s1);
-        // debug some stats
-        console.log(
-            'network transit:[%s ms], [%s]: bytes in buffer, [%s] total bytes received, processTime:[%s ms], networkTimes: [%o], processTimes:[%o], connect:[%o]',
-            networkDelay,
-            buf.byteLength,
-            item.value.ioMeta.networkBytes.bytesRead,
-            processTime,
-            this.activityWaits.network,
-            this.activityWaits.iom_code,
-            this.activityWaits.connect
-        );
+        const stop = this.markTime(item);
+        this.updateActivityWaitTimes('iom_code', start, stop);
+        // todo: remove this after we have some debug/trace logging
+        console.log('after data received and processes:[%o]', this.activityWaits);
         return rc;
     }
     private normalizeExtraOptions(extraOpt?: SocketOtherOptions): SocketOtherOptions {
@@ -222,7 +301,8 @@ export default class SocketIOManager {
     }
     private normalizeConnectOptions(
         conOpt: (TcpSocketConnectOpts & ConnectOpts) | (IpcSocketConnectOpts & ConnectOpts)
-    ): (TcpSocketConnectOpts & ConnectOpts) | (IpcSocketConnectOpts & ConnectOpts) {
+    ): (TcpSocketConnectOpts & ConnectOpts) | (IpcSocketConnectOpts & ConnectOpts) | { errors: Error[] } {
+        const errors: Error[] = [];
         if ((conOpt as IpcSocketConnectOpts & ConnectOpts).path) {
             return {
                 path: (conOpt as IpcSocketConnectOpts & ConnectOpts).path
@@ -244,7 +324,8 @@ export default class SocketIOManager {
         } = (conOpt || {}) as TcpSocketConnectOpts & ConnectOpts;
         // tcp connection
         if (!port) {
-            throw new Error(`no port or path specified in connect options, ${JSON.stringify(conOpt)}]`);
+            errors.push(new Error(`no port or path specified in connect options, [${JSON.stringify(conOpt)}]`));
+            return { errors };
         }
         return {
             port,
@@ -261,12 +342,65 @@ export default class SocketIOManager {
             ...(autoSelectFamilyAttemptTimeout && { autoSelectFamilyAttemptTimeout })
         };
     }
+
+    public upgradeToSSL(item: Exclude<List<SocketAttributes>, null>) {
+        const attr = item.value;
+        // we already checked this during "init"
+        const { createSSLConnection, conOpt } = this.getSLLSocketClassAndOptions(attr.ioMeta.pool.createdFor) as {
+            createSSLConnection: CreateSLLConnection;
+            conOpt: PGSSLConfig;
+        };
+        conOpt.socket = attr.socket!;
+        attr.socket!.removeAllListeners();
+        const { extraOpt } = this.getSocketClassAndOptions(attr.ioMeta.pool.createdFor) as {
+            createConnection: CreateSocketConnection;
+            conOpt: SocketConnectOpts;
+            extraOpt: SocketOtherOptions;
+        };
+        const self = this;
+        const sslSocket = createSSLConnection(conOpt); // this call takes 29ms
+        attr.socket = sslSocket;
+        const t0 = this.markTime(item);
+        this.decorate(item, extraOpt);
+        sslSocket.on('secureConnect', () => {
+            console.log('/secureConnect authorized', sslSocket.authorized);
+            console.log('/secureConnect authorizationError', sslSocket.authorizationError);
+            // for debugging
+            // const certificate = sslSocket.getPeerCertificate();
+            // console.log('/cerficate', certificate);
+            //
+            const t1 = this.markTime(item);
+            this.updateActivityWaitTimes('sslConnect', t0, t1);
+
+            this.initializer!.startupAfterSSLConnect(attr);
+
+            const t2 = this.markTime(item);
+            this.updateActivityWaitTimes('iom_code', t1, t2);
+        });
+        sslSocket.on('tlsClientError', (exception: Error) => {
+            console.error('/tlsClientError', exception);
+        });
+        sslSocket.on('error', (error: Error) => {
+            console.error('/ssl/error:', String(error));
+        });
+    }
     //
-    private getSocketClassAndOptions(forPool: PoolFirstResidence): {
-        createConnection: CreateSocketConnection;
-        conOpt: SocketConnectOpts;
-        extraOpt: SocketOtherOptions;
-    } {
+    public setProtocolManager(protocolManager: ProtocolManager): void {
+        this.protocolManager = protocolManager;
+    }
+
+    public setInitializer(initializer: Initializer): void {
+        this.initializer = initializer;
+    }
+
+    public getSocketClassAndOptions(forPool: PoolFirstResidence):
+        | {
+              createConnection: CreateSocketConnection;
+              conOpt: SocketConnectOpts;
+              extraOpt: SocketOtherOptions;
+          }
+        | { errors: Error[] } {
+        const errors: Error[] = [];
         let createConnection: CreateSocketConnection | undefined;
         let conOpt: SocketConnectOpts | undefined;
         let extraOpt: SocketOtherOptions | undefined;
@@ -283,28 +417,35 @@ export default class SocketIOManager {
         };
         this.crfn({ forPool }, createSocket, setAllOptions);
         if (!createConnection) {
-            throw new Error('No "createConnection" set in callback');
+            errors.push(new Error('No "createConnection" set in callback'));
         }
         if (!conOpt) {
-            throw new Error(`No connect options given`);
+            errors.push(new Error('No connect options given'));
         }
-        conOpt = this.normalizeConnectOptions(conOpt);
+        const r = this.normalizeConnectOptions(conOpt!);
+        if ('errors' in r) {
+            errors.push(...r.errors);
+            return { errors }; // I have to put a "return" here otherwise typescript nags below
+        }
+        if (errors.length) {
+            return { errors };
+        }
         extraOpt = this.normalizeExtraOptions(extraOpt)!;
-        return { createConnection, conOpt, extraOpt };
+        return { createConnection: createConnection!, conOpt: r, extraOpt };
     }
 
-    private getSLLSocketClassAndOptions(forPool: PoolFirstResidence):
+    public getSLLSocketClassAndOptions(forPool: PoolFirstResidence):
         | {
-              createConnection: CreateSLLConnection;
+              createSSLConnection: CreateSLLConnection;
               conOpt: PGSSLConfig;
           }
         | { errors: Error[] }
         | false {
-        let createConnection: CreateSLLConnection | undefined;
+        let createSSLConnection: CreateSLLConnection | undefined;
         let conOpt: PGSSLConfig | undefined;
 
         const createSocket = (cc: CreateSLLConnection) => {
-            createConnection = cc;
+            createSSLConnection = cc;
         };
 
         const setSSLOptions = (conOptions: PGSSLConfig): void => {
@@ -312,67 +453,38 @@ export default class SocketIOManager {
         };
 
         this.sslcrfn({ forPool }, createSocket, setSSLOptions);
-        if (createConnection && conOpt) {
-            const result = validatePGSSLConfig(conOpt);
-            if (result === false) {
-                // todo: warning, not error, you gave a  createSSLSocket but no sockopts
-                return false;
-            } else if (result === true) {
-                // todo: log this as a warning!!
-                return { createConnection, conOpt };
-            }
-            // todo log errors
-            result.errors;
-            return { errors: result.errors };
-        } else if (!createConnection && conOpt) {
+        if (!conOpt) {
+            return false;
+        }
+        if (!createSSLConnection) {
             // error if specifiy createSSLConnection function not set when requested
             return { errors: [new Error('SSL options specified, but createSSLConnection function not set')] };
         }
-        // createConnection && !conOpt -> false
-        // !createConnection && !conOpt -> false
-        return false;
-    }
-
-    private init(item: SocketAttributes): void {
-        const r = this.getSLLSocketClassAndOptions(item.ioMeta.pool.createdFor);
-        if (r === false) {
-            // use normal startup connection, ssl not specified
-            if (this.protocolManager) {
-                this.protocolManager.protocalWrap(item);
-                this.protocolManager.startupMsg(item);
-            }
-        } else if ('errors' in r) {
-            // we want to use ssl but misconfigured,
-            // log error
-            // stop!  end the socket
-            // remove from pool
-        } else {
-            if (this.protocolManager) {
-                this.protocolManager.protocalWrap(item);
-                this.protocolManager.startSSL(item);
-            }
+        const result = validatePGSSLConfig(conOpt);
+        if (result === false) {
+            // ssl configuration absent
+            return false;
+        } else if (result === true) {
+            // ssl configuration exist
+            return { createSSLConnection, conOpt };
         }
+        return { errors: result.errors };
     }
 
-    //
-    public setProtocolManager(protocolMngr: ProtocolManager): void {
-        this.protocolManager = protocolMngr;
-    }
-
-    public send(attributes: SocketAttributes, bin: Uint8Array): unknown {
+    public send<T>(attributes: SocketAttributes<T>, bin: Uint8Array): SendingStatus {
         const socket = attributes.socket!;
         if (socket.closed) {
-            return; // todo: this socket is closed
+            return SEND_NOT_OK; // todo: this socket is closed
         }
         if (socket.writableEnded || socket.writableFinished) {
-            return; // todo: this socket not closed but not usefull for writing
+            return SEND_NOT_OK; // todo: this socket not closed but not usefull for writing
         }
         if (socket.writableNeedDrain) {
-            return; // todo: return status for backpressure
+            return SEND_STATUS_BACKPRESSURE; // todo: return status for backpressure
         }
         socket.write(bin);
-        console.log(dump(bin));
-        return; // todo: return OK status
+        console.log('sending:', dump(bin));
+        return SEND_STATUS_OK; // todo: return OK status
     }
 
     public getPoolWaitTimes(): PoolWaitTimes {
@@ -389,7 +501,11 @@ export default class SocketIOManager {
     // Socket creation and connection starts here
     // here only the socket is created and wired up, the actial connect sequence happens somewhere else
     public async createSocketForPool(forPool: PoolFirstResidence): Promise<void> {
-        const { createConnection, conOpt, extraOpt } = this.getSocketClassAndOptions(forPool);
+        const r = this.getSocketClassAndOptions(forPool);
+        if ('errors' in r) {
+            return Promise.reject({ errors: r.errors });
+        }
+        const { createConnection, conOpt, extraOpt } = r;
         const self = this;
         const placementTime = this.now();
         const jitter = this.jitter.getRandom();
@@ -397,9 +513,9 @@ export default class SocketIOManager {
         // wait daily ms
         await delay(jitter);
 
+        // action network connection is made
         const socket = createConnection(conOpt);
 
-        //
         const attributes: SocketAttributes = {
             socket,
             ioMeta: {
@@ -408,61 +524,20 @@ export default class SocketIOManager {
                     placementTime,
                     createdFor: forPool,
                     lastChecked: placementTime,
-                    pool: 'created'
+                    current: 'created'
+                },
+                time: {
+                    ts: placementTime
                 },
                 networkBytes: {
-                    ts: placementTime,
                     bytesRead: 0,
                     bytesWritten: 0
-                }
+                },
+                aux: null
             }
         };
         const item: List<SocketAttributes> = { value: attributes };
-        this.decorate(item, extraOpt, Date.now());
+        this.decorate(item, extraOpt);
         this.created = insertBefore(this.created, item);
-    }
-
-    public upgradeToSSL(item: Exclude<List<SocketAttributes>, null>) {
-        const attr = item.value;
-        // we already checked this during "init"
-        const r = this.getSLLSocketClassAndOptions(attr.ioMeta.pool.createdFor);
-        if (r === false) {
-            // todo: error, not possible, 1st time ok, but 2nd time no?
-            return;
-        } else if ('errors' in r) {
-            // todo: error, not possible, 1st time ok, but 2nd time no?
-            return;
-        } else {
-            r.conOpt.socket = attr.socket!;
-            //r.conOpt.minVersion = 'TLSv1.3';
-            //r.conOpt.maxVersion = 'TLSv1.3';
-            attr.socket!.removeAllListeners();
-            const { extraOpt } = this.getSocketClassAndOptions(attr.ioMeta.pool.createdFor);
-            const self = this;
-            const sslSocket = r.createConnection(r.conOpt);
-            attr.socket = sslSocket;
-            this.decorate(item, extraOpt, Date.now());
-            sslSocket.on('secureConnect', () => {
-                console.log('/secureConnect authorized', sslSocket.authorized);
-                console.log('/secureConnect authorizationError', sslSocket.authorizationError);
-                // for debugging
-                // const certificate = sslSocket.getPeerCertificate();
-                // console.log('/cerficate', certificate);
-                //
-                this.protocolManager!.startupMsg(attr);
-            });
-            sslSocket.on('tlsClientError', (exception: Error) => {
-                console.log('/tlsClientError', exception);
-            });
-            sslSocket.on('error', (error: Error) => {
-                console.log('/ssl/error:', String(error));
-            });
-            // sslSocket.on('session', (session: Uint8Array) => {
-            //     console.log('ssl/session', session.slice(0, 10));
-            // });
-            // sslSocket.on('keylog', (line: Uint8Array) => {
-            //     console.log('ssl/keylog', line.slice(0, 10));
-            // });
-        }
     }
 }

@@ -1,6 +1,3 @@
-import { ToBeContinued, ErrMissing, ErrOverflow } from './types';
-import { toBeContinued, errMissing, errOverflow } from './constants';
-
 export type DecoderMarker = {
     offset: number;
 };

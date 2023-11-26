@@ -1,8 +1,7 @@
 import type { TcpSocketConnectOpts, IpcSocketConnectOpts, ConnectOpts, Socket, NetConnectOpts } from 'net';
-import type SocketIOManager from './SocketIOManager';
 
 export type Pool = 'vis' | 'reservedEmpherical' | 'reservedPermanent' | 'active' | 'idle' | 'terminal' | 'created';
-export type Activity = 'network' | 'iom_code' | 'connect';
+export type Activity = 'network' | 'iom_code' | 'connect' | 'sslConnect';
 export type PoolFirstResidence = Exclude<Pool, 'active' | 'terminal' | 'reservedEmpherical' | 'created'>;
 
 import type { ConnectionOptions, TLSSocket } from 'tls';
@@ -45,19 +44,22 @@ export type ActivityTimeBins = {
     [index in Activity]: reduceValueToBin;
 };
 
-export type MetaSocketAttr = {
+export type MetaSocketAttr<T> = {
     jitter: number; // random delay in ms when connecting
     pool: {
         createdFor: PoolFirstResidence;
         placementTime: number; // when the socket was placed into "pool"
-        pool: Pool;
+        current: Pool;
         lastChecked: number;
     };
-    networkBytes: {
+    time: {
         ts: number;
+    };
+    networkBytes: {
         bytesRead: number;
         bytesWritten: number;
     };
+    aux: T;
 };
 
 type HistogramResidentTimes = {
@@ -72,9 +74,9 @@ export type ActivityWaitTimes = {
     [index in Activity]: HistogramResidentTimes;
 };
 
-export type SocketAttributes = {
+export type SocketAttributes<T = any> = {
     socket: Socket | null;
-    ioMeta: MetaSocketAttr;
+    ioMeta: MetaSocketAttr<T>;
     // reference to procolState,
     // we can keep it "unknown" because SocketIOManager will never touch it and has no knowledge
     // whatso-ever about the the protocol (pg, mysql, memcached)
@@ -92,3 +94,5 @@ export interface AggregateErrorConstructor {
     (errors: Iterable<any>, message?: string): AggregateError;
     readonly prototype: AggregateError;
 }
+
+export type SendingStatus = 'ok' | 'backpressure' | 'not-ok';
