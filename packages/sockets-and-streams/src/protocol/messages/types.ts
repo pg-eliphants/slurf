@@ -1,1 +1,1 @@
-export type MessageState = 'undec' | 'is' | 'not';
+export type MessageState = 'undec' | 'is' | 'not' | 'error';

@@ -70,7 +70,7 @@ function test() {
     //
     const getClientConfig: GetClientConfig = (setClientConfig: SetClientConfig) => {
         setClientConfig({
-            user: 'role_ssl_nopasswd',
+            user: 'role_ssl_passwd',
             database: 'auth_db'
         });
     };
