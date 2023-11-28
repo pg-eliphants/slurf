@@ -1,6 +1,7 @@
 import { MessageState } from '../../types';
 import { MSG_IS, MSG_NOT, MSG_UNDECIDED, MSG_ERROR } from '../../constants';
 import { AUTH_CLASS } from '../constants/index';
+import { i32 } from '../helper';
 
 export type Ok = 'O';
 export type KerberosV5 = 'K';
@@ -30,7 +31,7 @@ export const KERBEROSV5: KerberosV5 = 'K';
 export const CLEARTEXTPASSWORD: ClearTextPassword = 'Clr';
 export const MD5PASSWORD: MD5Password = 'MD5';
 export const GSS: GSSType = 'G';
-export const GSSCONTINUE: Authentication = 'GC';
+export const GSSCONTINUE: GSSContinue = 'GC';
 export const SSPI: SSPIType = 'SSPI';
 export const SASL: SASLType = 'S';
 export const SASLCONTINUE: SASLContinue = 'SC';
@@ -115,10 +116,16 @@ export type AuthenticationSASLContinue = { type: SASLContinue, saslData: Uint8Ar
 export type AuthenticationSASLFinal = { type: SASLFinal, additional: Uint8Array  };
 
 
-export function parse(bin: Uint8Array, start: number): undefined | AuthenticationMD5Password /*| AuthenticationGSSContinue | AuthenticationSASL | AuthenticationSASLContinue|AuthenticationSASLFinal*/ {
+export function parse(bin: Uint8Array, start: number): undefined | AuthenticationMD5Password | AuthenticationGSSContinue /*| AuthenticationSASL | AuthenticationSASLContinue|AuthenticationSASLFinal*/ {
     const type = isType(bin, start);
     if (type === MD5PASSWORD){
         const salt = (bin[start + 9] << 24) + (bin[start + 10] << 16) + (bin[start + 11] << 8) + bin[start + 12];
         return { type: MD5PASSWORD, salt };
     }
+    if (type === GSSCONTINUE) {
+        const len = i32(bin, start + 5) - 4;
+        const auth_data = bin.slice(start + 9, len);
+        return { type: GSSCONTINUE, auth_data };
+    }
+    
 }

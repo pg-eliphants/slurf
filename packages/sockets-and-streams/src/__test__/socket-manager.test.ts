@@ -91,3 +91,18 @@ function test() {
 }
 
 test();
+
+/*
+(ubuntu linux stats, 16G memory Dell laptop)
+
+Bloody fast less for "tsl.creatConnection" and "initial connect"
+if we have max 10 ms roundtrip for short queries that is sequentially 100 queries per second,
+but this is if all request are serialized (which they are not ofc).
+
+after data received and processes:[{
+  network: { '1': 1, '2': 1 },
+  iom_code: { '0': 1, '1': 2, '24': 1 },
+  connect: { '15': 1 },
+  sslConnect: { '8': 1 }
+}]
+*/
