@@ -1,37 +1,49 @@
-import { MSG_IS, MSG_NOT, MSG_UNDECIDED } from '../constants';
-import { PARAM_STATUS } from './constants';
-import { ParseContext } from './types';
-import { MessageState } from '../types';
+import { PARAM_STATUS, MSG_IS, MSG_NOT, MSG_UNDECIDED } from './constants';
+import { ParseContext, MessageState } from './types';
+import { i32 } from './helper';
 
 export type ParameterStatus = {
     name: string;
     value: string;
 };
 
+/*
+    ParameterStatus (B) 
+    Byte1('S')
+    Identifies the message as a run-time parameter status report.
+
+    Int32
+    Length of message contents in bytes, including self.
+
+    String
+    The name of the run-time parameter being reported.
+
+    String
+    The current value of the parameter.
+*/
+
 export function matcherLength() {
     return 1; // number of bytes
 }
 export function messageLength(bin: Uint8Array, cursor: number) {
-    return (bin[cursor] << 24) + (bin[cursor + 1] << 16) + (bin[cursor + 2] << 8) + bin[cursor + 3] + 1;
+    return i32(bin, cursor + 1);
 }
 
 export function match(bin: Uint8Array, start: number): MessageState {
     const len = bin.length - start;
-    if (len >= 1 && bin[start] !== PARAM_STATUS) {
+    if (bin[start] !== PARAM_STATUS) {
         return MSG_NOT;
     }
+    if (len < 5) {
+        return MSG_UNDECIDED;
+    }
     if (len < messageLength(bin, start)) {
-        if (len >= 1) {
-            if (bin[start] !== PARAM_STATUS) {
-                return MSG_NOT;
-            }
-        }
         return MSG_UNDECIDED;
     }
     return MSG_IS;
 }
 
-export function parseMessage(ctx: ParseContext): false | ParameterStatus | undefined {
+export function parse(ctx: ParseContext): false | ParameterStatus | undefined {
     const matched = match(ctx.buffer, ctx.cursor);
     if (matched === MSG_NOT) {
         return false;
@@ -41,8 +53,7 @@ export function parseMessage(ctx: ParseContext): false | ParameterStatus | undef
     // parse the message
     const { buffer, cursor, txtDecoder } = ctx;
 
-    const len =
-        (buffer[cursor + 5] << 24) + (buffer[cursor + 6] << 16) + (buffer[cursor + 7] << 8) + buffer[cursor + 8];
+    const len = i32(buffer, cursor + 5);
     const split = buffer.indexOf(0, cursor + 9);
     const name = txtDecoder.decode(buffer.slice(9, split));
     const value = txtDecoder.decode(buffer.slice(split + 1, len));

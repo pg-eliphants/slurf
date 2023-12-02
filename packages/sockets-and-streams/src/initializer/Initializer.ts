@@ -6,17 +6,21 @@ import type { ISocketIOManager } from '../io/SocketIOManager';
 import ProtocolManager from '../protocol/ProtocolManager';
 import { SEND_NOT_OK } from '../io/constants';
 import type { GetSLLFallbackSpec } from './types';
+import { parse } from '../protocol/messages/back/ErrorResponse';
+import type { ParseContext } from '../protocol/messages/back/types';
 
 export type SocketAttributeAuxMetadata = {
     sslRequestSent: boolean;
     startupSent: boolean;
     upgradedToSll: boolean;
     authenticationOk: boolean;
+    parsingContext?: ParseContext;
 };
 
 export default class Initializer {
     constructor(
         private readonly encoder: Encoder,
+        private readonly txtDecoder: TextDecoder,
         private readonly socketIoManager: ISocketIOManager<SocketAttributeAuxMetadata>,
         private readonly protocol: ProtocolManager,
         private readonly getSSLFallback: GetSLLFallbackSpec
@@ -125,6 +129,25 @@ export default class Initializer {
         item: Exclude<List<SocketAttributes<SocketAttributeAuxMetadata>>, null>,
         data: Uint8Array
     ): boolean {
+        // create parsing context if not exist
+        if (item.value.ioMeta.aux.parsingContext === undefined) {
+            item.value.ioMeta.aux.parsingContext = {
+                buffer: data,
+                cursor: 0,
+                txtDecoder: this.txtDecoder
+            };
+        } else {
+            // merge
+            const old = item.value.ioMeta.aux.parsingContext.buffer;
+            item.value.ioMeta.aux.parsingContext.buffer = new Uint8Array(old.byteLength + data.byteLength);
+            item.value.ioMeta.aux.parsingContext.buffer.set(old);
+        }
+        const len = data.byteLength;
+
+        // seen weirder shit happen before
+        if (len === 0) {
+            return true;
+        }
         if (item.value.ioMeta.pool.current !== 'created') {
             // todo:
             // log error
@@ -140,7 +163,6 @@ export default class Initializer {
             // return false -> end socket, remove from pool etc
             return false;
         }
-        const len = data.byteLength;
         if (sslRequestSent && !upgradedToSll) {
             // 78 = 'N'
             if (data[0] === 78 && len === 1) {
@@ -157,11 +179,13 @@ export default class Initializer {
             //'S' = 83, ok to upgrade to SSL
             else if (data[0] === 83 && len === 1) {
                 return this.socketIoManager.upgradeToSSL(item);
-            } else if (data[0] !== 69) {
+            } else if (data[0] === 69) {
                 // 'E' = 69
                 // at this point a legal Error Response was given,
                 // TODO parse ErrorResponse, log error
                 // return false -> end socket, remove from pool etc
+                const errorResponse = parse(item.value.ioMeta.aux.parsingContext);
+                console.log(errorResponse);
                 return false;
             }
             // this is possibly a buffer-stuffing attack (CVE-2021-23222).

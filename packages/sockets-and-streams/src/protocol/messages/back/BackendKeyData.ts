@@ -1,7 +1,21 @@
-import { MSG_IS, MSG_NOT, MSG_UNDECIDED } from '../constants';
-import { BACKEND_KEY_DATA } from './constants';
-import { ParseContext } from './types';
-import { MessageState } from '../types';
+import { BACKEND_KEY_DATA, MSG_IS, MSG_NOT, MSG_UNDECIDED } from './constants';
+import { ParseContext, MessageState } from './types';
+import { i32 } from './helper';
+
+/*
+    BackendKeyData (B) #
+    Byte1('K')
+    Identifies the message as cancellation key data. The frontend must save these values if it wishes to be able to issue CancelRequest messages later.
+
+    Int32(12)
+    Length of message contents in bytes, including self.
+
+    Int32
+    The process ID of this backend.
+
+    Int32
+    The secret key of this backend.
+*/
 
 export type BackendKeyData = {
     pid: number;
@@ -11,53 +25,36 @@ export type BackendKeyData = {
 export function matcherLength() {
     return 1; // number of bytes
 }
-export function messageLength(bin: Uint8Array, _start: number) {
+
+// function with no parameters (function.length === 0) means it returns a constant, this is by itself a signal
+export function messageLength() {
     return 13;
 }
 
 export function match(bin: Uint8Array, start: number): MessageState {
     const len = bin.length - start;
-    if (len < messageLength(bin, start)) {
-        // partial or is not this message
-        if (len >= 1) {
-            if (bin[start] !== BACKEND_KEY_DATA) {
-                return MSG_NOT;
-            }
-        }
-        if (len >= 5) {
-            if (!(bin[start + 1] === 0 && bin[start + 2] === 0 && bin[start + 3] === 0 && bin[start + 4] === 12)) {
-                return MSG_NOT;
-            }
-        }
-        return MSG_UNDECIDED;
+    if (bin[start] !== BACKEND_KEY_DATA) {
+        return MSG_NOT;
     }
     if (
-        bin[start] === BACKEND_KEY_DATA &&
-        bin[start + 1] === 0 &&
-        bin[start + 2] === 0 &&
-        bin[start + 3] === 0 &&
-        bin[start + 4] === 12
+        len >= 5 &&
+        false == (bin[start + 1] === 0 && bin[start + 2] === 0 && bin[start + 3] === 0 && bin[start + 4] === 12)
     ) {
-        return MSG_IS;
+        return MSG_NOT;
     }
-    return MSG_NOT;
+    if (len < messageLength()) {
+        return MSG_UNDECIDED;
+    }
+    return MSG_IS;
 }
 
-export function parseMessage(ctx: ParseContext): undefined | false | BackendKeyData {
+export function parse(ctx: ParseContext): undefined | false | BackendKeyData {
     const { buffer, cursor } = ctx;
     const matched = match(buffer, cursor);
     if (matched === MSG_IS) {
         return {
-            pid:
-                (buffer[cursor + 5] << 24) +
-                (buffer[cursor + 6] << 16) +
-                (buffer[cursor + 7] << 8) +
-                buffer[cursor + 8],
-            secret:
-                (buffer[cursor + 9] << 24) +
-                (buffer[cursor + 10] << 16) +
-                (buffer[cursor + 11] << 8) +
-                buffer[cursor + 12]
+            pid: i32(buffer, cursor + 5),
+            secret: i32(buffer, 9)
         };
     } else if (matched === MSG_NOT) {
         return false;

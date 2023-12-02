@@ -1,5 +1,5 @@
-import { MessageState } from '../../types';
-import { MSG_IS, MSG_NOT, MSG_UNDECIDED, MSG_ERROR } from '../../constants';
+import { ParseContext, MessageState } from '../types';
+import { MSG_IS, MSG_NOT, MSG_UNDECIDED, MSG_ERROR } from '../constants';
 import { AUTH_CLASS } from '../constants/index';
 import { i32 } from '../helper';
 
@@ -14,8 +14,8 @@ export type SASLType = 'S';
 export type SASLContinue = 'SC';
 export type SASLFinal = 'SF';
 
-export type Authentication = 
-    | Ok 
+export type AuthenticationType =
+    | Ok
     | KerberosV5
     | ClearTextPassword
     | MD5Password
@@ -36,50 +36,54 @@ export const SSPI: SSPIType = 'SSPI';
 export const SASL: SASLType = 'S';
 export const SASLCONTINUE: SASLContinue = 'SC';
 export const SASLFINAL: SASLFinal = 'SF';
-
+//      0             4   5   6 7  8    9
+// || [ R] [00 00 00 ..] [00 00 00 ff] byteN
 export function matcherLength() {
     return 9; // number of bytes
 }
 
 export function messageLength(bin: Uint8Array, start: number): false | number {
-    const field = bin[start + 5];
-    switch(field){
+    const field = bin[start + 8];
+    switch (field) {
         case 0:
+        // no 1
         case 2:
         case 3:
-        case 7:   
-        case 9: 
+        // no 4
+        // no 6
+        case 7:
+        case 9:
             return 9;
         case 5:
             return 10;
         case 8:
         case 10:
         case 11:
-        case 12:    
-            // calculate 
-            const len = (bin[start + 1] << 24) + (bin[start + 2] << 16) + (bin[start +  3] << 8) + bin[start + 4];
+        case 12:
+            // calculate
+            const len = i32(bin, start + 1);
             return len + 1;
     }
     return false;
 }
 
 export function match(bin: Uint8Array, start: number): MessageState {
-    if (bin[start] !== AUTH_CLASS){
+    if (bin[start] !== AUTH_CLASS) {
         return MSG_NOT;
     }
     const len = bin.length - start;
-    if (len < matcherLength()){
+    if (len < 9) {
         return MSG_UNDECIDED;
     }
     const msgLen = messageLength(bin, start);
-    if (msgLen === false){
+    if (msgLen === false) {
         return MSG_ERROR;
     }
     if (len < msgLen) {
         return MSG_UNDECIDED;
     }
-    if (msgLen === 9){
-        if (!(bin[start + 1] === 0 && bin[start + 2] === 0 && bin[start + 3]=== 0 && bin[start + 4] === 8)){
+    if (msgLen === 9) {
+        if (!(bin[start + 1] === 0 && bin[start + 2] === 0 && bin[start + 3] === 0 && bin[start + 4] === 8)) {
             return MSG_ERROR;
         }
     }
@@ -100,32 +104,252 @@ const mapFieldToType = [
     SASL, //10
     SASLCONTINUE,
     SASLFINAL //12
-]
+];
 
-export function isType(bin: Uint8Array, start: number): null | Authentication {
-    const field = bin[start + 5];
-    const type = mapFieldToType[field]
+export function isType(bin: Uint8Array, start: number): null | AuthenticationType {
+    const field = bin[start + 8];
+    const type = mapFieldToType[field];
     return type ?? null;
 }
 
 // js objects
-export type AuthenticationMD5Password = { type: MD5Password,  salt: number };
-export type AuthenticationGSSContinue = { type: GSSContinue, auth_data: Uint8Array };
-export type AuthenticationSASL = { type: SASLType, mechanisms: string[] };
-export type AuthenticationSASLContinue = { type: SASLContinue, saslData: Uint8Array };
-export type AuthenticationSASLFinal = { type: SASLFinal, additional: Uint8Array  };
+export type AuthenticationOk = { type: Ok };
+export type AuthenticationMD5Password = { type: MD5Password; salt: number };
+export type AuthenticationGSSContinue = { type: GSSContinue; authData: Uint8Array };
+export type AuthenticationSASL = { type: SASLType; mechanisms: string[] };
+export type AuthenticationSASLContinue = { type: SASLContinue; saslData: Uint8Array };
+export type AuthenticationSASLFinal = { type: SASLFinal; additional: Uint8Array };
+export type AuthenticationKerberos = { type: KerberosV5 };
+export type AuthenticationClearText = { type: ClearTextPassword };
+export type AuthenticationGSS = { type: GSSType };
+export type AuthenticationSSPI = { type: SSPIType };
 
+export type Authentication =
+    | AuthenticationOk
+    | AuthenticationKerberos
+    | AuthenticationClearText
+    | AuthenticationMD5Password
+    | AuthenticationGSS
+    | AuthenticationGSSContinue
+    | AuthenticationSSPI
+    | AuthenticationSASL
+    | AuthenticationSASLContinue
+    | AuthenticationSASLFinal;
 
-export function parse(bin: Uint8Array, start: number): undefined | AuthenticationMD5Password | AuthenticationGSSContinue /*| AuthenticationSASL | AuthenticationSASLContinue|AuthenticationSASLFinal*/ {
-    const type = isType(bin, start);
-    if (type === MD5PASSWORD){
-        const salt = (bin[start + 9] << 24) + (bin[start + 10] << 16) + (bin[start + 11] << 8) + bin[start + 12];
+export function parse(ctx: ParseContext): null | false | undefined | Authentication {
+    const { buffer, cursor, txtDecoder } = ctx;
+    const matched = match(buffer, cursor);
+    const len = buffer.byteLength - cursor;
+    if (matched === MSG_NOT) {
+        return false;
+    }
+    if (matched === MSG_UNDECIDED) {
+        return undefined;
+    }
+    if (matched === MSG_ERROR) {
+        return null;
+    }
+    // IS_MSG
+    const type = isType(buffer, cursor);
+    /*
+    AuthenticationOk (B) 
+        Byte1('R')
+        Identifies the message as an authentication request.
+
+        Int32(8)
+        Length of message contents in bytes, including self.
+
+        Int32(0)
+        Specifies that the authentication was successful.
+    */
+    if (type === OK) {
+        return { type: OK }; // authentication ok
+    }
+    /*
+    AuthenticationKerberosV5 (B) 
+        Byte1('R')
+        Identifies the message as an authentication request.
+
+        Int32(8)
+        Length of message contents in bytes, including self.
+
+        Int32(2)
+        Specifies that Kerberos V5 authentication is required.
+    */
+    if (type === KERBEROSV5) {
+        return { type: KERBEROSV5 }; // authentication ok
+    }
+    /*
+    AuthenticationCleartextPassword (B) 
+        Byte1('R')
+        Identifies the message as an authentication request.
+
+        Int32(8)
+        Length of message contents in bytes, including self.
+
+        Int32(3)
+        Specifies that a clear-text password is required.
+    */
+    if (type === CLEARTEXTPASSWORD) {
+        return { type: CLEARTEXTPASSWORD }; // authentication ok
+    }
+    /*
+    AuthenticationMD5Password (B) 
+        Byte1('R')
+        Identifies the message as an authentication request.
+
+        Int32(12)
+        Length of message contents in bytes, including self.
+
+        Int32(5)
+        Specifies that an MD5-encrypted password is required.
+
+        Byte4
+        The salt to use when encrypting the password.
+    */
+    if (type === MD5PASSWORD) {
+        const salt = i32(buffer, cursor + 9);
         return { type: MD5PASSWORD, salt };
     }
-    if (type === GSSCONTINUE) {
-        const len = i32(bin, start + 5) - 4;
-        const auth_data = bin.slice(start + 9, len);
-        return { type: GSSCONTINUE, auth_data };
+    /*
+    AuthenticationGSS (B) 
+        Byte1('R')
+        Identifies the message as an authentication request.
+
+        Int32(8)
+        Length of message contents in bytes, including self.
+
+        Int32(7)
+        Specifies that GSSAPI authentication is required.
+    */
+    if (type === GSS) {
+        const len = messageLength(buffer, cursor);
+        if (len) return { type: GSS };
     }
-    
+    /*
+    AuthenticationGSSContinue (B) 
+        Byte1('R')
+        Identifies the message as an authentication request.
+
+        Int32
+        Length of message contents in bytes, including self.
+
+        Int32(8)
+        Specifies that this message contains GSSAPI or SSPI data.
+
+        Byten
+        GSSAPI or SSPI authentication data.
+    */
+    if (type === GSSCONTINUE) {
+        const msgLen = messageLength(buffer, cursor);
+        if (msgLen === false) {
+            return null;
+        }
+        if (len < msgLen) {
+            return undefined;
+        }
+        const authData = buffer.slice(cursor + 9);
+        return { type: GSSCONTINUE, authData };
+    }
+    /*
+    AuthenticationSSPI (B) 
+        Byte1('R')
+        Identifies the message as an authentication request.
+
+        Int32(8)
+        Length of message contents in bytes, including self.
+
+        Int32(9)
+        Specifies that SSPI authentication is required.
+    */
+    if (type === SSPI) {
+        return { type: SSPI };
+    }
+    /*
+    AuthenticationSASL (B) 
+        Byte1('R')
+        Identifies the message as an authentication request.
+
+        Int32
+        Length of message contents in bytes, including self.
+
+        Int32(10)
+        Specifies that SASL authentication is required.
+
+        The message body is a list of SASL authentication mechanisms, in the server's order of preference. A zero byte is required as terminator after the last authentication mechanism name. For each mechanism, there is the following:
+
+        String
+        Name of a SASL authentication mechanism.
+    */
+    if (type === SASL) {
+        const msgLen = messageLength(buffer, cursor);
+        if (msgLen === false) {
+            return null;
+        }
+        if (len < msgLen) {
+            return undefined;
+        }
+        const mechanisms: string[] = [];
+        for (let pos = cursor + 9; pos < len; ) {
+            if (buffer[pos] === 0) {
+                return { type: SASL, mechanisms };
+            }
+            const idx = buffer.indexOf(0, pos);
+            const value = txtDecoder.decode(buffer.slice(pos, idx));
+            mechanisms.push(value);
+            pos = idx + 1;
+        }
+        return null; // error happened!
+    }
+    /*
+    AuthenticationSASLContinue (B) 
+        Byte1('R')
+        Identifies the message as an authentication request.
+
+        Int32
+        Length of message contents in bytes, including self.
+
+        Int32(11)
+        Specifies that this message contains a SASL challenge.
+
+        Byten
+        SASL data, specific to the SASL mechanism being used.
+    */
+    if (type === SASLCONTINUE) {
+        const msgLen = messageLength(buffer, cursor);
+        if (msgLen === false) {
+            return null;
+        }
+        if (len < msgLen) {
+            return undefined;
+        }
+        const saslData = buffer.slice(cursor + 9, msgLen);
+        return { type: SASLCONTINUE, saslData };
+    }
+    /*
+    AuthenticationSASLFinal (B) #
+        Byte1('R')
+        Identifies the message as an authentication request.
+
+        Int32
+        Length of message contents in bytes, including self.
+
+        Int32(12)
+        Specifies that SASL authentication has completed.
+
+        Byten
+        SASL outcome "additional data", specific to the SASL mechanism being used.
+    */
+    if (type === SASLFINAL) {
+        const msgLen = messageLength(buffer, cursor);
+        if (msgLen === false) {
+            return null;
+        }
+        if (len < msgLen) {
+            return undefined;
+        }
+        const additional = buffer.slice(cursor + 9, msgLen);
+        return { type: SASLFINAL, additional };
+    }
+    return null;
 }
