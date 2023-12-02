@@ -70,7 +70,7 @@ function test() {
     //
     const getClientConfig: GetClientConfig = (setClientConfig: SetClientConfig) => {
         setClientConfig({
-            user: 'role_ssl_passwd',
+            user: 'role_ssl_nopasswd',
             database: 'auth_db'
         });
     };
@@ -83,9 +83,10 @@ function test() {
     };
 
     const textEncoder = new TextEncoder();
+    const txtDecoder = new TextDecoder();
     const encoder = new Encoder(memoryManager, textEncoder);
     //
-    const initializer = new Initializer(encoder, ioManager, protocolManager, getSSLFallback);
+    const initializer = new Initializer(encoder, txtDecoder, ioManager, protocolManager, getSSLFallback);
     ioManager.setInitializer(initializer);
     ioManager.createSocketForPool('idle');
 }

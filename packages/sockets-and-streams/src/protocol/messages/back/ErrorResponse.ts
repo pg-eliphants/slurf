@@ -26,7 +26,7 @@ export function matcherLength() {
     return 1; // number of bytes
 }
 export function messageLength(bin: Uint8Array, cursor: number) {
-    return i32(bin, cursor + 1);
+    return i32(bin, cursor + 1) + 1;
 }
 
 export function match(bin: Uint8Array, start: number): MessageState {
@@ -59,10 +59,11 @@ export function parse(ctx: ParseContext): null | undefined | false | Field[] {
         const type = String.fromCharCode(buffer[pos]);
         if (type === '\x00') {
             // termination
+            ctx.cursor = pos + 1; // advance cursor
             return fields;
         }
-        const idx = buffer.indexOf(0, cursor + 1);
-        const str = txtDecoder.decode(buffer.slice(cursor + 1, idx));
+        const idx = buffer.indexOf(0, pos + 1);
+        const str = txtDecoder.decode(buffer.slice(pos + 1, idx));
         fields.push({ type, value: str });
         pos = idx + 1;
     }

@@ -6,7 +6,7 @@ import type { ISocketIOManager } from '../io/SocketIOManager';
 import ProtocolManager from '../protocol/ProtocolManager';
 import { SEND_NOT_OK } from '../io/constants';
 import type { GetSLLFallbackSpec } from './types';
-import { parse } from '../protocol/messages/back/ErrorResponse';
+import { parse as parseError, match as MatchError } from '../protocol/messages/back/ErrorResponse';
 import type { ParseContext } from '../protocol/messages/back/types';
 
 export type SocketAttributeAuxMetadata = {
@@ -140,8 +140,10 @@ export default class Initializer {
             // merge
             const old = item.value.ioMeta.aux.parsingContext.buffer;
             item.value.ioMeta.aux.parsingContext.buffer = new Uint8Array(old.byteLength + data.byteLength);
-            item.value.ioMeta.aux.parsingContext.buffer.set(old);
+            item.value.ioMeta.aux.parsingContext.buffer.set(old, 0);
+            item.value.ioMeta.aux.parsingContext.buffer.set(data, old.byteLength);
         }
+        const parseCtx = item.value.ioMeta.aux.parsingContext;
         const len = data.byteLength;
 
         // seen weirder shit happen before
@@ -174,17 +176,20 @@ export default class Initializer {
                     // return false -> end socket, remove from pool etc
                     return false;
                 }
+                parseCtx.cursor = 1;
                 return this.sendStartupMessage(item.value);
             }
             //'S' = 83, ok to upgrade to SSL
             else if (data[0] === 83 && len === 1) {
+                parseCtx.cursor = 1;
                 return this.socketIoManager.upgradeToSSL(item);
             } else if (data[0] === 69) {
                 // 'E' = 69
                 // at this point a legal Error Response was given,
                 // TODO parse ErrorResponse, log error
                 // return false -> end socket, remove from pool etc
-                const errorResponse = parse(item.value.ioMeta.aux.parsingContext);
+                const errorResponse = parseError(parseCtx);
+                parseCtx.buffer = parseCtx.buffer.slice(parseCtx.cursor);
                 console.log(errorResponse);
                 return false;
             }
@@ -197,14 +202,20 @@ export default class Initializer {
             // handle further authentication related responses from server
             // - E
             // - various R
-            if (authenticationOk) {
-                // authenticationOk received,
-                // get client session attributes
-                // cancel code
-                // ready for query" ok message
-                console.log('authentication was ok');
+            const r = parseError(parseCtx);
+            if (r === undefined) {
+                return true;
             }
-            console.log('HERE WE ARE');
+            if (r === null) {
+                console.log('error parsing error-response');
+                return false;
+            }
+            if (r === false) {
+                // consume all data
+                parseCtx.buffer = parseCtx.buffer.slice(0, 0);
+                parseCtx.cursor = 0;
+            }
+            console.log('HERE WE ARE', r);
             return true;
         }
         // forbidden state
