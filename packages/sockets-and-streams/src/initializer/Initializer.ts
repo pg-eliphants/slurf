@@ -11,6 +11,7 @@ export type SocketAttributeAuxMetadata = {
     sslRequestSent: boolean;
     startupSent: boolean;
     upgradedToSll: boolean;
+    authenticationOk: boolean;
 };
 
 export default class Initializer {
@@ -82,7 +83,12 @@ export default class Initializer {
     // this is called on a "connect" event
     public startupAfterConnect(socket: SocketAttributes<SocketAttributeAuxMetadata>): boolean {
         // request ssl params from ioManager
-        socket.ioMeta.aux = { sslRequestSent: false, startupSent: false, upgradedToSll: false };
+        socket.ioMeta.aux = {
+            sslRequestSent: false,
+            startupSent: false,
+            upgradedToSll: false,
+            authenticationOk: false
+        };
         const r = this.socketIoManager.getSLLSocketClassAndOptions(socket.ioMeta.pool.createdFor);
         // no ssl, use normal connection
         if (r === false) {
@@ -125,10 +131,11 @@ export default class Initializer {
             // return false -> end socket, remove from pool etc
             return false;
         }
-        const { startupSent, sslRequestSent, upgradedToSll } = item.value.ioMeta.aux;
+        const { startupSent, sslRequestSent, upgradedToSll, authenticationOk } = item.value.ioMeta.aux;
         if (!startupSent && !sslRequestSent) {
+            // this is sort of "out of band" data
             console.log('the server is sending us an error');
-            // todo: prolly the server is sending us an error of some sort, abort
+            // todo: prolly the server is sending us an error of some sort, outside the "initializer flow" abort
             // todo log errors
             // return false -> end socket, remove from pool etc
             return false;
@@ -152,14 +159,13 @@ export default class Initializer {
                 return this.socketIoManager.upgradeToSSL(item);
             } else if (data[0] !== 69) {
                 // 'E' = 69
-                // this is possibly a buffer-stuffing attack (CVE-2021-23222).
-                // https://www.postgresql.org/support/security/CVE-2021-23222/
-                // TODO: log error
+                // at this point a legal Error Response was given,
+                // TODO parse ErrorResponse, log error
                 // return false -> end socket, remove from pool etc
                 return false;
             }
-            // at this point a legal Error Response was given,
-            // TODO parse ErrorResponse, log error
+            // this is possibly a buffer-stuffing attack (CVE-2021-23222).
+            // https://www.postgresql.org/support/security/CVE-2021-23222
             // return false -> end socket, remove from pool etc
             return false;
         }
@@ -167,6 +173,13 @@ export default class Initializer {
             // handle further authentication related responses from server
             // - E
             // - various R
+            if (authenticationOk) {
+                // authenticationOk received,
+                // get client session attributes
+                // cancel code
+                // ready for query" ok message
+                console.log('authentication was ok');
+            }
             console.log('HERE WE ARE');
             return true;
         }
