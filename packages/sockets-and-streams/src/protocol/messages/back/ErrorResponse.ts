@@ -1,6 +1,7 @@
 import { ERROR, MSG_IS, MSG_NOT, MSG_UNDECIDED } from './constants';
-import { ParseContext, MessageState } from './types';
+import { ParseContext, MessageState, Notifications } from './types';
 import { i32 } from './helper';
+import { noticationsTemplate } from './constants';
 /*
     ErrorResponse (B) 
     Byte1('E')
@@ -44,7 +45,7 @@ export function match(bin: Uint8Array, start: number): MessageState {
     return MSG_IS;
 }
 
-export function parse(ctx: ParseContext): null | undefined | false | Field[] {
+export function parse(ctx: ParseContext): null | undefined | false | Notifications {
     const { buffer, cursor, txtDecoder } = ctx;
     const matched = match(buffer, cursor);
     if (matched === MSG_NOT) {
@@ -54,7 +55,7 @@ export function parse(ctx: ParseContext): null | undefined | false | Field[] {
         return undefined;
     }
     const len = messageLength(buffer, cursor);
-    const fields: Field[] = [];
+    const fields = { ...noticationsTemplate };
     for (let pos = cursor + 5; pos < len; ) {
         const type = String.fromCharCode(buffer[pos]);
         if (type === '\x00') {
@@ -64,7 +65,7 @@ export function parse(ctx: ParseContext): null | undefined | false | Field[] {
         }
         const idx = buffer.indexOf(0, pos + 1);
         const str = txtDecoder.decode(buffer.slice(pos + 1, idx));
-        fields.push({ type, value: str });
+        fields[type] = str;
         pos = idx + 1;
     }
     // this is not good

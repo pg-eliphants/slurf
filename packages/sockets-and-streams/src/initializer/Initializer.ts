@@ -7,7 +7,7 @@ import ProtocolManager from '../protocol/ProtocolManager';
 import { SEND_NOT_OK } from '../io/constants';
 import type { GetSLLFallbackSpec } from './types';
 import { parse as parseError, match as MatchError, Field } from '../protocol/messages/back/ErrorResponse';
-import type { ParseContext } from '../protocol/messages/back/types';
+import type { ParseContext, Notifications } from '../protocol/messages/back/types';
 import {
     OK,
     MD5PASSWORD,
@@ -33,7 +33,7 @@ export type SocketAttributeAuxMetadata = {
     parameterStatusReceived: boolean;
     readyForQuery: boolean;
     parsingContext?: ParseContext;
-    error: null | Field[];
+    error: null | Notifications;
 };
 
 export default class Initializer {

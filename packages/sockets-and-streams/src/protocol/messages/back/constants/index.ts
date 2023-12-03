@@ -1,6 +1,4 @@
-import type { MessageState } from '../types';
-
-export const NotificationAndErrorFields = 'SVCMDHPpqWstcdnFLR';
+import type { MessageState, Notifications } from '../types';
 
 export const AUTH_CLASS = 82; // 'R' Authentication message
 export const PARAM_STATUS = 83; // 'S' connection parameter
@@ -12,3 +10,25 @@ export const MSG_UNDECIDED: MessageState = 'undec';
 export const MSG_NOT: MessageState = 'not';
 export const MSG_IS: MessageState = 'is';
 export const MSG_ERROR: MessageState = 'error';
+
+export const noticationsTemplate: Notifications = {
+    S: '',
+    V: '',
+    C: '',
+    M: '',
+    D: '',
+    H: '',
+    P: '',
+    p: '',
+    q: '',
+    W: '',
+    s: '',
+    t: '',
+    c: '',
+    d: '',
+    n: '',
+    F: '',
+    L: '',
+    R: '',
+    Z: ''
+};
