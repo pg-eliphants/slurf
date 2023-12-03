@@ -18,11 +18,6 @@ import { noticationsTemplate } from './constants';
     String
     The field value.
 */
-export type Field = {
-    type: string;
-    value: string;
-};
-
 export function matcherLength() {
     return 1; // number of bytes
 }
