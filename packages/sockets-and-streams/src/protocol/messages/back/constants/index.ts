@@ -1,8 +1,6 @@
-import type { BackEndMessageTypes, MessageState } from '../types';
+import type { MessageState } from '../types';
 
 export const NotificationAndErrorFields = 'SVCMDHPpqWstcdnFLR';
-
-export const AUTHENTICATION_OK: BackEndMessageTypes = 'AuthenticationOk';
 
 export const AUTH_CLASS = 82; // 'R' Authentication message
 export const PARAM_STATUS = 83; // 'S' connection parameter

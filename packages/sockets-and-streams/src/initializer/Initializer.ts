@@ -6,17 +6,34 @@ import type { ISocketIOManager } from '../io/SocketIOManager';
 import ProtocolManager from '../protocol/ProtocolManager';
 import { SEND_NOT_OK } from '../io/constants';
 import type { GetSLLFallbackSpec } from './types';
-import { parse as parseError, match as MatchError } from '../protocol/messages/back/ErrorResponse';
+import { parse as parseError, match as MatchError, Field } from '../protocol/messages/back/ErrorResponse';
 import type { ParseContext } from '../protocol/messages/back/types';
+import {
+    OK,
+    MD5PASSWORD,
+    CLEARTEXTPASSWORD,
+    KERBEROSV5,
+    GSS,
+    GSSCONTINUE,
+    SSPI,
+    SASL,
+    SASLCONTINUE,
+    SASLFINAL,
+    parse as parseAuthenticationMsg
+} from '../protocol/messages/back/authentication';
+import type { AuthenticationOk } from '../protocol/messages/back/authentication';
 
 export type SocketAttributeAuxMetadata = {
     sslRequestSent: boolean;
     startupSent: boolean;
     upgradedToSll: boolean;
     authenticationOk: boolean;
+    authenticationMD5Sent: boolean;
+    authenticationClearTextSent: boolean;
     parameterStatusReceived: boolean;
     readyForQuery: boolean;
     parsingContext?: ParseContext;
+    error: null | Field[];
 };
 
 export default class Initializer {
@@ -45,14 +62,65 @@ export default class Initializer {
     // return undefined -> incomplete authentication message received wait for more data from socket
     // return true -> parameter status message was processes
     // return null -> error orccured, malformed parmater status message
-    private handleParameterStatusses(aux: SocketAttributeAuxMetadata): true | undefined | null {
+    private handleParameterStatusses(aux: SocketAttributeAuxMetadata): boolean | undefined | null {
         return null;
     }
 
     // return undefined -> incomplete authentication message received wait for more data from socket
     // return true -> authentication message was processes (does not mean handshake complete)
     // return null -> error orccured, malformed authentication message
-    private handleAuthentication(aux: SocketAttributeAuxMetadata): true | undefined | null {
+    private handleAuthentication(item: SocketAttributes<SocketAttributeAuxMetadata>): true | undefined | null {
+        const aux = item.ioMeta.aux;
+        const pc = aux.parsingContext!;
+        if (pc.cursor >= pc.buffer.byteLength) {
+            return undefined;
+        }
+        const parseResult = parseAuthenticationMsg(pc);
+        // dont merge below 2 if statements,  typescript inference is not happy
+        if (parseResult === null) {
+            return null;
+        }
+        if (parseResult === undefined) {
+            return undefined;
+        }
+        if (parseResult === false) {
+            // is an error for sure, we expect an Authentication
+            const errMsg = parseError(pc);
+            if (errMsg === undefined) {
+                return undefined;
+            }
+            if (errMsg === null || errMsg === false) {
+                // yes it was an error message (but scrambled), or no err message
+                // log bindump and abort
+                return null;
+            }
+            aux.error = errMsg;
+            return null;
+        }
+        if (parseResult.type === OK) {
+            aux.authenticationOk = true;
+            return true;
+        }
+        if (parseResult.type === MD5PASSWORD) {
+            if (aux.authenticationMD5Sent) {
+                // log error
+                return null;
+            }
+            // send salted MD5 password
+            aux.authenticationMD5Sent = true;
+            return true;
+        }
+        if (parseResult.type === CLEARTEXTPASSWORD) {
+            if (aux.authenticationClearTextSent) {
+                // log error
+                return null;
+            }
+            // send clearTextPassword
+            aux.authenticationClearTextSent = true;
+            return true;
+        }
+        // unsupprted auth
+        // log errors
         return null;
     }
 
@@ -122,8 +190,11 @@ export default class Initializer {
             startupSent: false,
             upgradedToSll: false,
             authenticationOk: false,
+            authenticationMD5Sent: false,
+            authenticationClearTextSent: false,
             parameterStatusReceived: false,
-            readyForQuery: false
+            readyForQuery: false,
+            error: null
         };
         const r = this.socketIoManager.getSLLSocketClassAndOptions(socket.ioMeta.pool.createdFor);
         // no ssl, use normal connection
@@ -236,90 +307,93 @@ export default class Initializer {
             console.log('buffer-stuffing attack?', parseCtx.buffer.slice(parseCtx.cursor));
             return false;
         }
-        if (startupSent) {
-            if (!authenticationOk) {
-                const rc = this.handleAuthentication(aux);
-                if (rc === undefined) {
-                    return true; // wait for more data
-                }
-                if (rc === null) {
-                    // either an error occured or a non authentication message was received
-                    // todo log specific error
-                    return false;
-                }
-                if (!aux.authenticationOk) {
-                    // not done with authentication
-                    // wait for next steps from pg
-                    return true;
-                }
-                // fall through
+        if (startupSent === false) {
+            // forbidden state
+            // todo: log errors
+            // return false -> end socket, remove from pool etc
+            return false;
+        }
+        if (!authenticationOk) {
+            const rc = this.handleAuthentication(item.value);
+            if (rc === undefined) {
+                return true; // wait for more data
             }
-            // authentication complete
-            // at this point we consume "parameter status(es)", "backend key" data, and "ready for query"
-            while (!aux.readyForQuery) {
-                // process parameter status
-                for (
-                    let paramStatusResult = this.handleParameterStatusses(aux);
-                    ;
-                    paramStatusResult = this.handleParameterStatusses(aux)
-                ) {
-                    if (paramStatusResult === null) {
-                        // todo: log buffer/error
-                        return false;
-                    }
-                    if (paramStatusResult === undefined) {
-                        // wait for  more data
-                        return true;
-                    }
-                }
-                // process backend key data
-                const bckDataResult = this.processBackendKeyData(aux);
-                if (bckDataResult === null) {
-                    // todo: log buffer/error
-                    return false;
-                }
-                if (bckDataResult === undefined) {
-                    // wait for  more data
-                    return true;
-                }
-                const readyForQueryResult = this.processReadyForQuery(aux);
-                if (readyForQueryResult === null) {
-                    // todo: log buffer/error
-                    return false;
-                }
-                if (readyForQueryResult === undefined) {
-                    // wait for  more data
-                    return true;
-                }
-                if (parseCtx.buffer.byteLength > parseCtx.cursor) {
-                    // todo: all data must have been consumed, if not? this is an internal consistency violation
-                    // log error
-                    return false;
-                }
-            }
-
-            // handle further authentication related responses from server
-            // - E
-            // - various R
-            const r = parseError(parseCtx);
-            if (r === undefined) {
-                return true;
-            }
-            if (r === null) {
-                console.log('error parsing error-response');
+            if (rc === null) {
+                // either an error occured or a non authentication message was received
+                // todo log specific error
                 return false;
             }
-            if (r === false) {
-                // consume all data
-                parseCtx.buffer = parseCtx.buffer.slice(0, 0);
-                parseCtx.cursor = 0;
+            if (!aux.authenticationOk) {
+                // not done with authentication
+                // wait for next steps from pg
+                return true;
             }
-            console.log('HERE WE ARE', r);
+            // fall through
+        }
+        // authentication complete
+        // at this point we consume "parameter status(es)", "backend key" data, and "ready for query"
+        while (!aux.readyForQuery) {
+            // process parameter status
+            for (
+                let paramStatusResult = this.handleParameterStatusses(aux);
+                ;
+                paramStatusResult = this.handleParameterStatusses(aux)
+            ) {
+                if (paramStatusResult === null) {
+                    // todo: log buffer/error
+                    return false;
+                }
+                if (paramStatusResult === undefined) {
+                    // wait for  more data
+                    return true;
+                }
+                if (paramStatusResult === false) {
+                    break;
+                }
+            }
+            // process backend key data
+            const bckDataResult = this.processBackendKeyData(aux);
+            if (bckDataResult === null) {
+                // todo: log buffer/error
+                return false;
+            }
+            if (bckDataResult === undefined) {
+                // wait for  more data
+                return true;
+            }
+            const readyForQueryResult = this.processReadyForQuery(aux);
+            if (readyForQueryResult === null) {
+                // todo: log buffer/error
+                return false;
+            }
+            if (readyForQueryResult === undefined) {
+                // wait for  more data
+                return true;
+            }
+            if (parseCtx.buffer.byteLength > parseCtx.cursor) {
+                // todo: all data must have been consumed, if not? this is an internal consistency violation
+                // log error
+                return false;
+            }
+        }
+
+        // handle further authentication related responses from server
+        // - E
+        // - various R
+        const r = parseError(parseCtx);
+        if (r === undefined) {
             return true;
         }
-        // forbidden state
-        // todo: log errors
-        // return false -> end socket, remove from pool etc
-        return false;
+        if (r === null) {
+            console.log('error parsing error-response');
+            return false;
+        }
+        if (r === false) {
+            // consume all data
+            parseCtx.buffer = parseCtx.buffer.slice(0, 0);
+            parseCtx.cursor = 0;
+        }
+        console.log('HERE WE ARE', r);
+        return true;
     }
 }
