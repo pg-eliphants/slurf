@@ -14,6 +14,8 @@ export type SocketAttributeAuxMetadata = {
     startupSent: boolean;
     upgradedToSll: boolean;
     authenticationOk: boolean;
+    parameterStatusReceived: boolean;
+    readyForQuery: boolean;
     parsingContext?: ParseContext;
 };
 
@@ -25,6 +27,34 @@ export default class Initializer {
         private readonly protocol: ProtocolManager,
         private readonly getSSLFallback: GetSLLFallbackSpec
     ) {}
+
+    // return undefined -> incomplete ReadyForQuery Data  received wait for more data from socket
+    // return true -> processReadyForQuery Successfully processed
+    // return null -> error orccured, malformed backEndKeyData or Error encountered
+    private processReadyForQuery(aux: SocketAttributeAuxMetadata): true | undefined | null {
+        return null;
+    }
+
+    // return undefined -> incomplete backendKey Data  received wait for more data from socket
+    // return true -> backEndKeyData Successfully processed
+    // return null -> error orccured, malformed backEndKeyData or Error encountered
+    private processBackendKeyData(aux: SocketAttributeAuxMetadata): true | undefined | null {
+        return null;
+    }
+
+    // return undefined -> incomplete authentication message received wait for more data from socket
+    // return true -> parameter status message was processes
+    // return null -> error orccured, malformed parmater status message
+    private handleParameterStatusses(aux: SocketAttributeAuxMetadata): true | undefined | null {
+        return null;
+    }
+
+    // return undefined -> incomplete authentication message received wait for more data from socket
+    // return true -> authentication message was processes (does not mean handshake complete)
+    // return null -> error orccured, malformed authentication message
+    private handleAuthentication(aux: SocketAttributeAuxMetadata): true | undefined | null {
+        return null;
+    }
 
     private createStartupMessage(config: Required<PGConfig>): Uint8Array | undefined {
         const bin = this.encoder
@@ -91,7 +121,9 @@ export default class Initializer {
             sslRequestSent: false,
             startupSent: false,
             upgradedToSll: false,
-            authenticationOk: false
+            authenticationOk: false,
+            parameterStatusReceived: false,
+            readyForQuery: false
         };
         const r = this.socketIoManager.getSLLSocketClassAndOptions(socket.ioMeta.pool.createdFor);
         // no ssl, use normal connection
@@ -156,7 +188,8 @@ export default class Initializer {
             // return false -> end socket, remove from pool etc
             return false;
         }
-        const { startupSent, sslRequestSent, upgradedToSll, authenticationOk } = item.value.ioMeta.aux;
+        const aux = item.value.ioMeta.aux;
+        const { startupSent, sslRequestSent, upgradedToSll, authenticationOk, parameterStatusReceived } = aux;
         if (!startupSent && !sslRequestSent) {
             // this is sort of "out of band" data
             console.log('the server is sending us an error');
@@ -189,16 +222,82 @@ export default class Initializer {
                 // TODO parse ErrorResponse, log error
                 // return false -> end socket, remove from pool etc
                 const errorResponse = parseError(parseCtx);
-                parseCtx.buffer = parseCtx.buffer.slice(parseCtx.cursor);
-                console.log(errorResponse);
+                if (errorResponse) {
+                    // console.log(errorResponse);
+                }
+                // todo,
+                // log binddump, will all data or all data after the valid error response
+                console.log(parseCtx.buffer.slice(parseCtx.cursor));
                 return false;
             }
             // this is possibly a buffer-stuffing attack (CVE-2021-23222).
             // https://www.postgresql.org/support/security/CVE-2021-23222
             // return false -> end socket, remove from pool etc
+            console.log('buffer-stuffing attack?', parseCtx.buffer.slice(parseCtx.cursor));
             return false;
         }
         if (startupSent) {
+            if (!authenticationOk) {
+                const rc = this.handleAuthentication(aux);
+                if (rc === undefined) {
+                    return true; // wait for more data
+                }
+                if (rc === null) {
+                    // either an error occured or a non authentication message was received
+                    // todo log specific error
+                    return false;
+                }
+                if (!aux.authenticationOk) {
+                    // not done with authentication
+                    // wait for next steps from pg
+                    return true;
+                }
+                // fall through
+            }
+            // authentication complete
+            // at this point we consume "parameter status(es)", "backend key" data, and "ready for query"
+            while (!aux.readyForQuery) {
+                // process parameter status
+                for (
+                    let paramStatusResult = this.handleParameterStatusses(aux);
+                    ;
+                    paramStatusResult = this.handleParameterStatusses(aux)
+                ) {
+                    if (paramStatusResult === null) {
+                        // todo: log buffer/error
+                        return false;
+                    }
+                    if (paramStatusResult === undefined) {
+                        // wait for  more data
+                        return true;
+                    }
+                }
+                // process backend key data
+                const bckDataResult = this.processBackendKeyData(aux);
+                if (bckDataResult === null) {
+                    // todo: log buffer/error
+                    return false;
+                }
+                if (bckDataResult === undefined) {
+                    // wait for  more data
+                    return true;
+                }
+                const readyForQueryResult = this.processReadyForQuery(aux);
+                if (readyForQueryResult === null) {
+                    // todo: log buffer/error
+                    return false;
+                }
+                if (readyForQueryResult === undefined) {
+                    // wait for  more data
+                    return true;
+                }
+                if (parseCtx.buffer.byteLength > parseCtx.cursor) {
+                    // todo: all data must have been consumed, if not? this is an internal consistency violation
+                    // log error
+                    return false;
+                }
+            }
+
             // handle further authentication related responses from server
             // - E
             // - various R
