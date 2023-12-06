@@ -42,7 +42,7 @@ export function matcherLength() {
     return 9; // number of bytes
 }
 
-export function messageLength(bin: Uint8Array, start: number): false | number {
+export function messageLength(bin: Uint8Array, start: number): null | number {
     const field = bin[start + 8];
     switch (field) {
         case 0:
@@ -64,7 +64,7 @@ export function messageLength(bin: Uint8Array, start: number): false | number {
             const len = i32(bin, start + 1);
             return len + 1;
     }
-    return false;
+    return null;
 }
 
 export function match(bin: Uint8Array, start: number): MessageState {
@@ -76,7 +76,7 @@ export function match(bin: Uint8Array, start: number): MessageState {
         return MSG_UNDECIDED;
     }
     const msgLen = messageLength(bin, start);
-    if (msgLen === false) {
+    if (msgLen === null) {
         return MSG_ERROR;
     }
     if (len < msgLen) {
@@ -149,8 +149,24 @@ export function parse(ctx: ParseContext): null | false | undefined | Authenticat
     if (matched === MSG_ERROR) {
         return null;
     }
-    // IS_MSG
+    // if isType() is not null then messageLength() must return not null either
+    // the int8 value at bin[cursor + 8] (i32 value at bin[cursor + 5]) and int8 at bin[cursor + 0] deteremine
     const type = isType(buffer, cursor);
+    if (type === null) {
+        //
+        return null;
+    }
+    const msgLen = messageLength(buffer, cursor);
+    if (msgLen === null) {
+        return null;
+    }
+    // both msgLen must NOT be false and  type must both be NOT null
+    if (msgLen === null) {
+        // todo Error, internal error code Server sends back weird Auth message so no associated length calc
+        return null;
+    }
+    ctx.cursor += msgLen;
+    // IS_MSG
     /*
     AuthenticationOk (B) 
         Byte1('R')
@@ -223,8 +239,7 @@ export function parse(ctx: ParseContext): null | false | undefined | Authenticat
         Specifies that GSSAPI authentication is required.
     */
     if (type === GSS) {
-        const len = messageLength(buffer, cursor);
-        if (len) return { type: GSS };
+        return { type: GSS };
     }
     /*
     AuthenticationGSSContinue (B) 
@@ -241,14 +256,10 @@ export function parse(ctx: ParseContext): null | false | undefined | Authenticat
         GSSAPI or SSPI authentication data.
     */
     if (type === GSSCONTINUE) {
-        const msgLen = messageLength(buffer, cursor);
-        if (msgLen === false) {
-            return null;
-        }
         if (len < msgLen) {
             return undefined;
         }
-        const authData = buffer.slice(cursor + 9);
+        const authData = buffer.slice(cursor + 9, cursor + msgLen);
         return { type: GSSCONTINUE, authData };
     }
     /*
@@ -282,16 +293,13 @@ export function parse(ctx: ParseContext): null | false | undefined | Authenticat
         Name of a SASL authentication mechanism.
     */
     if (type === SASL) {
-        const msgLen = messageLength(buffer, cursor);
-        if (msgLen === false) {
-            return null;
-        }
         if (len < msgLen) {
             return undefined;
         }
         const mechanisms: string[] = [];
         for (let pos = cursor + 9; pos < len; ) {
             if (buffer[pos] === 0) {
+                ctx.cursor = pos + 1;
                 return { type: SASL, mechanisms };
             }
             const idx = buffer.indexOf(0, pos);
@@ -316,14 +324,11 @@ export function parse(ctx: ParseContext): null | false | undefined | Authenticat
         SASL data, specific to the SASL mechanism being used.
     */
     if (type === SASLCONTINUE) {
-        const msgLen = messageLength(buffer, cursor);
-        if (msgLen === false) {
-            return null;
-        }
         if (len < msgLen) {
             return undefined;
         }
         const saslData = buffer.slice(cursor + 9, msgLen);
+        ctx.cursor += msgLen;
         return { type: SASLCONTINUE, saslData };
     }
     /*
@@ -341,10 +346,6 @@ export function parse(ctx: ParseContext): null | false | undefined | Authenticat
         SASL outcome "additional data", specific to the SASL mechanism being used.
     */
     if (type === SASLFINAL) {
-        const msgLen = messageLength(buffer, cursor);
-        if (msgLen === false) {
-            return null;
-        }
         if (len < msgLen) {
             return undefined;
         }

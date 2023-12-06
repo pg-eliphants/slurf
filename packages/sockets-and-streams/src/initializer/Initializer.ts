@@ -6,7 +6,7 @@ import type { ISocketIOManager } from '../io/SocketIOManager';
 import ProtocolManager from '../protocol/ProtocolManager';
 import { SEND_NOT_OK } from '../io/constants';
 import type { GetSLLFallbackSpec } from './types';
-import { parse as parseError, match as MatchError, Field } from '../protocol/messages/back/ErrorResponse';
+import { parse as parseError, match as MatchError } from '../protocol/messages/back/ErrorResponse';
 import type { ParseContext, Notifications } from '../protocol/messages/back/types';
 import {
     OK,
@@ -134,7 +134,7 @@ export default class Initializer {
             ?.cstr(config.database)
             //?.cstr('replication')
             //?.cstr(String(config.replication))
-            // you can add more options here, check out "client connect options"
+            // todo: you can add more options here, check out "client connect options"
             ?.cstr('')
             ?.getWithLenght();
         return bin;
