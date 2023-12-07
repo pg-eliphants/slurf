@@ -160,11 +160,6 @@ export function parse(ctx: ParseContext): null | false | undefined | Authenticat
     if (msgLen === null) {
         return null;
     }
-    // both msgLen must NOT be false and  type must both be NOT null
-    if (msgLen === null) {
-        // todo Error, internal error code Server sends back weird Auth message so no associated length calc
-        return null;
-    }
     ctx.cursor += msgLen;
     // IS_MSG
     /*

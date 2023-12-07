@@ -26,7 +26,7 @@ export function matcherLength() {
     return 1; // number of bytes
 }
 export function messageLength(bin: Uint8Array, cursor: number) {
-    return i32(bin, cursor + 1);
+    return i32(bin, cursor + 1) + 1;
 }
 
 export function match(bin: Uint8Array, start: number): MessageState {
@@ -53,9 +53,10 @@ export function parse(ctx: ParseContext): false | ParameterStatus | undefined {
     // parse the message
     const { buffer, cursor, txtDecoder } = ctx;
 
-    const len = i32(buffer, cursor + 5);
-    const split = buffer.indexOf(0, cursor + 9);
-    const name = txtDecoder.decode(buffer.slice(9, split));
-    const value = txtDecoder.decode(buffer.slice(split + 1, len));
+    const len = i32(buffer, cursor + 1);
+    const split = buffer.indexOf(0, cursor + 5);
+    const name = txtDecoder.decode(buffer.slice(cursor + 5, split));
+    const value = txtDecoder.decode(buffer.slice(split + 1, cursor + len));
+    ctx.cursor += len + 1;
     return { name, value };
 }

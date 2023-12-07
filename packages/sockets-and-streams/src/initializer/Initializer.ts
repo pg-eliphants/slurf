@@ -6,7 +6,11 @@ import type { ISocketIOManager } from '../io/SocketIOManager';
 import ProtocolManager from '../protocol/ProtocolManager';
 import { SEND_NOT_OK } from '../io/constants';
 import type { GetSLLFallbackSpec } from './types';
-import { parse as parseError, match as MatchError } from '../protocol/messages/back/ErrorResponse';
+import { parse as parseError, match as matchError } from '../protocol/messages/back/ErrorResponse';
+import {
+    parse as parseParameterStatus,
+    match as matchParemeterStatus
+} from '../protocol/messages/back/ParameterStatus';
 import type { ParseContext, Notifications } from '../protocol/messages/back/types';
 import {
     OK,
@@ -21,7 +25,6 @@ import {
     SASLFINAL,
     parse as parseAuthenticationMsg
 } from '../protocol/messages/back/authentication';
-import type { AuthenticationOk } from '../protocol/messages/back/authentication';
 
 export type SocketAttributeAuxMetadata = {
     sslRequestSent: boolean;
@@ -32,6 +35,7 @@ export type SocketAttributeAuxMetadata = {
     authenticationClearTextSent: boolean;
     parameterStatusReceived: boolean;
     readyForQuery: boolean;
+    runtimeParameters: Record<string, string>;
     parsingContext?: ParseContext;
     error: null | Notifications;
 };
@@ -62,8 +66,29 @@ export default class Initializer {
     // return undefined -> incomplete authentication message received wait for more data from socket
     // return true -> parameter status message was processes
     // return null -> error orccured, malformed parmater status message
+    // return false -> no error its just not the message
     private handleParameterStatusses(aux: SocketAttributeAuxMetadata): boolean | undefined | null {
-        return null;
+        // process parameter status
+        const clientConnectParams: Record<string, string> = {};
+        for (
+            let paramStatusResult = parseParameterStatus(aux.parsingContext!);
+            ;
+            paramStatusResult = parseParameterStatus(aux.parsingContext!)
+        ) {
+            if (paramStatusResult === null) {
+                // todo: log buffer/error
+                return null;
+            }
+            if (paramStatusResult === undefined) {
+                // wait for more data
+                return undefined;
+            }
+            if (paramStatusResult === false) {
+                break;
+            }
+            aux.runtimeParameters[paramStatusResult.name] = paramStatusResult.value;
+        }
+        return true;
     }
 
     // return undefined -> incomplete authentication message received wait for more data from socket
@@ -194,7 +219,8 @@ export default class Initializer {
             authenticationClearTextSent: false,
             parameterStatusReceived: false,
             readyForQuery: false,
-            error: null
+            error: null,
+            runtimeParameters: {}
         };
         const r = this.socketIoManager.getSLLSocketClassAndOptions(socket.ioMeta.pool.createdFor);
         // no ssl, use normal connection
@@ -323,6 +349,7 @@ export default class Initializer {
                 // todo log specific error
                 return false;
             }
+            // was false, but now set to true?
             if (!aux.authenticationOk) {
                 // not done with authentication
                 // wait for next steps from pg
@@ -333,23 +360,14 @@ export default class Initializer {
         // authentication complete
         // at this point we consume "parameter status(es)", "backend key" data, and "ready for query"
         while (!aux.readyForQuery) {
-            // process parameter status
-            for (
-                let paramStatusResult = this.handleParameterStatusses(aux);
-                ;
-                paramStatusResult = this.handleParameterStatusses(aux)
-            ) {
-                if (paramStatusResult === null) {
-                    // todo: log buffer/error
-                    return false;
-                }
-                if (paramStatusResult === undefined) {
-                    // wait for  more data
-                    return true;
-                }
-                if (paramStatusResult === false) {
-                    break;
-                }
+            const paramResult = this.handleParameterStatusses(aux);
+            if (paramResult === null) {
+                // todo: log buffer/error
+                return false;
+            }
+            if (paramResult === undefined) {
+                // wait for  more data
+                return true;
             }
             // process backend key data
             const bckDataResult = this.processBackendKeyData(aux);
