@@ -52,6 +52,7 @@ export function parse(ctx: ParseContext): undefined | false | BackendKeyData {
     const { buffer, cursor } = ctx;
     const matched = match(buffer, cursor);
     if (matched === MSG_IS) {
+        ctx.cursor += messageLength();
         return {
             pid: i32(buffer, cursor + 5),
             secret: i32(buffer, 9)

@@ -7,10 +7,9 @@ import ProtocolManager from '../protocol/ProtocolManager';
 import { SEND_NOT_OK } from '../io/constants';
 import type { GetSLLFallbackSpec } from './types';
 import { parse as parseError, match as matchError } from '../protocol/messages/back/ErrorResponse';
-import {
-    parse as parseParameterStatus,
-    match as matchParemeterStatus
-} from '../protocol/messages/back/ParameterStatus';
+import { parse as parseParameterStatus, ParameterStatus } from '../protocol/messages/back/ParameterStatus';
+import { BackendKeyData, parse as parseBackendKeyData } from '../protocol/messages/back/BackendKeyData';
+import { parse as parseReady4Query } from '../protocol/messages/back/ReadyForQuery';
 import type { ParseContext, Notifications } from '../protocol/messages/back/types';
 import {
     OK,
@@ -25,6 +24,7 @@ import {
     SASLFINAL,
     parse as parseAuthenticationMsg
 } from '../protocol/messages/back/authentication';
+import { bytesLeft } from './helper';
 
 export type SocketAttributeAuxMetadata = {
     sslRequestSent: boolean;
@@ -34,7 +34,9 @@ export type SocketAttributeAuxMetadata = {
     authenticationMD5Sent: boolean;
     authenticationClearTextSent: boolean;
     parameterStatusReceived: boolean;
-    readyForQuery: boolean;
+    readyForQuery?: number;
+    pid?: number;
+    cancelSecret?: number;
     runtimeParameters: Record<string, string>;
     parsingContext?: ParseContext;
     error: null | Notifications;
@@ -49,56 +51,35 @@ export default class Initializer {
         private readonly getSSLFallback: GetSLLFallbackSpec
     ) {}
 
-    // return undefined -> incomplete ReadyForQuery Data  received wait for more data from socket
-    // return true -> processReadyForQuery Successfully processed
-    // return null -> error orccured, malformed backEndKeyData or Error encountered
-    private processReadyForQuery(aux: SocketAttributeAuxMetadata): true | undefined | null {
-        return null;
-    }
-
     // return undefined -> incomplete backendKey Data  received wait for more data from socket
     // return true -> backEndKeyData Successfully processed
-    // return null -> error orccured, malformed backEndKeyData or Error encountered
-    private processBackendKeyData(aux: SocketAttributeAuxMetadata): true | undefined | null {
-        return null;
-    }
-
-    // return undefined -> incomplete authentication message received wait for more data from socket
-    // return true -> parameter status message was processes
-    // return null -> error orccured, malformed parmater status message
     // return false -> no error its just not the message
-    private handleParameterStatusses(aux: SocketAttributeAuxMetadata): boolean | undefined | null {
-        // process parameter status
-        const clientConnectParams: Record<string, string> = {};
-        for (
-            let paramStatusResult = parseParameterStatus(aux.parsingContext!);
-            ;
-            paramStatusResult = parseParameterStatus(aux.parsingContext!)
-        ) {
-            if (paramStatusResult === null) {
-                // todo: log buffer/error
-                return null;
-            }
-            if (paramStatusResult === undefined) {
-                // wait for more data
-                return undefined;
-            }
-            if (paramStatusResult === false) {
-                break;
-            }
-            aux.runtimeParameters[paramStatusResult.name] = paramStatusResult.value;
+    private processBackendKeyData(aux: SocketAttributeAuxMetadata): boolean | undefined {
+        if (!bytesLeft(aux.parsingContext!)) {
+            return undefined; // load more
         }
+        const result = parseBackendKeyData(aux.parsingContext!);
+        if (result === false) {
+            return false; // do not result in  an error, BackendKey data might be interleaved with other messages, continue
+        }
+        if (result === undefined) {
+            // wait for more data
+            return undefined;
+        }
+        aux.pid = result.pid;
+        aux.cancelSecret = result.secret;
         return true;
     }
 
     // return undefined -> incomplete authentication message received wait for more data from socket
     // return true -> authentication message was processes (does not mean handshake complete)
     // return null -> error orccured, malformed authentication message
-    private handleAuthentication(item: SocketAttributes<SocketAttributeAuxMetadata>): true | undefined | null {
+    // true added means it is the actual value of the AuthenticationOk (and some otehrs)
+    private handleAuthentication(item: SocketAttributes<SocketAttributeAuxMetadata>): undefined | null | true {
         const aux = item.ioMeta.aux;
         const pc = aux.parsingContext!;
-        if (pc.cursor >= pc.buffer.byteLength) {
-            return undefined;
+        if (!bytesLeft(pc)) {
+            return undefined; // load more
         }
         const parseResult = parseAuthenticationMsg(pc);
         // dont merge below 2 if statements,  typescript inference is not happy
@@ -109,7 +90,7 @@ export default class Initializer {
             return undefined;
         }
         if (parseResult === false) {
-            // is an error for sure, we expect an Authentication
+            // is an error for sure, we expect an Authentication message of some kind
             const errMsg = parseError(pc);
             if (errMsg === undefined) {
                 return undefined;
@@ -218,7 +199,6 @@ export default class Initializer {
             authenticationMD5Sent: false,
             authenticationClearTextSent: false,
             parameterStatusReceived: false,
-            readyForQuery: false,
             error: null,
             runtimeParameters: {}
         };
@@ -319,8 +299,13 @@ export default class Initializer {
                 // TODO parse ErrorResponse, log error
                 // return false -> end socket, remove from pool etc
                 const errorResponse = parseError(parseCtx);
-                if (errorResponse) {
-                    // console.log(errorResponse);
+                if (errorResponse === undefined) {
+                    return true; // get more data, you will end up re-parsing the Error again
+                }
+                if (errorResponse === null) {
+                    // todo: parsing the error resulted in an error (malformed error message)
+                    //
+                    return false;
                 }
                 // todo,
                 // log binddump, will all data or all data after the valid error response
@@ -352,7 +337,7 @@ export default class Initializer {
             // was false, but now set to true?
             if (!aux.authenticationOk) {
                 // not done with authentication
-                // wait for next steps from pg
+                // wait for more data from pg
                 return true;
             }
             // fall through
@@ -360,58 +345,67 @@ export default class Initializer {
         // authentication complete
         // at this point we consume "parameter status(es)", "backend key" data, and "ready for query"
         while (!aux.readyForQuery) {
-            const paramResult = this.handleParameterStatusses(aux);
-            if (paramResult === null) {
-                // todo: log buffer/error
+            if (!bytesLeft(aux.parsingContext!)) {
+                return true; // wait for more data to arrive
+            }
+            const { cursor, buffer } = aux.parsingContext!;
+            const idx = [83, 90, 75, 69].indexOf(buffer[cursor]);
+            if (idx < 0) {
+                //todo: forbidden message
+                //log error
                 return false;
             }
-            if (paramResult === undefined) {
-                // wait for  more data
-                return true;
+            // 83, 'S' param status
+            if (idx === 0) {
+                const response = parseParameterStatus(aux.parsingContext!) as ParameterStatus | undefined;
+                // cannot return false, because 'S' is prechecked to exist
+                if (response === undefined) {
+                    return true; // wait for more data to arrive
+                }
+                aux.runtimeParameters[response.name] = response.value;
+                continue;
             }
-            // process backend key data
-            const bckDataResult = this.processBackendKeyData(aux);
-            if (bckDataResult === null) {
-                // todo: log buffer/error
-                return false;
+            // 90, 'Z', ready for query
+            if (idx === 1) {
+                const response = parseReady4Query(aux.parsingContext!) as number | undefined;
+                // cannot return false, because 'S' is prechecked to exist
+                if (response === undefined) {
+                    return true; // wait for more data to arrive
+                }
+                aux.readyForQuery = response;
+                continue;
             }
-            if (bckDataResult === undefined) {
-                // wait for  more data
-                return true;
+            // 75, 'K', backend key
+            if (idx === 2) {
+                const response = parseBackendKeyData(aux.parsingContext!) as BackendKeyData | undefined;
+                // cannot return false, because 'K' is prechecked to exist
+                if (response === undefined) {
+                    return true; // wait for more data to arrive
+                }
+                aux.pid = response.pid;
+                aux.cancelSecret = response.secret;
+                continue;
             }
-            const readyForQueryResult = this.processReadyForQuery(aux);
-            if (readyForQueryResult === null) {
-                // todo: log buffer/error
-                return false;
-            }
-            if (readyForQueryResult === undefined) {
-                // wait for  more data
-                return true;
-            }
-            if (parseCtx.buffer.byteLength > parseCtx.cursor) {
-                // todo: all data must have been consumed, if not? this is an internal consistency violation
-                // log error
-                return false;
+            // 69, 'E', error
+            if (idx === 3) {
+                const response = parseError(aux.parsingContext!) as null | undefined | Notifications;
+                // cannot return false, because 'S' is prechecked to exist
+                if (response === undefined) {
+                    return true; // wait for more data to arrive
+                }
+                if (response === null) {
+                    // todo, log error
+                    // actually parsing de error went wrong (likely unsupported notification type)
+                    return false;
+                }
+                // todo, log server error message;
+                console.log(response);
+                continue;
             }
         }
+        // if there is data left, error
 
-        // handle further authentication related responses from server
-        // - E
-        // - various R
-        const r = parseError(parseCtx);
-        if (r === undefined) {
-            return true;
-        }
-        if (r === null) {
-            console.log('error parsing error-response');
-            return false;
-        }
-        if (r === false) {
-            // consume all data
-            parseCtx.buffer = parseCtx.buffer.slice(0, 0);
-            parseCtx.cursor = 0;
-        }
-        console.log('HERE WE ARE', r);
+        console.log('HERE WE ARE');
         return true;
     }
 }

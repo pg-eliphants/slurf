@@ -32,22 +32,14 @@ export function match(bin: Uint8Array, start: number): MessageState {
     if (len < messageLength()) {
         return MSG_UNDECIDED;
     }
-    if (
-        bin[start] === READY_4_QUERY &&
-        bin[start + 1] === 0 &&
-        bin[start + 2] === 0 &&
-        bin[start + 3] === 0 &&
-        bin[start + 4] === 5
-    ) {
-        return MSG_IS;
-    }
-    return MSG_NOT;
+    return MSG_IS;
 }
 
 export function parse(ctx: ParseContext): undefined | false | number {
     const { buffer, cursor } = ctx;
     const matched = match(buffer, cursor);
     if (matched === MSG_IS) {
+        ctx.cursor += messageLength();
         return buffer[cursor + 5];
     } else if (matched === MSG_NOT) {
         return false;
