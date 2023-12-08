@@ -9,6 +9,8 @@ export interface PGSSLConfigRaw extends ConnectionOptions, ConnectOpts {}
 
 export type PGSSLConfig = Omit<PGSSLConfigRaw, 'host' | 'path' | 'port'>;
 
+import type { List } from '../utils/list';
+
 export type CreateSocketSpecHints = {
     forPool: PoolFirstResidence;
 };
@@ -72,6 +74,14 @@ export type PoolWaitTimes = {
 
 export type ActivityWaitTimes = {
     [index in Activity]: HistogramResidentTimes;
+};
+
+export type Residency<T> = {
+    [index in Pool]: List<SocketAttributes<T>>;
+};
+
+export type ResidencyCount = {
+    [index in Pool]: number;
 };
 
 export type SocketAttributes<T = any> = {

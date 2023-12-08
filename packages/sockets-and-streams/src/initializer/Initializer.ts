@@ -25,6 +25,7 @@ import {
     parse as parseAuthenticationMsg
 } from '../protocol/messages/back/authentication';
 import { bytesLeft } from './helper';
+import { buffer } from 'stream/consumers';
 
 export type SocketAttributeAuxMetadata = {
     sslRequestSent: boolean;
@@ -33,7 +34,6 @@ export type SocketAttributeAuxMetadata = {
     authenticationOk: boolean;
     authenticationMD5Sent: boolean;
     authenticationClearTextSent: boolean;
-    parameterStatusReceived: boolean;
     readyForQuery?: number;
     pid?: number;
     cancelSecret?: number;
@@ -50,26 +50,6 @@ export default class Initializer {
         private readonly protocol: ProtocolManager,
         private readonly getSSLFallback: GetSLLFallbackSpec
     ) {}
-
-    // return undefined -> incomplete backendKey Data  received wait for more data from socket
-    // return true -> backEndKeyData Successfully processed
-    // return false -> no error its just not the message
-    private processBackendKeyData(aux: SocketAttributeAuxMetadata): boolean | undefined {
-        if (!bytesLeft(aux.parsingContext!)) {
-            return undefined; // load more
-        }
-        const result = parseBackendKeyData(aux.parsingContext!);
-        if (result === false) {
-            return false; // do not result in  an error, BackendKey data might be interleaved with other messages, continue
-        }
-        if (result === undefined) {
-            // wait for more data
-            return undefined;
-        }
-        aux.pid = result.pid;
-        aux.cancelSecret = result.secret;
-        return true;
-    }
 
     // return undefined -> incomplete authentication message received wait for more data from socket
     // return true -> authentication message was processes (does not mean handshake complete)
@@ -198,7 +178,6 @@ export default class Initializer {
             authenticationOk: false,
             authenticationMD5Sent: false,
             authenticationClearTextSent: false,
-            parameterStatusReceived: false,
             error: null,
             runtimeParameters: {}
         };
@@ -216,12 +195,12 @@ export default class Initializer {
         // we have ssl use it
         const bin = this.encoder.init('64')?.i32(80877103)?.getWithLenght();
         if (!bin) {
-            //TODO handle this error
+            // TODO handle this error
             // return false -> end socket, remove from pool etc
             return false;
         }
         if (this.socketIoManager.send(socket, bin) === SEND_NOT_OK) {
-            //TODO handle this error
+            // TODO handle this error
             // return false -> end socket, remove from pool etc
             return false;
         }
@@ -237,7 +216,7 @@ export default class Initializer {
     public handleData(
         item: Exclude<List<SocketAttributes<SocketAttributeAuxMetadata>>, null>,
         data: Uint8Array
-    ): boolean {
+    ): boolean | 'done' {
         // create parsing context if not exist
         if (item.value.ioMeta.aux.parsingContext === undefined) {
             item.value.ioMeta.aux.parsingContext = {
@@ -266,7 +245,7 @@ export default class Initializer {
             return false;
         }
         const aux = item.value.ioMeta.aux;
-        const { startupSent, sslRequestSent, upgradedToSll, authenticationOk, parameterStatusReceived } = aux;
+        const { startupSent, sslRequestSent, upgradedToSll, authenticationOk } = aux;
         if (!startupSent && !sslRequestSent) {
             // this is sort of "out of band" data
             console.log('the server is sending us an error');
@@ -373,6 +352,10 @@ export default class Initializer {
                     return true; // wait for more data to arrive
                 }
                 aux.readyForQuery = response;
+                const pc = aux.parsingContext!;
+                const csr = pc!.cursor;
+                pc.buffer = pc!.buffer.slice(csr);
+                pc!.cursor = 0;
                 continue;
             }
             // 75, 'K', backend key
@@ -399,13 +382,15 @@ export default class Initializer {
                     return false;
                 }
                 // todo, log server error message;
-                console.log(response);
+                console.log('error message received:', response);
                 continue;
             }
         }
         // if there is data left, error
-
-        console.log('HERE WE ARE');
-        return true;
+        if (bytesLeft(aux.parsingContext!)) {
+            //todo: log error
+            return false;
+        }
+        return 'done';
     }
 }

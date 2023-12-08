@@ -17,14 +17,17 @@ import type {
     CreateSSLSocketSpec,
     CreateSLLConnection,
     Activity,
-    SendingStatus
+    SendingStatus,
+    Residency,
+    ResidencyCount,
+    Pool
 } from './types';
 
 import ProtocolManager from '../protocol/ProtocolManager';
 
 import { isAggregateError, validatePGSSLConfig } from './helpers';
 import delay from '../utils/delay';
-import { insertAfter, insertBefore, remove } from '../utils/list';
+import { insertAfter, insertBefore, removeAt, count } from '../utils/list';
 
 import type { List } from '../utils/list';
 import Initializer from '../initializer/Initializer';
@@ -57,19 +60,7 @@ export default class SocketIOManager<T = any> implements ISocketIOManager<T> {
     // pools
     // pools
     // pools
-
-    // [v]ery [i]mportant [s]ocket
-    private vis: List<SocketAttributes<T>>;
-    // sockets reserved by the user and not a pooled in a pool
-    private reservedPermanent: List<SocketAttributes<T>>;
-    // sockets taken out of the pool just for execution of one query/task
-    private reservedEmpherical: List<SocketAttributes<T>>;
-    // sockets that have not been used for some time
-    private idle: List<SocketAttributes<T>>;
-    // connections of these sockets are planned for gracefull shutdown
-    private terminal: List<SocketAttributes<T>>;
-    // sockets created and connected
-    private created: List<SocketAttributes<T>>;
+    private residencies: Residency<T>;
 
     // statistics
     // statistics
@@ -92,13 +83,15 @@ export default class SocketIOManager<T = any> implements ISocketIOManager<T> {
         private readonly reduceTimeToPoolBins: PoolTimeBins,
         private readonly reduceTimeToActivityBins: ActivityTimeBins
     ) {
-        this.vis = null;
-        this.reservedPermanent = null;
-        this.reservedEmpherical = null;
-        this.idle = null;
-        this.created = null;
-        this.terminal = null;
-
+        this.residencies = {
+            active: null,
+            vis: null,
+            reservedPermanent: null,
+            reservedEmpherical: null,
+            idle: null,
+            created: null,
+            terminal: null
+        };
         // wait times
         this.poolWaits = {
             active: {},
@@ -124,6 +117,28 @@ export default class SocketIOManager<T = any> implements ISocketIOManager<T> {
         return (item!.value.ioMeta.time.ts = this.now());
     }
 
+    private removeFromPool(item: List<SocketAttributes>) {
+        const currentPool = item!.value.ioMeta.pool.current;
+        const rc = removeAt(item);
+        if (rc === null) {
+            this.residencies[currentPool] = null;
+        } else if (this.residencies[currentPool] === item) {
+            this.residencies[currentPool] = rc;
+        }
+    }
+
+    private migrateToPool(item: Exclude<List<SocketAttributes>, null>, src: Pool, dst: Pool) {
+        const stop = this.now();
+        const start = item.value.ioMeta.pool.placementTime;
+        //
+        this.updatePoolWaits(item, start, stop, src);
+        this.removeFromPool(item);
+        this.residencies[dst] = insertBefore(this.residencies[dst], item);
+        //
+        item.value.ioMeta.pool.lastChecked = stop;
+        item.value.ioMeta.pool.placementTime = stop;
+    }
+
     private updateActivityWaitTimes(activity: Activity, start: number, stop: number) {
         const delay = stop - start;
         const bin = this.reduceTimeToActivityBins[activity](delay);
@@ -144,6 +159,13 @@ export default class SocketIOManager<T = any> implements ISocketIOManager<T> {
         networkBytes.bytesRead = socket!.bytesRead;
         networkBytes.bytesWritten = socket!.bytesWritten;
         const delay = this.updateActivityWaitTimes('network', ts, now);
+        return delay;
+    }
+
+    private updatePoolWaits(item: List<SocketAttributes>, start: number, stop: number, pool: Pool) {
+        const delay = stop - start;
+        const bin = this.reduceTimeToPoolBins[pool](delay);
+        this.poolWaits[pool][bin] = (this.poolWaits[pool][bin] ?? 0) + 1;
         return delay;
     }
 
@@ -206,9 +228,11 @@ export default class SocketIOManager<T = any> implements ISocketIOManager<T> {
             console.log('/event/data received: %s', buf.byteLength);
             console.log(dump(buf));
             item.value.socket = socket;
-            if (self.processData(buf, item) === false) {
+            const rc = self.processData(buf, item);
+            if (rc === false) {
                 socket.end();
-                remove(item);
+            } else if (rc === true) {
+                return; // wait for more data to arrive
             }
         });
         //
@@ -242,7 +266,7 @@ export default class SocketIOManager<T = any> implements ISocketIOManager<T> {
                 // todo: close socket
                 console.log('iomanager has no initializer');
                 socket.end();
-                remove(item);
+                this.removeFromPool(item);
                 return;
             }
             // note: startup will be resonsible to callaback to socketIoManager to terminate connection on error
@@ -254,7 +278,7 @@ export default class SocketIOManager<T = any> implements ISocketIOManager<T> {
                 // just close socket, remove from pool, errors msg already handled
                 console.log('initializer.startup failed');
                 socket.end();
-                remove(item);
+                this.removeFromPool(item);
                 return;
             }
             console.log('/event/connect time=[%o]', self.activityWaits);
@@ -271,7 +295,7 @@ export default class SocketIOManager<T = any> implements ISocketIOManager<T> {
     private processData(buf: Uint8Array, item: Exclude<List<SocketAttributes>, null>): boolean {
         this.updateNetworkStats(item);
         const start = item!.value.ioMeta.time.ts;
-        let rc = false;
+        let rc: boolean | 'done' = false;
         if (item.value.ioMeta.pool.current === 'created') {
             if (this.initializer === null) {
                 // todo: log errors
@@ -279,6 +303,16 @@ export default class SocketIOManager<T = any> implements ISocketIOManager<T> {
                 return false;
             }
             rc = this.initializer.handleData(item, buf);
+            if (rc === false || rc === 'done') {
+                this.removeFromPool(item);
+            }
+            if (rc === 'done') {
+                const { current: srcPool, createdFor: targetPool } = item.value.ioMeta.pool;
+                this.migrateToPool(item, srcPool, targetPool);
+                console.log('after data received and processes, poolWaits:[%o]', this.poolWaits);
+                console.log('pool-residencies:', this.getPoolResidencies());
+            }
+            rc = rc === 'done' ? true : rc;
         } else {
             if (this.protocolManager === null) {
                 // todo: log errors
@@ -287,10 +321,12 @@ export default class SocketIOManager<T = any> implements ISocketIOManager<T> {
             }
             rc = this.protocolManager.binDump(item, buf);
         }
+
         const stop = this.markTime(item);
         this.updateActivityWaitTimes('iom_code', start, stop);
         // todo: remove this after we have some debug/trace logging
-        console.log('after data received and processes:[%o]', this.activityWaits);
+        console.log('after data received and processes, activityWaits:[%o]', this.activityWaits);
+
         return rc;
     }
     private normalizeExtraOptions(extraOpt?: SocketOtherOptions): SocketOtherOptions {
@@ -487,6 +523,19 @@ export default class SocketIOManager<T = any> implements ISocketIOManager<T> {
         return SEND_STATUS_OK; // todo: return OK status
     }
 
+    // this is very expensive since it has to scan a list to get a count
+    public getPoolResidencies(): ResidencyCount {
+        return {
+            active: count(this.residencies.active),
+            vis: count(this.residencies.vis),
+            reservedPermanent: count(this.residencies.reservedPermanent),
+            reservedEmpherical: count(this.residencies.reservedEmpherical),
+            idle: count(this.residencies.idle),
+            created: count(this.residencies.created),
+            terminal: count(this.residencies.terminal)
+        };
+    }
+
     public getPoolWaitTimes(): PoolWaitTimes {
         return {
             active: Object.assign({}, this.poolWaits.active),
@@ -538,6 +587,6 @@ export default class SocketIOManager<T = any> implements ISocketIOManager<T> {
         };
         const item: List<SocketAttributes> = { value: attributes };
         this.decorate(item, extraOpt);
-        this.created = insertBefore(this.created, item);
+        this.residencies.created = insertBefore(this.residencies.created, item);
     }
 }
