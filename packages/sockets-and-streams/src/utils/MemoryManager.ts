@@ -1,5 +1,5 @@
 import type { List } from './list';
-import { remove, insertBefore } from './list';
+import { removeSelf, insertBefore } from './list';
 export type MemoryCategories =
     | '64'
     | '128'
@@ -110,7 +110,7 @@ export default class MemoryManager {
             // log creation?
             return { prev: null, next: null, value: new Uint8Array(Number(from)) };
         }
-        const item = remove(partition.list);
+        const item = removeSelf(partition.list);
         partition.length--;
         return item;
     }

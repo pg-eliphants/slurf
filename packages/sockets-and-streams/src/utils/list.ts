@@ -36,7 +36,7 @@ export function insertAfter<T>(list: List<T>, item: List<T>): List<T> {
     return item;
 }
 
-export function removeAt<T>(item: List<T>): List<T> {
+export function removeSelf<T>(item: List<T>): List<T> {
     const temp = item;
     if (temp?.prev) {
         temp.prev.next = temp.next;
@@ -44,17 +44,9 @@ export function removeAt<T>(item: List<T>): List<T> {
     if (temp?.next) {
         temp.next.prev = temp.prev;
     }
-    let rc: List<T> = null;
-    if (temp?.next && temp?.prev) {
-        rc = temp.next;
-    } else if (temp?.next && !temp?.prev) {
-        rc = temp.next;
-    } else if (!temp?.next && temp?.prev) {
-        rc = temp.prev;
-    }
     delete temp?.prev;
     delete temp?.next;
-    return rc;
+    return temp;
 }
 
 export function count<T>(list: List<T>): number {

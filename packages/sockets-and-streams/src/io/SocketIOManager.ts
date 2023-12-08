@@ -27,7 +27,7 @@ import ProtocolManager from '../protocol/ProtocolManager';
 
 import { isAggregateError, validatePGSSLConfig } from './helpers';
 import delay from '../utils/delay';
-import { insertAfter, insertBefore, removeAt, count } from '../utils/list';
+import { insertAfter, insertBefore, removeSelf, count } from '../utils/list';
 
 import type { List } from '../utils/list';
 import Initializer from '../initializer/Initializer';
@@ -119,11 +119,10 @@ export default class SocketIOManager<T = any> implements ISocketIOManager<T> {
 
     private removeFromPool(item: List<SocketAttributes>) {
         const currentPool = item!.value.ioMeta.pool.current;
-        const rc = removeAt(item);
-        if (rc === null) {
+        removeSelf(item);
+        // if i was the first item in the list then the list is also empty
+        if (this.residencies[currentPool] === item) {
             this.residencies[currentPool] = null;
-        } else if (this.residencies[currentPool] === item) {
-            this.residencies[currentPool] = rc;
         }
     }
 
