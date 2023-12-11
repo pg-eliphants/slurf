@@ -1,6 +1,6 @@
 import { BACKEND_KEY_DATA, MSG_IS, MSG_NOT, MSG_UNDECIDED } from './constants';
 import { ParseContext, MessageState } from './types';
-import { i32 } from './helper';
+import { i32, matcherLength } from './helper';
 
 /*
     BackendKeyData (B) #
@@ -22,9 +22,7 @@ export type BackendKeyData = {
     secret: number;
 };
 
-export function matcherLength() {
-    return 1; // number of bytes
-}
+export { matcherLength };
 
 // function with no parameters (function.length === 0) means it returns a constant, this is by itself a signal
 export function messageLength() {

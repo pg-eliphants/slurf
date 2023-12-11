@@ -30,8 +30,7 @@ export type NotificationAndErrorFields =
     | 'n'
     | 'F'
     | 'L'
-    | 'R'
-    | 'Z';
+    | 'R';
 
 export type Notifications = {
     [p in NotificationAndErrorFields]: string;

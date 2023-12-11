@@ -1,6 +1,6 @@
-import { ERROR, MSG_IS, MSG_NOT, MSG_UNDECIDED } from './constants';
-import { ParseContext, MessageState, Notifications } from './types';
-import { i32 } from './helper';
+import { ERROR, MSG_NOT, MSG_UNDECIDED } from './constants';
+import { ParseContext, Notifications } from './types';
+import { messageLength, createMatcher, matcherLength } from './helper';
 import { noticationsTemplate } from './constants';
 /*
     ErrorResponse (B) 
@@ -18,27 +18,10 @@ import { noticationsTemplate } from './constants';
     String
     The field value.
 */
-export function matcherLength() {
-    return 1; // number of bytes
-}
-export function messageLength(bin: Uint8Array, cursor: number) {
-    return i32(bin, cursor + 1) + 1;
-}
 
-export function match(bin: Uint8Array, start: number): MessageState {
-    const len = bin.length - start;
-    if (bin[start] !== ERROR) {
-        return MSG_NOT;
-    }
-    if (len < 5) {
-        return MSG_UNDECIDED;
-    }
-    const msgLen = messageLength(bin, start);
-    if (len < msgLen) {
-        return MSG_UNDECIDED;
-    }
-    return MSG_IS;
-}
+export { messageLength, matcherLength };
+
+export const match = createMatcher(ERROR);
 
 export function parse(ctx: ParseContext): null | undefined | false | Notifications {
     const { buffer, cursor, txtDecoder } = ctx;
