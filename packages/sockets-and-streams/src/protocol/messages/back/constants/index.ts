@@ -5,7 +5,7 @@ export const PARAM_STATUS = 83; // 'S' connection parameter
 export const READY_4_QUERY = 90; // 'Z' ready for query
 export const BACKEND_KEY_DATA = 75; // 'K' cancellation key data
 export const ERROR = 69; // 'E' Error Response
-export const NEGOTIATE_PROTOCOL = 118; // 'v' NegotiateProtocolVersion (B) 
+export const NEGOTIATE_PROTOCOL = 118; // 'v' NegotiateProtocolVersion (B)
 export const NO_DATA = 110; // 'n' NoData(B)
 export const NOTICE_RESPONSE = 78; // 'n' NoticeResponse
 

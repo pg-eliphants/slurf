@@ -2,6 +2,7 @@ import { ERROR, MSG_NOT, MSG_UNDECIDED } from './constants';
 import { ParseContext, Notifications } from './types';
 import { messageLength, createMatcher, matcherLength } from './helper';
 import { noticationsTemplate } from './constants';
+
 /*
     ErrorResponse (B) 
     Byte1('E')
