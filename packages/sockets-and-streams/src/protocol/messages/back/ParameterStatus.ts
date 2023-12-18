@@ -20,6 +20,20 @@ export type ParameterStatus = {
 
     String
     The current value of the parameter.
+
+    At present there is a hard-wired set of parameters for which ParameterStatus will be gen-
+erated: they are server_version, server_encoding, client_encoding, applica-
+tion_name, default_transaction_read_only, in_hot_standby, is_superuser,
+session_authorization, DateStyle, IntervalStyle, TimeZone, integer_date-
+times, and standard_conforming_strings. (server_encoding, TimeZone, and
+integer_datetimes were not reported by releases before 8.0; standard_conform-
+ing_strings was not reported by releases before 8.1; IntervalStyle was not reported
+by releases before 8.4; application_name was not reported by releases before 9.0; de-
+fault_transaction_read_only and in_hot_standby were not reported by releases be-
+fore 14.) Note that server_version, server_encoding and integer_datetimes are
+pseudo-parameters that cannot change after startup. This set might change in the future, or even be-
+come configurable. Accordingly, a frontend should simply ignore ParameterStatus for parameters that
+it does not understand or care about.
 */
 
 export function matcherLength() {

@@ -13,6 +13,7 @@ export type MemoryCategories =
     | '32768'
     | '65536';
 export const MAX_MEM_BLOCK_SIZE = 65536;
+export const MIN_MEM_BLOCK_SIZE = 64;
 
 export type MemorySlabs = {
     [index in MemoryCategories]: { list: List<Uint8Array>; length: number };

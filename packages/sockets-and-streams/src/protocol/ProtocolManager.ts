@@ -29,4 +29,6 @@ export default class ProtocolManager {
         }
         return { errors: result.errors };
     }
+
+    public parseSQL(text: string) {}
 }

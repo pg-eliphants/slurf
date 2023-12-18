@@ -11,10 +11,8 @@
 */
 import { READY_4_QUERY, MSG_IS, MSG_NOT, MSG_UNDECIDED } from './constants';
 import { ParseContext, MessageState } from './types';
+export { matcherLength } from './helper';
 
-export function matcherLength() {
-    return 1; // number of bytes
-}
 export function messageLength() {
     return 6;
 }

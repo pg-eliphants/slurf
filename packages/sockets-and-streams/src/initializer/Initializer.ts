@@ -113,6 +113,7 @@ export default class Initializer {
     private createStartupMessage(config: Required<PGConfig>): Uint8Array | undefined {
         const bin = this.encoder
             .init('128')
+            .nextMessage()
             ?.i32(196608)
             ?.cstr('user')
             ?.cstr(config.user)
@@ -122,7 +123,7 @@ export default class Initializer {
             //?.cstr(String(config.replication))
             // todo: you can add more options here, check out "client connect options"
             ?.cstr('')
-            ?.getWithLenght();
+            ?.getMessage();
         return bin;
     }
 
@@ -193,7 +194,7 @@ export default class Initializer {
             return false;
         }
         // we have ssl use it
-        const bin = this.encoder.init('64')?.i32(80877103)?.getWithLenght();
+        const bin = this.encoder.init('64')?.nextMessage()?.i32(80877103)?.getMessage();
         if (!bin) {
             // TODO handle this error
             // return false -> end socket, remove from pool etc

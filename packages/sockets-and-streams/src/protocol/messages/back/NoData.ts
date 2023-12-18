@@ -6,13 +6,11 @@ Identifies the message as a no-data indicator.
 Int32(4)
 Length of message contents in bytes, including self.
 */
-import { MSG_NOT, MSG_UNDECIDED, NO_DATA } from "./constants";
+import { MSG_NOT, MSG_UNDECIDED, NO_DATA } from './constants';
 import { ParseContext } from './types';
 import { createMatcher, i32, messageLength } from './helper';
+export { matcherLength } from './helper';
 
-export function matcherLength() {
-    return 1; // number of bytes
-}
 export { messageLength };
 
 export const match = createMatcher(NO_DATA);

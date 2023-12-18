@@ -45,3 +45,7 @@ export type Fields =
 export type ErrorResponse = {
     [T in Fields]?: string;
 };
+
+export type MemoryMaxExceeded = 'EMM';
+
+export type MemoryErrors = MemoryMaxExceeded;
