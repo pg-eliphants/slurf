@@ -123,6 +123,7 @@ export default class Initializer {
             //?.cstr(String(config.replication))
             // todo: you can add more options here, check out "client connect options"
             ?.cstr('')
+            ?.setLenght()
             ?.getMessage();
         return bin;
     }
@@ -194,7 +195,7 @@ export default class Initializer {
             return false;
         }
         // we have ssl use it
-        const bin = this.encoder.init('64')?.nextMessage()?.i32(80877103)?.getMessage();
+        const bin = this.encoder.init('64')?.nextMessage()?.i32(80877103)?.setLenght().getMessage();
         if (!bin) {
             // TODO handle this error
             // return false -> end socket, remove from pool etc

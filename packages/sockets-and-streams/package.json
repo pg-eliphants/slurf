@@ -4,11 +4,12 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "devserver": "tsx ./src/__test__/agent2.ts",
     "devclient": "tsx ./src/__test__/agent1.ts --connect-port=",
-    "start": "tsc && node ./dist/index.js",
-    "test": "tsx src/__test__/socket-manager.test.ts"
+    "start": "tsx src/__test__/runme.ts",
+    "test": "vitest run"
   },
   "keywords": [],
   "author": "",
@@ -18,7 +19,8 @@
     "esbuild": "^0.19.5",
     "tsx": "3.13.0",
     "typescript": "5.2.2",
-    "vitest": "^0.34.6"
+    "vite": "4.4.9",
+    "vitest": "0.34.4"
   },
   "dependencies": {
     "buffer-hexdump": "1.0.0"

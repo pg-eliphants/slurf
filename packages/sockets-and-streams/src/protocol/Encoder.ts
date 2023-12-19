@@ -60,10 +60,13 @@ export default class Encoder {
         }
         this.messageOffset = this.cursor;
         if (type !== undefined) {
-            this.ui8(type);
+            if (this.ui8(type) === undefined){
+                return undefined;
+            };
         }
         this.messageLengthOffset = this.cursor; // has been advanced if type !== undefined
         this.messagContentOffset = this.cursor + 4;
+        this.cursor = this.messagContentOffset;
         return this;
     }
 
@@ -72,6 +75,7 @@ export default class Encoder {
             return undefined;
         }
         this.currentView.setUint8(this.cursor, num);
+        this.cursor += 1;
         return this;
     }
 
@@ -138,9 +142,10 @@ export default class Encoder {
         return this.currentView.buffer.slice(code ? 0 : 5, this.offset);
     }*/
 
-    public setWithLenght(): void {
+    public setLenght(): Encoder  {
         const length = this.cursor - this.messageLengthOffset;
         this.currentView.setInt32(this.messageLengthOffset, length);
+        return this;
     }
 
     public getMessage(): Uint8Array {

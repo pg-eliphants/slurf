@@ -43,9 +43,10 @@ export default function createParseMessage(
         .init(`${memSize}` as MemoryCategories)
         .nextMessage(80)
         ?.cstr(name)
-        ?.cstr(sql);
+        ?.cstr(sql)
+        ?.i32(iods.length);
     if (iods.length) {
         iods.forEach((v) => encoder.i32(v));
     }
-    return encoder.getMessage();
+    return encoder.setLenght().getMessage();
 }
