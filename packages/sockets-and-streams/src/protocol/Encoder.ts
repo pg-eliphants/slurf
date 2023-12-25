@@ -101,7 +101,7 @@ export default class Encoder {
         if (this.ensure(1)) {
             return undefined;
         }
-        this.currentView.setInt16(this.cursor, num);
+        this.currentView.setInt8(this.cursor, num);
         this.cursor += 1;
         return this;
     }
@@ -124,7 +124,16 @@ export default class Encoder {
         return this;
     }
 
-    public bin(otherBuffer: DataView): undefined | Encoder {
+    bin(otherBuffer: Uint8Array): undefined | Encoder {
+        if (!this.ensure(otherBuffer.byteLength)) {
+            return undefined;
+        }
+        new Uint8Array(this.currentView.buffer).set(otherBuffer, this.cursor);
+        this.cursor += otherBuffer.byteLength;
+        return this;
+    }
+
+    public dataView(otherBuffer: DataView): undefined | Encoder {
         if (!this.ensure(otherBuffer.byteLength)) {
             return undefined;
         }
