@@ -10,6 +10,7 @@ export const NO_DATA = 110; // 'n' NoData(B)
 export const NOTICE_RESPONSE = 78; // 'N' NoticeResponse
 export const PARSE_COMPLETE = 49; // '1' Parse complete
 export const PORTAL_SUSPEND = 115; // 's' Portal suspend
+export const BINDCOMPLETE = 50; // '2' Bind complete
 
 export const MSG_UNDECIDED: MessageState = 'undec';
 export const MSG_NOT: MessageState = 'not';

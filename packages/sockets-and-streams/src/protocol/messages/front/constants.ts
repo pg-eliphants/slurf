@@ -10,3 +10,4 @@ export const S = 83; // 'S' (prepared statement)
 export const P = 80; // 'P' (portal)
 export const COPYFAIL = 102; // 'f' copyfail
 export const EXECUTE = 69; //'E'
+export const FLUSH = 72; //'H'
