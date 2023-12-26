@@ -1,4 +1,4 @@
-/*
+/* done
 NoticeResponse (B) #
 Byte1('N')
 Identifies the message as a notice.
@@ -17,8 +17,6 @@ The field value.
 import { MSG_NOT, MSG_UNDECIDED, NOTICE_RESPONSE, noticationsTemplate } from './constants';
 import { ParseContext, Notifications } from './types';
 import { createMatcher, messageLength } from './helper';
-export { matcherLength } from './helper';
-export { messageLength };
 
 export const match = createMatcher(NOTICE_RESPONSE);
 
@@ -31,10 +29,10 @@ export function parse(ctx: ParseContext): null | undefined | false | Notificatio
     if (matched === MSG_UNDECIDED) {
         return undefined;
     }
-    const len = messageLength(buffer, cursor);
+    const endPosition = cursor + messageLength(buffer, cursor);
     const result = { ...noticationsTemplate };
     let pos = cursor + 5;
-    while (pos < len) {
+    while (pos < endPosition) {
         const code = String.fromCharCode(buffer[pos]);
         if (code === '\x00') {
             break;
@@ -49,8 +47,8 @@ export function parse(ctx: ParseContext): null | undefined | false | Notificatio
         result[code] = txtDecoder.decode(buffer.slice(pos + 1, idx));
         pos = idx + 1;
     }
-    if (pos === len - 1) {
-        ctx.cursor += len;
+    if (pos === endPosition - 1) {
+        ctx.cursor = endPosition;
         return result;
     }
     return null;

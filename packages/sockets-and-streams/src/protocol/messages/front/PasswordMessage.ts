@@ -9,3 +9,10 @@ Length of message contents in bytes, including self.
 String
 The password (encrypted, if requested).
 */
+import type Encoder from '../../Encoder';
+import type { MemoryErrors } from '../../types';
+import { PASSWORD_RESPONSE } from './constants';
+
+export default function createPasswordResponse(encoder: Encoder, passwordEncrypted: string): Uint8Array | undefined {
+    return encoder.init('4096').nextMessage(PASSWORD_RESPONSE)?.cstr(passwordEncrypted)?.setLenght().getMessage();
+}

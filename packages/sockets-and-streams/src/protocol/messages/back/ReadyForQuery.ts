@@ -1,4 +1,5 @@
 /*
+done
     ReadyForQuery (B) 
     Byte1('Z')
     Identifies the message type. ReadyForQuery is sent whenever the backend is ready for a new query cycle.
@@ -11,36 +12,25 @@
 */
 import { READY_4_QUERY, MSG_IS, MSG_NOT, MSG_UNDECIDED } from './constants';
 import { ParseContext, MessageState } from './types';
-export { matcherLength } from './helper';
+import { createMatcher, messageLength } from './helper';
 
-export function messageLength() {
-    return 6;
-}
+export const match = createMatcher(READY_4_QUERY);
 
-export function match(bin: Uint8Array, start: number): MessageState {
-    const len = bin.length - start;
-    if (bin[start] !== READY_4_QUERY) {
-        return MSG_NOT;
-    }
-    if (len >= 5) {
-        if (!(bin[start + 1] === 0 && bin[start + 2] === 0 && bin[start + 3] === 0 && bin[start + 4] === 5)) {
-            return MSG_NOT;
-        }
-    }
-    if (len < messageLength()) {
-        return MSG_UNDECIDED;
-    }
-    return MSG_IS;
-}
-
-export function parse(ctx: ParseContext): undefined | false | number {
+export function parse(ctx: ParseContext): undefined | false | null | number {
     const { buffer, cursor } = ctx;
     const matched = match(buffer, cursor);
-    if (matched === MSG_IS) {
-        ctx.cursor += messageLength();
-        return buffer[cursor + 5];
-    } else if (matched === MSG_NOT) {
+    if (matched === MSG_NOT) {
         return false;
     }
-    return undefined;
+    if (matched === MSG_UNDECIDED) {
+        return undefined;
+    }
+    const endPosition = cursor + messageLength(buffer, cursor);
+    const idx = cursor + 5;
+    const result = buffer[idx];
+    if (idx === endPosition - 1) {
+        ctx.cursor = endPosition;
+        return result;
+    }
+    return null;
 }

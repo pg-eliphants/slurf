@@ -1,3 +1,4 @@
+// done
 import { ERROR, MSG_NOT, MSG_UNDECIDED } from './constants';
 import { ParseContext, Notifications } from './types';
 import { messageLength, createMatcher, matcherLength } from './helper';
@@ -13,14 +14,13 @@ import { noticationsTemplate } from './constants';
 
     The message body consists of one or more identified fields, followed by a zero byte as a terminator. Fields can appear in any order. For each field there is the following:
 
+(repeat)
     Byte1
     A code identifying the field type; if zero, this is the message terminator and no string follows. The presently defined field types are listed in Section 55.8. Since more field types might be added in future, frontends should silently ignore fields of unrecognized type.
 
     String
     The field value.
 */
-
-export { messageLength, matcherLength };
 
 export const match = createMatcher(ERROR);
 
@@ -33,14 +33,17 @@ export function parse(ctx: ParseContext): null | undefined | false | Notificatio
     if (matched === MSG_UNDECIDED) {
         return undefined;
     }
-    const len = messageLength(buffer, cursor);
+    const endPosition = messageLength(buffer, cursor) + cursor;
     const fields = { ...noticationsTemplate };
-    for (let pos = cursor + 5; pos < len; ) {
+    for (let pos = cursor + 5; pos < endPosition; ) {
         const type = String.fromCharCode(buffer[pos]);
         if (type === '\x00') {
             // termination
-            ctx.cursor = pos + 1; // advance cursor
-            return fields;
+            if (pos === endPosition - 1) {
+                ctx.cursor = pos + 1; // advance cursor
+                return fields;
+            }
+            break; // go and return null
         }
         const idx = buffer.indexOf(0, pos + 1);
         const str = txtDecoder.decode(buffer.slice(pos + 1, idx));

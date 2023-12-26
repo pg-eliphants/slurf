@@ -24,6 +24,7 @@ import type Encoder from '../../Encoder';
 import { MAX_MEM_BLOCK_SIZE, MIN_MEM_BLOCK_SIZE, MemoryCategories } from '../../../utils/MemoryManager';
 import { ERR_MEM_MAX_EXCEEDED } from '../../constants';
 import type { MemoryErrors } from '../../types';
+import { PARSE } from './constants';
 
 export default function createParseMessage(
     encoder: Encoder,
@@ -41,7 +42,7 @@ export default function createParseMessage(
     }
     encoder
         .init(`${memSize}` as MemoryCategories)
-        .nextMessage(80)
+        .nextMessage(PARSE)
         ?.cstr(name)
         ?.cstr(sql)
         ?.i32(iods.length);
