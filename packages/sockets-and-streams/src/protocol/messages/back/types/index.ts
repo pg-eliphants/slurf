@@ -12,6 +12,12 @@ export type IsMatch = (bin: Uint8Array, start: number) => MessageState;
 export type Parse<T> = (ctx: ParseContext) => null | false | undefined | T;
 export type MessageState = 'undec' | 'is' | 'not' | 'error';
 
+export type CopyResponse = {
+    isText : boolean;
+    numCol: number;
+    formatCodes: number[];
+}
+
 export type NotificationAndErrorFields =
     | 'S'
     | 'V'

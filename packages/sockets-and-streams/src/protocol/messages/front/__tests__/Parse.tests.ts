@@ -14,9 +14,6 @@ describe('Parse', ()=> {
             'findOIDByType',
             25,
         );
-        if (bin instanceof Uint8Array){
-            console.log(bin);
-        }
         expect(bin).toEqual(new Uint8Array([
             80,   0,   0,   0,  80, 102, 105, 110, 100,  79,  73,  68,
             66, 121,  84, 121, 112, 101,   0, 115, 101, 108, 101,  99,

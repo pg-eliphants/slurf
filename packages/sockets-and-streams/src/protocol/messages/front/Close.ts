@@ -16,7 +16,7 @@ The name of the prepared statement or portal to close (an empty string selects t
 import Encoder from '../../Encoder';
 import { CLOSE, S, P } from './constants';
 
-export default function createTerminateMessage(
+export default function createCloseMessage(
     encoder: Encoder,
     name: string,
     isPreparedStatement: boolean

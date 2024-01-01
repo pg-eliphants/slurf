@@ -47,6 +47,7 @@ Int16[R]
 The result-column format codes. Each must presently be zero (text) or one (binary).
 
 */
+import { format } from 'path';
 import { MemoryCategories } from '../../../utils/MemoryManager';
 import type Encoder from '../../Encoder';
 import { BIND } from './constants';
