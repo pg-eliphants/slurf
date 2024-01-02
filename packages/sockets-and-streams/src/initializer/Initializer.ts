@@ -1,12 +1,12 @@
 import { List } from '../utils/list';
 import Encoder from '../protocol/Encoder';
-import { SocketAttributes, CreateSLLConnection, PGSSLConfig } from '../io/types';
+import { SocketAttributes } from '../io/types';
 import { PGConfig, SetSSLFallback } from '../protocol/types';
 import type { ISocketIOManager } from '../io/SocketIOManager';
 import ProtocolManager from '../protocol/ProtocolManager';
 import { SEND_NOT_OK } from '../io/constants';
 import type { GetSLLFallbackSpec } from './types';
-import { parse as parseError, match as matchError } from '../protocol/messages/back/ErrorResponse';
+import { parse as parseError } from '../protocol/messages/back/ErrorResponse';
 import { parse as parseParameterStatus, ParameterStatus } from '../protocol/messages/back/ParameterStatus';
 import { BackendKeyData, parse as parseBackendKeyData } from '../protocol/messages/back/BackendKeyData';
 import { parse as parseReady4Query } from '../protocol/messages/back/ReadyForQuery';
@@ -15,17 +15,9 @@ import {
     OK,
     MD5PASSWORD,
     CLEARTEXTPASSWORD,
-    KERBEROSV5,
-    GSS,
-    GSSCONTINUE,
-    SSPI,
-    SASL,
-    SASLCONTINUE,
-    SASLFINAL,
     parse as parseAuthenticationMsg
 } from '../protocol/messages/back/authentication';
 import { bytesLeft } from './helper';
-import { buffer } from 'stream/consumers';
 
 export type SocketAttributeAuxMetadata = {
     sslRequestSent: boolean;
@@ -121,9 +113,9 @@ export default class Initializer {
             ?.cstr(config.database)
             //?.cstr('replication')
             //?.cstr(String(config.replication))
-            // todo: you can add more options here, check out "client connect options"
+            // todo: you can add more options here, check out "client connect options" we need to loop over all posibilities
             ?.cstr('')
-            ?.setLenght()
+            ?.setLength()
             ?.getMessage();
         return bin;
     }
@@ -195,7 +187,7 @@ export default class Initializer {
             return false;
         }
         // we have ssl use it
-        const bin = this.encoder.init('64')?.nextMessage()?.i32(80877103)?.setLenght().getMessage();
+        const bin = this.encoder.init('64')?.nextMessage()?.i32(80877103)?.setLength().getMessage();
         if (!bin) {
             // TODO handle this error
             // return false -> end socket, remove from pool etc

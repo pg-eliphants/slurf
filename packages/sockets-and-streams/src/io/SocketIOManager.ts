@@ -1,5 +1,6 @@
-import type { TcpSocketConnectOpts, IpcSocketConnectOpts, ConnectOpts, Socket } from 'net';
+import type { TcpSocketConnectOpts, IpcSocketConnectOpts, ConnectOpts } from 'net';
 import dump from 'buffer-hexdump';
+import createNS from '@mangos/debug-frontend';
 
 import type { Jitter } from './Jitter';
 import type {
@@ -27,11 +28,15 @@ import ProtocolManager from '../protocol/ProtocolManager';
 
 import { isAggregateError, validatePGSSLConfig } from './helpers';
 import delay from '../utils/delay';
-import { insertAfter, insertBefore, removeSelf, count } from '../utils/list';
+import { insertBefore, removeSelf, count } from '../utils/list';
 
 import type { List } from '../utils/list';
 import Initializer from '../initializer/Initializer';
 import { SEND_NOT_OK, SEND_STATUS_BACKPRESSURE, SEND_STATUS_OK } from './constants';
+import { ERR_IOMAN_NO_INTIALIZER, NFY_IOMAN_INITIAL_DONE, ERR_IOMAN_NO_INTIALIZE_FAIL, NFY_IOMAN_SOCKET_CONNECT_EVENT_HANDLED, ERR_IOMAN_NO_PROTOCOL_HANDLER } from '../errors-notifications';
+import { IO_NAMESPACE } from '../constants';
+
+const logger = createNS(IO_NAMESPACE);
 
 export interface ISocketIOManager<T = any> {
     setProtocolManager(protocolMngr: ProtocolManager): void;
@@ -82,6 +87,7 @@ export default class SocketIOManager<T = any> implements ISocketIOManager<T> {
         private readonly now: () => number,
         private readonly reduceTimeToPoolBins: PoolTimeBins,
         private readonly reduceTimeToActivityBins: ActivityTimeBins
+        // how are we going to do this?
     ) {
         this.residencies = {
             active: null,
@@ -229,6 +235,8 @@ export default class SocketIOManager<T = any> implements ISocketIOManager<T> {
             item.value.socket = socket;
             const rc = self.processData(buf, item);
             if (rc === false) {
+                const srcPool = item.value.ioMeta.pool.current;
+                this.migrateToPool(item, srcPool, 'terminal');
                 socket.end();
             } else if (rc === true) {
                 return; // wait for more data to arrive
@@ -261,26 +269,22 @@ export default class SocketIOManager<T = any> implements ISocketIOManager<T> {
             const t1 = self.markTime(item);
             self.updateActivityWaitTimes('connect', t0, t1);
             if (!this.initializer) {
-                // todo: log errors
-                // todo: close socket
-                console.log('iomanager has no initializer');
+                logger(ERR_IOMAN_NO_INTIALIZER, 'connect');
                 socket.end();
                 this.removeFromPool(item);
                 return;
             }
-            // note: startup will be resonsible to callaback to socketIoManager to terminate connection on error
+            // note: startup will be responsible to callback to socketIoManager to terminate connection on error
             const rc = this.initializer.startupAfterConnect(attributes);
             const t2 = self.markTime(item);
             self.updateActivityWaitTimes('iom_code', t1, t2);
-            // todo, trace or debug
             if (rc === false) {
-                // just close socket, remove from pool, errors msg already handled
-                console.log('initializer.startup failed');
+                logger(ERR_IOMAN_NO_INTIALIZE_FAIL);
                 socket.end();
                 this.removeFromPool(item);
                 return;
             }
-            console.log('/event/connect time=[%o]', self.activityWaits);
+            logger(NFY_IOMAN_SOCKET_CONNECT_EVENT_HANDLED);
         });
         // use "once" instead of "on", sometimes connect is re-emitted after the connect happens immediatly after a socket disconnect, its weird!
         socket.once('ready', (...args: unknown[]) => {
@@ -297,35 +301,29 @@ export default class SocketIOManager<T = any> implements ISocketIOManager<T> {
         let rc: boolean | 'done' = false;
         if (item.value.ioMeta.pool.current === 'created') {
             if (this.initializer === null) {
-                // todo: log errors
-                // todo: close socket
+                logger(ERR_IOMAN_NO_INTIALIZER, 'data');
                 return false;
             }
             rc = this.initializer.handleData(item, buf);
-            if (rc === false || rc === 'done') {
-                this.removeFromPool(item);
-            }
             if (rc === 'done') {
                 const { current: srcPool, createdFor: targetPool } = item.value.ioMeta.pool;
                 this.migrateToPool(item, srcPool, targetPool);
-                console.log('after data received and processes, poolWaits:[%o]', this.poolWaits);
-                console.log('pool-residencies:', this.getPoolResidencies());
+                logger(NFY_IOMAN_INITIAL_DONE);
+                return true;
             }
-            rc = rc === 'done' ? true : rc;
+            return rc;
         } else {
             if (this.protocolManager === null) {
-                // todo: log errors
-                // todo: close socket
+                logger(ERR_IOMAN_NO_PROTOCOL_HANDLER);
                 return false;
             }
             rc = this.protocolManager.binDump(item, buf);
         }
-
+        // other pools and states
         const stop = this.markTime(item);
         this.updateActivityWaitTimes('iom_code', start, stop);
-        // todo: remove this after we have some debug/trace logging
+        // todo: log this as trace info
         console.log('after data received and processes, activityWaits:[%o]', this.activityWaits);
-
         return rc;
     }
     private normalizeExtraOptions(extraOpt?: SocketOtherOptions): SocketOtherOptions {
@@ -520,6 +518,15 @@ export default class SocketIOManager<T = any> implements ISocketIOManager<T> {
         socket.write(bin);
         console.log('sending:', dump(bin));
         return SEND_STATUS_OK; // todo: return OK status
+    }
+
+    public getActivityWaits(): ActivityWaitTimes {
+        return {
+            network: Object.assign({}, this.activityWaits.network),
+            iom_code: Object.assign({}, this.activityWaits.iom_code),
+            connect: Object.assign({}, this.activityWaits.connect),
+            sslConnect: Object.assign({}, this.activityWaits.sslConnect),
+        };
     }
 
     // this is very expensive since it has to scan a list to get a count

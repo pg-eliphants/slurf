@@ -50,16 +50,25 @@ export const noticationsTemplate: Notifications = {
     R: ''
 };
 /*
-todo: finish this template
-const ParameterStatusTemplate = {
-  server_version:'',
-  server_encoding:'',
-  client_encoding: '',
-  application_name
 
-}
-server_version, server_encoding, client_encoding, application_name, default_transaction_read_only, in_hot_standby, is_superuser,
-session_authorization, DateStyle, IntervalStyle, TimeZone, integer_date-
+todo: finish this template
+  const ParameterStatusTemplate = {
+    server_version:'',
+    server_encoding:'',
+    client_encoding: '',
+    application_name
+  }
+server_version,
+server_encoding,
+client_encoding,
+application_name,
+default_transaction_read_only,
+in_hot_standby,
+is_superuser,
+session_authorization,
+DateStyle,
+IntervalStyle,
+TimeZone, integer_date-
 times, and standard_conforming_strings. (server_encoding, TimeZone, and
 integer_datetimes were not reported by releases before 8.0; standard_conform-
 ing_strings was not reported by releases before 8.1; IntervalStyle was not reported

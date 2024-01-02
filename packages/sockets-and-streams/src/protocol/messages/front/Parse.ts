@@ -49,5 +49,5 @@ export default function createParseMessage(
     if (iods.length) {
         iods.forEach((v) => encoder.i32(v));
     }
-    return encoder.setLenght().getMessage();
+    return encoder.setLength().getMessage();
 }

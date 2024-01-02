@@ -1,3 +1,6 @@
+import { dirname } from 'path';
+import { fileURLToPath } from 'url';
+//
 import { createConnection } from 'net';
 import { connect as tslConnect } from 'node:tls';
 import { resolve } from 'node:path';
@@ -8,9 +11,6 @@ import Jitter from '../io/Jitter';
 import type {
     CreateSSLSocketSpec,
     CreateSocketSpec,
-    CreateSocketSpecHints,
-    SocketConnectOpts,
-    SocketOtherOptions,
     PoolTimeBins,
     ActivityTimeBins
 } from '../io/types';
@@ -18,8 +18,38 @@ import MemoryManager from '../utils/MemoryManager';
 import type { GetClientConfig, GetSLLFallbackSpec, PGConfig, SetClientConfig } from '../protocol/types';
 import Encoder from '../protocol/Encoder';
 import Initializer from '../initializer/Initializer';
+import { NFY_IOMAN_INITIAL_DONE, NFY_IOMAN_SOCKET_CONNECT_EVENT_HANDLED } from '../errors-notifications';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+import { IO_NAMESPACE } from '../constants';
+import { register } from '@mangos/debug-frontend';
 
 function test() {
+
+    register(() => {
+        return {
+            send(ns: string, key: string, ...args){
+                if (key === NFY_IOMAN_INITIAL_DONE) {
+                    console.log(key, 'poolWaits & pollResidencies', ioManager.getPoolWaitTimes(), ioManager.getPoolResidencies());
+                }
+                if (key === NFY_IOMAN_SOCKET_CONNECT_EVENT_HANDLED){
+                    console.log(key, 'connect-handled', ioManager.getActivityWaits());
+                }
+            },
+            isEnabled(ns: string){
+                switch(ns) {
+                    case IO_NAMESPACE:
+                    case NFY_IOMAN_SOCKET_CONNECT_EVENT_HANDLED:                        
+                        return true;
+                }
+                return false
+            }
+            
+        }
+
+    }, 'no-prefix');
+
     const spec: CreateSocketSpec = function (hints, setSocketCreator, allOptions) {
         setSocketCreator(createConnection);
         allOptions(
@@ -35,7 +65,7 @@ function test() {
     const sslSpec: CreateSSLSocketSpec = function (hints, setSocketCreator, setSSLOptions) {
         setSocketCreator(tslConnect);
         setSSLOptions({
-            ca: readFileSync(resolve(__dirname, './ca.crt'), 'utf8')
+            ca: readFileSync(resolve(__dirname, 'ca.crt'), 'utf8')
         });
     };
 

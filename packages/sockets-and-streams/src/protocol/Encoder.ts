@@ -1,7 +1,8 @@
 import { TextEncoder } from 'util';
-import MemoryManager from '../utils/MemoryManager';
+import MemoryManager, { MAX_MEM_BLOCK_SIZE } from '../utils/MemoryManager';
 import type { MemoryCategories } from '../utils/MemoryManager';
 import type { List } from '../utils/list';
+import { log2, ceil } from '../utils/math';
 
 export default class Encoder {
     private cursor: number;
@@ -19,16 +20,25 @@ export default class Encoder {
         this.messageOffset = 0; // not all messages have this
         this.messageLengthOffset = 1;
         this.messagContentOffset = 5;
+        // pick a slab, not to big, 128 bytes
+        this.slab = this.memoryManager.fetchSlab('128');
+        this.currentView = new DataView(this.slab!.value.buffer);
     }
 
     private ensure(size: number): boolean {
         const buf = this.slab!.value;
         const remaining = buf.byteLength - this.cursor;
         if (remaining < size) {
-            const replacementSlab = this.memoryManager.fetchSlab(String(buf.length * 2) as MemoryCategories);
-            if (replacementSlab === null) {
+            if ((size + this.cursor) > MAX_MEM_BLOCK_SIZE) {
+                return false
+            }
+            // make assessment of the block you need + extra power
+            const power = ceil(log2(size + this.cursor))+1;
+            if (power > 16) {
                 return false;
             }
+            const slabSize = String(1 << power) as MemoryCategories;
+            const replacementSlab = this.memoryManager.fetchSlab(slabSize)!; // guarantee to be not null
             replacementSlab.value.set(buf);
             this.memoryManager.returnSlab(this.slab);
             this.slab = replacementSlab;
@@ -151,7 +161,7 @@ export default class Encoder {
         return this.currentView.buffer.slice(code ? 0 : 5, this.offset);
     }*/
 
-    public setLenght(): Encoder  {
+    public setLength(): Encoder  {
         const length = this.cursor - this.messageLengthOffset;
         this.currentView.setInt32(this.messageLengthOffset, length);
         return this;

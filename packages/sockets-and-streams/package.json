@@ -23,6 +23,7 @@
     "vitest": "0.34.4"
   },
   "dependencies": {
+    "@mangos/debug-frontend": "0.0.4",
     "buffer-hexdump": "1.0.0"
   }
 }
