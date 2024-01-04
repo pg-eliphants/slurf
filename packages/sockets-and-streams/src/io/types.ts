@@ -76,8 +76,8 @@ export type ActivityWaitTimes = {
     [index in Activity]: HistogramResidentTimes;
 };
 
-export type Residency<T> = {
-    [index in Pool]: List<SocketAttributes<T>>;
+export type Residency = {
+    [index in Pool]: List<SocketAttributes>;
 };
 
 export type ResidencyCount = {

@@ -33,10 +33,16 @@ import { insertBefore, removeSelf, count } from '../utils/list';
 import type { List } from '../utils/list';
 import Initializer from '../initializer/Initializer';
 import { SEND_NOT_OK, SEND_STATUS_BACKPRESSURE, SEND_STATUS_OK } from './constants';
-import { ERR_IOMAN_NO_INTIALIZER, NFY_IOMAN_INITIAL_DONE, ERR_IOMAN_NO_INTIALIZE_FAIL, NFY_IOMAN_SOCKET_CONNECT_EVENT_HANDLED, ERR_IOMAN_NO_PROTOCOL_HANDLER } from '../errors-notifications';
+import {
+    ERR_IOMAN_NO_INTIALIZER,
+    NFY_IOMAN_INITIAL_DONE,
+    ERR_IOMAN_INTIALIZE_FAIL,
+    NFY_IOMAN_SOCKET_CONNECT_EVENT_HANDLED,
+    ERR_IOMAN_NO_PROTOCOL_HANDLER
+} from './errors';
 import { IO_NAMESPACE } from '../constants';
 
-const logger = createNS(IO_NAMESPACE);
+// const logger = createNS(IO_NAMESPACE);
 
 export interface ISocketIOManager<T = any> {
     setProtocolManager(protocolMngr: ProtocolManager): void;
@@ -61,11 +67,11 @@ export interface ISocketIOManager<T = any> {
     upgradeToSSL(item: Exclude<List<SocketAttributes>, null>);
 }
 
-export default class SocketIOManager<T = any> implements ISocketIOManager<T> {
+export default class SocketIOManager implements ISocketIOManager {
     // pools
     // pools
     // pools
-    private residencies: Residency<T>;
+    private residencies: Residency;
 
     // statistics
     // statistics
@@ -86,8 +92,7 @@ export default class SocketIOManager<T = any> implements ISocketIOManager<T> {
         private readonly jitter: Jitter,
         private readonly now: () => number,
         private readonly reduceTimeToPoolBins: PoolTimeBins,
-        private readonly reduceTimeToActivityBins: ActivityTimeBins
-        // how are we going to do this?
+        private readonly reduceTimeToActivityBins: ActivityTimeBins // how are we going to do this?
     ) {
         this.residencies = {
             active: null,
@@ -125,18 +130,20 @@ export default class SocketIOManager<T = any> implements ISocketIOManager<T> {
 
     private removeFromPool(item: List<SocketAttributes>) {
         const currentPool = item!.value.ioMeta.pool.current;
+        const next = item!.next ?? null;
         removeSelf(item);
         // if i was the first item in the list then the list is also empty
         if (this.residencies[currentPool] === item) {
-            this.residencies[currentPool] = null;
+            this.residencies[currentPool] = next;
         }
     }
 
-    private migrateToPool(item: Exclude<List<SocketAttributes>, null>, src: Pool, dst: Pool) {
+    private migrateToPool(item: Exclude<List<SocketAttributes>, null>, dst: Pool) {
+        const current = item.value.ioMeta.pool.current;
         const stop = this.now();
         const start = item.value.ioMeta.pool.placementTime;
         //
-        this.updatePoolWaits(item, start, stop, src);
+        this.updatePoolWaits(item, start, stop, current);
         this.removeFromPool(item);
         this.residencies[dst] = insertBefore(this.residencies[dst], item);
         //
@@ -184,6 +191,7 @@ export default class SocketIOManager<T = any> implements ISocketIOManager<T> {
         // Writable
         const self = this;
         socket.on('finish', () => {
+            // todo: should already be in terminal
             console.log('/finish'); // writable surely ended when finish is emitted
             console.log('readableEnded', socket.readableEnded);
             console.log('writableEnded', socket.writableEnded);
@@ -191,10 +199,12 @@ export default class SocketIOManager<T = any> implements ISocketIOManager<T> {
         });
         // Readable
         // when pause is called (wait for 'pause' to be omitted)
+        // todo: get this documented
         socket.on('resume', () => {
             console.log('/resume');
         });
         // Readable
+        // todo: do we need this?
         socket.on('pause', () => {
             console.log('/pause');
         });
@@ -213,30 +223,33 @@ export default class SocketIOManager<T = any> implements ISocketIOManager<T> {
                 console.log('/timout delay:%s', delay);
                 if (delay > 12e3) {
                     // migrate socket to idle queue
+                    // todo: migrate to idel queue depending it is not actively involved in a query or notification channel
                     console.log('should migrate socket to idle queue');
                 }
             });
         }
         // Socket, other side signalled an end of transmission
         socket.on('end', () => {
+            // todo, put socket in termainal queue
             console.log('/event/end');
             console.log('/event/end/endreadableEnded', socket.readableEnded); // start teardown
             console.log('/event/end/writableEnded', socket.writableEnded); // flush buffers
             console.log('/event/end/writableFinished', socket.writableFinished);
         });
-        // manage backpressure, it is managed eventually by the underlying tcp/ip protocol itself
+        // todo: manage backpressure, it is managed eventually by the underlying tcp/ip protocol itself
         // drain = resume from backpressure(d)
         socket.on('drain', () => {
             console.log('/event/drain');
         });
         socket.on('data', (buf: Uint8Array) => {
+            // todo: send as notification
             console.log('/event/data received: %s', buf.byteLength);
             console.log(dump(buf));
             item.value.socket = socket;
             const rc = self.processData(buf, item);
             if (rc === false) {
                 const srcPool = item.value.ioMeta.pool.current;
-                this.migrateToPool(item, srcPool, 'terminal');
+                this.migrateToPool(item, 'terminal');
                 socket.end();
             } else if (rc === true) {
                 return; // wait for more data to arrive
@@ -244,34 +257,41 @@ export default class SocketIOManager<T = any> implements ISocketIOManager<T> {
         });
         //
         socket.on('error', (err: Error & NodeJS.ErrnoException) => {
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
+            // todo: mark socket for termination
+            // todo: if it is not already in terminal pool put it there
             if (err.syscall) {
+                // todo: log error
                 console.log('/error occurred [%o]:', { syscall: err.syscall, name: err.name, code: err.code });
                 return;
             }
             if (isAggregateError(err)) {
-                // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
                 const prunedErrors = Array.from(err.errors).map((err: Error) => ({
                     message: String(err)
                 }));
+                // todo: log error
                 console.log('/error occurred [%o]:', prunedErrors);
             }
         });
         //
         socket.on('close', (hadError) => {
+            // todo: mark socket for termination
+            // todo: if it is not already in terminal pool put it there
+            // todo: log event
             console.log('/close: hadError: [%s]', hadError);
         });
         // there is no argument for "connect" callback
         // use "once" instead of "on", sometimes connect is re-emitted after the connect happens immediatly after a socket disconnect, its weird!
+        // todo: observe this occurrance again, this could have been an issue with a tsl upgrade
         socket.once('connect', () => {
             console.log('/event/connect');
             const t0 = attributes.ioMeta.time.ts;
             const t1 = self.markTime(item);
             self.updateActivityWaitTimes('connect', t0, t1);
             if (!this.initializer) {
-                logger(ERR_IOMAN_NO_INTIALIZER, 'connect');
+                // todo; replace with bound logger
+                // logger(ERR_IOMAN_NO_INTIALIZER, 'connect');
                 socket.end();
-                this.removeFromPool(item);
+                this.migrateToPool(item, 'terminal');
                 return;
             }
             // note: startup will be responsible to callback to socketIoManager to terminate connection on error
@@ -279,14 +299,18 @@ export default class SocketIOManager<T = any> implements ISocketIOManager<T> {
             const t2 = self.markTime(item);
             self.updateActivityWaitTimes('iom_code', t1, t2);
             if (rc === false) {
-                logger(ERR_IOMAN_NO_INTIALIZE_FAIL);
+                // todo; replace with bound logger
+                // logger(ERR_IOMAN_INTIALIZE_FAIL);
                 socket.end();
-                this.removeFromPool(item);
+                this.migrateToPool(item, 'terminal');
                 return;
             }
-            logger(NFY_IOMAN_SOCKET_CONNECT_EVENT_HANDLED);
+            // todo; replace with bound logger
+            // logger(NFY_IOMAN_SOCKET_CONNECT_EVENT_HANDLED);
         });
         // use "once" instead of "on", sometimes connect is re-emitted after the connect happens immediatly after a socket disconnect, its weird!
+        // todo, validate this again
+        // what is the order 'connect','lookup', 'ready' document please for linux and windows
         socket.once('ready', (...args: unknown[]) => {
             console.log('/ready: [%o]', args);
         });
@@ -301,20 +325,20 @@ export default class SocketIOManager<T = any> implements ISocketIOManager<T> {
         let rc: boolean | 'done' = false;
         if (item.value.ioMeta.pool.current === 'created') {
             if (this.initializer === null) {
-                logger(ERR_IOMAN_NO_INTIALIZER, 'data');
+                // todo: logger(ERR_IOMAN_NO_INTIALIZER, 'data');
                 return false;
             }
             rc = this.initializer.handleData(item, buf);
             if (rc === 'done') {
                 const { current: srcPool, createdFor: targetPool } = item.value.ioMeta.pool;
-                this.migrateToPool(item, srcPool, targetPool);
-                logger(NFY_IOMAN_INITIAL_DONE);
+                this.migrateToPool(item, targetPool);
+                // todo: logger(NFY_IOMAN_INITIAL_DONE);
                 return true;
             }
             return rc;
         } else {
             if (this.protocolManager === null) {
-                logger(ERR_IOMAN_NO_PROTOCOL_HANDLER);
+                // todo: logger(ERR_IOMAN_NO_PROTOCOL_HANDLER);
                 return false;
             }
             rc = this.protocolManager.binDump(item, buf);
@@ -396,6 +420,7 @@ export default class SocketIOManager<T = any> implements ISocketIOManager<T> {
         const t0 = this.markTime(item);
         this.decorate(item, extraOpt);
         sslSocket.on('secureConnect', () => {
+            // todo log this in "notification"
             console.log('/secureConnect authorized', sslSocket.authorized);
             console.log('/secureConnect authorizationError', sslSocket.authorizationError);
             // for debugging
@@ -411,9 +436,11 @@ export default class SocketIOManager<T = any> implements ISocketIOManager<T> {
             this.updateActivityWaitTimes('iom_code', t1, t2);
         });
         sslSocket.on('tlsClientError', (exception: Error) => {
+            // todo should we terminate the socket?
             console.error('/tlsClientError', exception);
         });
         sslSocket.on('error', (error: Error) => {
+            // todo:  // todo should we terminate the socket?
             console.error('/ssl/error:', String(error));
         });
     }
@@ -504,7 +531,7 @@ export default class SocketIOManager<T = any> implements ISocketIOManager<T> {
         return { errors: result.errors };
     }
 
-    public send<T>(attributes: SocketAttributes<T>, bin: Uint8Array): SendingStatus {
+    public send(attributes: SocketAttributes, bin: Uint8Array): SendingStatus {
         const socket = attributes.socket!;
         if (socket.closed) {
             return SEND_NOT_OK; // todo: this socket is closed
@@ -516,6 +543,7 @@ export default class SocketIOManager<T = any> implements ISocketIOManager<T> {
             return SEND_STATUS_BACKPRESSURE; // todo: return status for backpressure
         }
         socket.write(bin);
+        // todo: send this as notification
         console.log('sending:', dump(bin));
         return SEND_STATUS_OK; // todo: return OK status
     }
@@ -525,7 +553,7 @@ export default class SocketIOManager<T = any> implements ISocketIOManager<T> {
             network: Object.assign({}, this.activityWaits.network),
             iom_code: Object.assign({}, this.activityWaits.iom_code),
             connect: Object.assign({}, this.activityWaits.connect),
-            sslConnect: Object.assign({}, this.activityWaits.sslConnect),
+            sslConnect: Object.assign({}, this.activityWaits.sslConnect)
         };
     }
 
