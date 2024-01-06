@@ -53,7 +53,7 @@ const portOption = '--connect-port=';
 
 function getPort() {
     const port = process.argv.slice(2).find((opt) => opt.toLocaleLowerCase().startsWith(portOption));
-    console.log('port found:', port);
+    console.log(port ? `port found: ${port}` : `no port given on cmd line option ${portOption}`);
     return port ? parseInt(port.slice(portOption.length)) : NaN;
 }
 function createTcpNetConnectOpts(): TcpNetConnectOpts | undefined {
@@ -77,23 +77,26 @@ function isAggregateError(err: unknown): err is AggregateError {
     return (err as AggregateError)?.errors !== undefined;
 }
 
-async function connectToCounterParty() {
+async function connectToCounterParty(options: TcpNetConnectOpts) {
     console.log('connecting to counterparty');
-    const options = createTcpNetConnectOpts();
-    if (!options) {
-        return;
-    }
     const socket = new Socket();
     socket.setEncoding('utf8');
     socket.setNoDelay(true);
     socket.setKeepAlive(true);
 
-    /* stream.Writable events ex sockets */
+    // finish event indicates that after this side "end()" pun the steam
+    // and all pending data has been received by counterparty
+    // at the very least it's "readyState" is marked as 'read-only'
+    // only when a close event is emitted can we safely say there will be no more data transmitted over the socket
+    // 1. end() -> writableEnded=true, writableFinished=false
+    // 2. pending write data flushed -> writableFinished=true
+    // by definition do not keep writing data after you have ended the stream yourself ofc
     socket.on('finish', (...args: unknown[]) => {
         console.log('/finish [%o]', args);
-        console.log('readableEnded', socket.readableEnded);
-        console.log('writableEnded', socket.writableEnded);
-        console.log('writableFinished', socket.writableFinished);
+        console.log('/finish/readableEnded', socket.readableEnded);
+        console.log('/finish/writableEnded', socket.writableEnded);
+        console.log('/finish/writableFinished', socket.writableFinished);
+        console.log('/finish/readyState', socket.readyState);
     });
 
     /* stream.Readable events ex socket */
@@ -126,6 +129,8 @@ async function connectToCounterParty() {
     /readable null received
     /readable end
     */
+    // disabled, we are not going to use 'readable' event
+    /*
     socket.on('readable', () => {
         console.log('/readable start, to read:[%s]', socket.readableLength);
         let data: string | undefined | null;
@@ -139,22 +144,26 @@ async function connectToCounterParty() {
         } while (data);
         console.log('/readable end');
     });
+    */
     /* socket events (read and writable) */
     // Emitted when the other end of the socket signals the end of transmission,
     // (independent of the fact, this side of the connection called "end()")
-    socket.on('end', (...args: unknown[]) => {
-        console.log('/end [%o]', args);
-        console.log('readableEnded', socket.readableEnded);
-        console.log('writableEnded', socket.writableEnded);
-        console.log('writableFinished', socket.writableFinished);
+    socket.on('end', () => {
+        console.log('/end');
+        console.log('/end/readableEnded', socket.readableEnded);
+        console.log('/end/writableEnded', socket.writableEnded);
+        console.log('/end/writableFinished', socket.writableFinished);
+        console.log('/end/readyState', socket.readyState);
     });
     socket.on('drain', () => {
         console.log('/drain');
     });
     socket.on('data', (thunk: string) => {
-        console.log('/data, socket timeout is:', socket.timeout);
-        console.log('/data, ended?', socket.readableEnded);
-        console.log('/data, received type [%s], data:[%o]', typeof thunk, thunk);
+        console.log('/data/0/, socket timeout is:', socket.timeout);
+        console.log('/data/readableEnded:', socket.readableEnded);
+        console.log('/data/writableEnded:', socket.writableEnded);
+        console.log('/data/writableFinished:', socket.writableFinished);
+        console.log('/data/received type [%s], data:[%o]', typeof thunk, thunk);
     });
     socket.on('error', (err: Error & NodeJS.ErrnoException) => {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
@@ -194,26 +203,28 @@ async function connectToCounterParty() {
         socket.setTimeout(3000);
         console.log('callback/socket.connect()');
         setTimeout(() => {
-            if (socket.writableEnded) {
-                console.log('socket already ended, cancel transmission');
+            console.log('/setTimeout');
+            console.log('/setTimeout/socket.writableEnded', socket.writableEnded); // this can be false when ECONNRESET
+            console.log('/setTimeout/readableEnded', socket.readableEnded); // this can be false when ECONNRESET
+            console.log('/setTimeout/writableEnded', socket.writableEnded); // this can be false when ECONNRESET
+            console.log('/setTimeout/writableFinished', socket.writableFinished); // this can be false when ECONNRESET
+            console.log('/setTimeout/errored', socket.errored);
+            console.log('/setTimeout/readyState', socket.readyState);
+            console.log('/setTimeout/closed', socket.closed);
+
+            if (socket.closed) {
+                console.log('/setTimeout/further action suspended');
                 return;
             }
-            console.log(':readableEnded', socket.readableEnded);
-            console.log(':writableEnded', socket.writableEnded);
-            console.log(':writableFinished', socket.writableFinished);
-            console.log(':errored', socket.errored);
-            console.log(':readyState', socket.readyState);
-            console.log(':closed', socket.closed);
 
-            socket.end('cending socket');
-            console.log('%cend event + data sent', 'color:red');
-
-            console.log(':readableEnded', socket.readableEnded);
-            console.log(':writableEnded', socket.writableEnded);
-            console.log(':writableFinished', socket.writableFinished);
-            console.log(':errored', socket.errored);
-            console.log(':readyState', socket.readyState);
-            console.log(':closed', socket.closed);
+            socket.end('this message was transmitted with socket.end(...)');
+            console.log('%s/setTimeout/[socket.end(..) called%s', '\u001b[31m', '\u001b[0m');
+            console.log('/setTimeout/readableEnded', socket.readableEnded);
+            console.log('/setTimeout/writableEnded', socket.writableEnded);
+            console.log('/setTimeout/writableFinished', socket.writableFinished);
+            console.log('/setTimeout/errored', socket.errored);
+            console.log('/setTimeout/readyState', socket.readyState);
+            console.log('/setTimeout/closed', socket.closed);
             //
         }, 5e3);
     });
@@ -221,7 +232,10 @@ async function connectToCounterParty() {
 
 testServer()
     .then((/*server*/) => {
-        return connectToCounterParty();
+        const options = createTcpNetConnectOpts();
+        if (options) {
+            connectToCounterParty(options);
+        }
     })
     .catch((err) => {
         console.log('something bad happened', err);

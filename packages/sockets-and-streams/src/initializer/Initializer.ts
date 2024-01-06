@@ -10,7 +10,7 @@ import { parse as parseError } from '../protocol/messages/back/ErrorResponse';
 import { parse as parseParameterStatus, ParameterStatus } from '../protocol/messages/back/ParameterStatus';
 import { BackendKeyData, parse as parseBackendKeyData } from '../protocol/messages/back/BackendKeyData';
 import { parse as parseReady4Query } from '../protocol/messages/back/ReadyForQuery';
-import type { ParseContext, Notifications } from '../protocol/messages/back/types';
+import type { Notifications } from '../protocol/messages/back/types';
 import {
     OK,
     MD5PASSWORD,
@@ -19,34 +19,23 @@ import {
 } from '../protocol/messages/back/authentication';
 import { bytesLeft } from './helper';
 
-export type SocketAttributeAuxMetadata = {
-    sslRequestSent: boolean;
-    startupSent: boolean;
-    upgradedToSll: boolean;
-    authenticationOk: boolean;
-    authenticationMD5Sent: boolean;
-    authenticationClearTextSent: boolean;
-    readyForQuery?: number;
-    pid?: number;
-    cancelSecret?: number;
-    runtimeParameters: Record<string, string>;
-    parsingContext?: ParseContext;
-    error: null | Notifications;
-};
+import { IBaseInitializer, SocketAttributeAuxMetadata } from './types';
 
-export default class Initializer {
+export default class Initializer implements IBaseInitializer<SocketAttributeAuxMetadata> {
     constructor(
         private readonly encoder: Encoder,
         private readonly txtDecoder: TextDecoder,
         private readonly socketIoManager: ISocketIOManager<SocketAttributeAuxMetadata>,
         private readonly protocol: ProtocolManager,
         private readonly getSSLFallback: GetSLLFallbackSpec
-    ) {}
+    ) {
+        socketIoManager.setInitializer(this);
+    }
 
     // return undefined -> incomplete authentication message received wait for more data from socket
-    // return true -> authentication message was processes (does not mean handshake complete)
+    // return true -> authentication message was processds (does not mean handshake complete)
     // return null -> error orccured, malformed authentication message
-    // true added means it is the actual value of the AuthenticationOk (and some otehrs)
+    // true added means it is the actual value of the AuthenticationOk (and some others)
     private handleAuthentication(item: SocketAttributes<SocketAttributeAuxMetadata>): undefined | null | true {
         const aux = item.ioMeta.aux;
         const pc = aux.parsingContext!;

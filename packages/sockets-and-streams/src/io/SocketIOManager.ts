@@ -39,7 +39,7 @@ import {
     ERR_IOMAN_INTIALIZE_FAIL,
     NFY_IOMAN_SOCKET_CONNECT_EVENT_HANDLED,
     ERR_IOMAN_NO_PROTOCOL_HANDLER
-} from './errors';
+} from '../tail/errors';
 import { IO_NAMESPACE } from '../constants';
 
 // const logger = createNS(IO_NAMESPACE);
@@ -117,7 +117,10 @@ export default class SocketIOManager implements ISocketIOManager {
             network: {},
             iom_code: {},
             connect: {},
-            sslConnect: {}
+            sslConnect: {},
+            finish: {},
+            end: {},
+            close: {}
         };
         //
         this.protocolManager = null;
@@ -158,7 +161,7 @@ export default class SocketIOManager implements ISocketIOManager {
         return delay;
     }
 
-    private updateNetworkStats(item: List<SocketAttributes>): number {
+    private updateNetworkStats(item: List<SocketAttributes>, activity: Activity = 'network'): number {
         const now = this.now();
         const {
             socket,
@@ -170,7 +173,7 @@ export default class SocketIOManager implements ISocketIOManager {
         item!.value.ioMeta.time.ts = now;
         networkBytes.bytesRead = socket!.bytesRead;
         networkBytes.bytesWritten = socket!.bytesWritten;
-        const delay = this.updateActivityWaitTimes('network', ts, now);
+        const delay = this.updateActivityWaitTimes(activity, ts, now);
         return delay;
     }
 
@@ -190,25 +193,23 @@ export default class SocketIOManager implements ISocketIOManager {
         const socket = attributes.socket!;
         // Writable
         const self = this;
+        // finish event indicates that after this side "end()" pun the steam
+        // and all pending data has been received by counterparty
+        // at the very least it's "readyState" is marked as 'read-only'
+        // only when a close event is emitted can we safely say there will be no more data transmitted over the socket
+        // 1. end() -> writableEnded=true, writableFinished=false
+        // 2. pending write data flushed -> writableFinished=true
+        // by definition do not keep writing data after you have ended the stream yourself ofc
+        // to only action to be taken here is log the time it took from the last network transmit (send) to when this event occurred
         socket.on('finish', () => {
-            // todo: should already be in terminal
-            console.log('/finish'); // writable surely ended when finish is emitted
-            console.log('readableEnded', socket.readableEnded);
-            console.log('writableEnded', socket.writableEnded);
-            console.log('writableFinished', socket.writableFinished);
+            this.updateNetworkStats(item, 'finish');
+            // i cannot write to the socket, (because this side called end())
+            // todo: [d] should already be in terminal
+            // console.log('/finish'); // writable surely ended when finish is emitted
+            // console.log('readableEnded', socket.readableEnded);  // true or false
+            // console.log('writableEnded', socket.writableEnded); // will be true
+            // console.log('writableFinished', socket.writableFinished); // will be true
         });
-        // Readable
-        // when pause is called (wait for 'pause' to be omitted)
-        // todo: get this documented
-        socket.on('resume', () => {
-            console.log('/resume');
-        });
-        // Readable
-        // todo: do we need this?
-        socket.on('pause', () => {
-            console.log('/pause');
-        });
-
         if (otherOptions.timeout) {
             const timeOut = otherOptions.timeout;
             socket.setTimeout(timeOut);
@@ -218,7 +219,9 @@ export default class SocketIOManager implements ISocketIOManager {
                     networkBytes: { bytesRead, bytesWritten },
                     time: { ts }
                 } = attributes.ioMeta;
+                attributes.ioMeta.idleCounts++;
                 const current = this.now();
+                // todo: remove debugging below and remove with a notification
                 const delay = current - ts;
                 console.log('/timout delay:%s', delay);
                 if (delay > 12e3) {
@@ -229,6 +232,7 @@ export default class SocketIOManager implements ISocketIOManager {
             });
         }
         // Socket, other side signalled an end of transmission
+        // todo: same as 'finish' event, log time statistic, just means the socket has become write only
         socket.on('end', () => {
             // todo, put socket in termainal queue
             console.log('/event/end');
@@ -238,6 +242,7 @@ export default class SocketIOManager implements ISocketIOManager {
         });
         // todo: manage backpressure, it is managed eventually by the underlying tcp/ip protocol itself
         // drain = resume from backpressure(d)
+        // [i am here]
         socket.on('drain', () => {
             console.log('/event/drain');
         });
@@ -288,7 +293,7 @@ export default class SocketIOManager implements ISocketIOManager {
             const t1 = self.markTime(item);
             self.updateActivityWaitTimes('connect', t0, t1);
             if (!this.initializer) {
-                // todo; replace with bound logger
+                // todo: [m] replace with bound logger
                 // logger(ERR_IOMAN_NO_INTIALIZER, 'connect');
                 socket.end();
                 this.migrateToPool(item, 'terminal');
@@ -324,11 +329,7 @@ export default class SocketIOManager implements ISocketIOManager {
         const start = item!.value.ioMeta.time.ts;
         let rc: boolean | 'done' = false;
         if (item.value.ioMeta.pool.current === 'created') {
-            if (this.initializer === null) {
-                // todo: logger(ERR_IOMAN_NO_INTIALIZER, 'data');
-                return false;
-            }
-            rc = this.initializer.handleData(item, buf);
+            rc = this.initializer!.handleData(item, buf);
             if (rc === 'done') {
                 const { current: srcPool, createdFor: targetPool } = item.value.ioMeta.pool;
                 this.migrateToPool(item, targetPool);
@@ -553,7 +554,10 @@ export default class SocketIOManager implements ISocketIOManager {
             network: Object.assign({}, this.activityWaits.network),
             iom_code: Object.assign({}, this.activityWaits.iom_code),
             connect: Object.assign({}, this.activityWaits.connect),
-            sslConnect: Object.assign({}, this.activityWaits.sslConnect)
+            sslConnect: Object.assign({}, this.activityWaits.sslConnect),
+            finish: Object.assign({}, this.activityWaits.finish),
+            end: Object.assign({}, this.activityWaits.end),
+            close: Object.assign({}, this.activityWaits.close)
         };
     }
 
@@ -616,6 +620,7 @@ export default class SocketIOManager implements ISocketIOManager {
                     bytesRead: 0,
                     bytesWritten: 0
                 },
+                idleCounts: 0,
                 aux: null
             }
         };
