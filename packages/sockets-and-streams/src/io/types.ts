@@ -1,7 +1,8 @@
 import type { TcpSocketConnectOpts, IpcSocketConnectOpts, ConnectOpts, Socket, NetConnectOpts } from 'net';
 
 export type Pool = 'vis' | 'reservedEmpherical' | 'reservedPermanent' | 'active' | 'idle' | 'terminal' | 'created';
-export type Activity = 'network' | 'iom_code' | 'connect' | 'sslConnect' | 'finish' | 'end' | 'close';
+export type ActivityWait = 'network' | 'iom_code' | 'connect' | 'sslConnect' | 'finish' | 'end' | 'close' | 'drained';
+export type ActivityCount = 'error';
 export type PoolFirstResidence = Exclude<Pool, 'active' | 'terminal' | 'reservedEmpherical' | 'created'>;
 
 import type { ConnectionOptions, TLSSocket } from 'tls';
@@ -10,6 +11,8 @@ export interface PGSSLConfigRaw extends ConnectionOptions, ConnectOpts {}
 export type PGSSLConfig = Omit<PGSSLConfigRaw, 'host' | 'path' | 'port'>;
 
 import type { List } from '../utils/list';
+
+import { PromiseExtended } from './helpers';
 
 export type CreateSocketSpecHints = {
     forPool: PoolFirstResidence;
@@ -43,7 +46,11 @@ export type PoolTimeBins = {
 };
 
 export type ActivityTimeBins = {
-    [index in Activity]: reduceValueToBin;
+    [index in ActivityWait]: reduceValueToBin;
+};
+
+export type ActivityCountBins = {
+    [index in ActivityCount]: number;
 };
 
 export type MetaSocketAttr<T> = {
@@ -62,6 +69,8 @@ export type MetaSocketAttr<T> = {
         bytesWritten: number;
     };
     idleCounts: number;
+    backPressure: PromiseExtended;
+    lastWriteTs: number;
     aux: T;
 };
 
@@ -74,7 +83,7 @@ export type PoolWaitTimes = {
 };
 
 export type ActivityWaitTimes = {
-    [index in Activity]: HistogramResidentTimes;
+    [index in ActivityWait]: HistogramResidentTimes;
 };
 
 export type Residency = {
@@ -106,4 +115,4 @@ export interface AggregateErrorConstructor {
     readonly prototype: AggregateError;
 }
 
-export type SendingStatus = 'ok' | 'backpressure' | 'not-ok';
+export type SendingStatus = 'ok' | 'backpressure' | 'closed' | 'only-read' | 'ok-but-backpressure';

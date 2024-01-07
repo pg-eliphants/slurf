@@ -17,22 +17,29 @@ import type {
     PGSSLConfig,
     CreateSSLSocketSpec,
     CreateSLLConnection,
-    Activity,
+    ActivityWait,
     SendingStatus,
     Residency,
     ResidencyCount,
-    Pool
+    Pool,
+    ActivityCountBins
 } from './types';
 
 import ProtocolManager from '../protocol/ProtocolManager';
 
-import { isAggregateError, validatePGSSLConfig } from './helpers';
+import { createResolvePromiseExtended, isAggregateError, validatePGSSLConfig } from './helpers';
 import delay from '../utils/delay';
 import { insertBefore, removeSelf, count } from '../utils/list';
 
 import type { List } from '../utils/list';
 import Initializer from '../initializer/Initializer';
-import { SEND_NOT_OK, SEND_STATUS_BACKPRESSURE, SEND_STATUS_OK } from './constants';
+import {
+    SEND_STATUS_BACKPRESSURE,
+    SEND_STATUS_CLOSED,
+    SEND_STATUS_OK,
+    SEND_STATUS_OK_WITH_BACKPRESSURE,
+    SEND_STATUS_ONLY_READ
+} from './constants';
 import {
     ERR_IOMAN_NO_INTIALIZER,
     NFY_IOMAN_INITIAL_DONE,
@@ -81,6 +88,8 @@ export default class SocketIOManager implements ISocketIOManager {
     // time waits during task "network", "iom_code", "connect"
     private readonly activityWaits: ActivityWaitTimes;
 
+    private readonly activityEvents: ActivityCountBins;
+
     // reference to protocol manager
     private protocolManager: ProtocolManager | null;
 
@@ -120,7 +129,11 @@ export default class SocketIOManager implements ISocketIOManager {
             sslConnect: {},
             finish: {},
             end: {},
-            close: {}
+            close: {},
+            drained: {}
+        };
+        this.activityEvents = {
+            error: 0
         };
         //
         this.protocolManager = null;
@@ -154,14 +167,14 @@ export default class SocketIOManager implements ISocketIOManager {
         item.value.ioMeta.pool.placementTime = stop;
     }
 
-    private updateActivityWaitTimes(activity: Activity, start: number, stop: number) {
+    private updateActivityWaitTimes(activity: ActivityWait, start: number, stop: number) {
         const delay = stop - start;
         const bin = this.reduceTimeToActivityBins[activity](delay);
         this.activityWaits[activity][bin] = (this.activityWaits[activity][bin] ?? 0) + 1;
         return delay;
     }
 
-    private updateNetworkStats(item: List<SocketAttributes>, activity: Activity = 'network'): number {
+    private updateNetworkStats(item: List<SocketAttributes>, activity: ActivityWait = 'network'): number {
         const now = this.now();
         const {
             socket,
@@ -203,23 +216,23 @@ export default class SocketIOManager implements ISocketIOManager {
         // to only action to be taken here is log the time it took from the last network transmit (send) to when this event occurred
         socket.on('finish', () => {
             this.updateNetworkStats(item, 'finish');
-            // i cannot write to the socket, (because this side called end())
-            // todo: [d] should already be in terminal
-            // console.log('/finish'); // writable surely ended when finish is emitted
-            // console.log('readableEnded', socket.readableEnded);  // true or false
-            // console.log('writableEnded', socket.writableEnded); // will be true
-            // console.log('writableFinished', socket.writableFinished); // will be true
         });
         if (otherOptions.timeout) {
             const timeOut = otherOptions.timeout;
             socket.setTimeout(timeOut);
             socket.on('timeout', () => {
                 socket.setTimeout(timeOut);
+                if (attributes.ioMeta.pool.current === 'idle') {
+                    attributes.ioMeta.idleCounts = 0; // idling sockets are idle so ofc they will get timeouts
+                    return;
+                }
+                attributes.ioMeta.idleCounts++;
+                // todo: fire notification idle event
+                // todo: check if we should migrate to some queue
+                // todo: remove below debugging logic
                 const {
-                    networkBytes: { bytesRead, bytesWritten },
                     time: { ts }
                 } = attributes.ioMeta;
-                attributes.ioMeta.idleCounts++;
                 const current = this.now();
                 // todo: remove debugging below and remove with a notification
                 const delay = current - ts;
@@ -231,20 +244,17 @@ export default class SocketIOManager implements ISocketIOManager {
                 }
             });
         }
-        // Socket, other side signalled an end of transmission
-        // todo: same as 'finish' event, log time statistic, just means the socket has become write only
+        // todo: send notification
         socket.on('end', () => {
-            // todo, put socket in termainal queue
+            this.updateNetworkStats(item, 'end');
+            // todo: put socket in termainal queue?
             console.log('/event/end');
-            console.log('/event/end/endreadableEnded', socket.readableEnded); // start teardown
-            console.log('/event/end/writableEnded', socket.writableEnded); // flush buffers
-            console.log('/event/end/writableFinished', socket.writableFinished);
         });
-        // todo: manage backpressure, it is managed eventually by the underlying tcp/ip protocol itself
-        // drain = resume from backpressure(d)
-        // [i am here]
+        // todo: send notification
         socket.on('drain', () => {
-            console.log('/event/drain');
+            this.updateActivityWaitTimes('drained', this.now(), attributes.ioMeta.lastWriteTs);
+            attributes.ioMeta.backPressure.resolve(undefined); // pass undefined, but later maybe some other value
+            console.log('/event/drain delay; %s', delay);
         });
         socket.on('data', (buf: Uint8Array) => {
             // todo: send as notification
@@ -260,10 +270,16 @@ export default class SocketIOManager implements ISocketIOManager {
                 return; // wait for more data to arrive
             }
         });
-        //
+        //todo: should be in global statistics
         socket.on('error', (err: Error & NodeJS.ErrnoException) => {
+            // todo: if readyState = 'closed' then migrate socket to terminal queue (if not already in terminal queue)
             // todo: mark socket for termination
             // todo: if it is not already in terminal pool put it there
+            this.activityEvents.error++;
+            console.log('/event/error');
+            console.log('/event/error/endreadableEnded', socket.readableEnded); // start teardown
+            console.log('/event/error/writableEnded', socket.writableEnded); // flush buffers
+            console.log('/event/error/writableFinished', socket.writableFinished);
             if (err.syscall) {
                 // todo: log error
                 console.log('/error occurred [%o]:', { syscall: err.syscall, name: err.name, code: err.code });
@@ -279,6 +295,11 @@ export default class SocketIOManager implements ISocketIOManager {
         });
         //
         socket.on('close', (hadError) => {
+            this.updateNetworkStats(item, 'close');
+            console.log('/event/close');
+            console.log('/event/close/endreadableEnded', socket.readableEnded); // start teardown
+            console.log('/event/close/writableEnded', socket.writableEnded); // flush buffers
+            console.log('/event/close/writableFinished', socket.writableFinished);
             // todo: mark socket for termination
             // todo: if it is not already in terminal pool put it there
             // todo: log event
@@ -535,29 +556,34 @@ export default class SocketIOManager implements ISocketIOManager {
     public send(attributes: SocketAttributes, bin: Uint8Array): SendingStatus {
         const socket = attributes.socket!;
         if (socket.closed) {
-            return SEND_NOT_OK; // todo: this socket is closed
+            return SEND_STATUS_CLOSED; // this socket is closed
         }
         if (socket.writableEnded || socket.writableFinished) {
-            return SEND_NOT_OK; // todo: this socket not closed but not usefull for writing
+            return SEND_STATUS_ONLY_READ; // this socket not closed but not usefull for writing
         }
         if (socket.writableNeedDrain) {
-            return SEND_STATUS_BACKPRESSURE; // todo: return status for backpressure
+            return SEND_STATUS_BACKPRESSURE; // return status for backpressure
         }
-        socket.write(bin);
-        // todo: send this as notification
+        const rc = socket.write(bin);
+        // create promise for backPressure
+        if (rc === false) {
+            attributes.ioMeta.backPressure = createResolvePromiseExtended(rc);
+            attributes.ioMeta.lastWriteTs = this.now();
+        }
         console.log('sending:', dump(bin));
-        return SEND_STATUS_OK; // todo: return OK status
+        return rc === true ? SEND_STATUS_OK : SEND_STATUS_OK_WITH_BACKPRESSURE; // return OK status
     }
 
     public getActivityWaits(): ActivityWaitTimes {
         return {
-            network: Object.assign({}, this.activityWaits.network),
-            iom_code: Object.assign({}, this.activityWaits.iom_code),
-            connect: Object.assign({}, this.activityWaits.connect),
-            sslConnect: Object.assign({}, this.activityWaits.sslConnect),
-            finish: Object.assign({}, this.activityWaits.finish),
-            end: Object.assign({}, this.activityWaits.end),
-            close: Object.assign({}, this.activityWaits.close)
+            network: { ...this.activityWaits.network },
+            iom_code: { ...this.activityWaits.iom_code },
+            connect: { ...this.activityWaits.connect },
+            sslConnect: { ...this.activityWaits.sslConnect },
+            finish: { ...this.activityWaits.finish },
+            end: { ...this.activityWaits.end },
+            close: { ...this.activityWaits.close },
+            drained: { ...this.activityWaits.drained }
         };
     }
 
@@ -620,6 +646,8 @@ export default class SocketIOManager implements ISocketIOManager {
                     bytesRead: 0,
                     bytesWritten: 0
                 },
+                backPressure: createResolvePromiseExtended(true), // resolved promise
+                lastWriteTs: 0,
                 idleCounts: 0,
                 aux: null
             }

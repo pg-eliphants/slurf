@@ -18,3 +18,21 @@ export function validatePGSSLConfig(config?: PGSSLConfig): { errors: Error[] } |
     }
     return errors.length ? { errors } : true;
 }
+
+export class PromiseExtended extends Promise<undefined> {
+    public resolve: (value: undefined | PromiseLike<undefined>) => void;
+    public reject: (value: undefined | PromiseLike<undefined>) => void;
+    constructor(resolveNow: boolean) {
+        super((resolve, reject) => {
+            this.resolve = resolve;
+            this.reject = reject;
+        });
+        if (resolveNow) {
+            this.resolve(undefined);
+        }
+    }
+}
+
+export function createResolvePromiseExtended(resolveNow: boolean): PromiseExtended {
+    return new PromiseExtended(resolveNow);
+}
