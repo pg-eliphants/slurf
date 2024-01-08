@@ -27,7 +27,7 @@ import type {
 
 import ProtocolManager from '../protocol/ProtocolManager';
 
-import { createResolvePromiseExtended, isAggregateError, validatePGSSLConfig } from './helpers';
+import { createResolvePromiseExtended, isAggregateError, isInPools, validatePGSSLConfig } from './helpers';
 import delay from '../utils/delay';
 import { insertBefore, removeSelf, count } from '../utils/list';
 
@@ -133,7 +133,9 @@ export default class SocketIOManager implements ISocketIOManager {
             drained: {}
         };
         this.activityEvents = {
-            error: 0
+            error: 0,
+            idle: 0,
+            end: 0
         };
         //
         this.protocolManager = null;
@@ -156,6 +158,9 @@ export default class SocketIOManager implements ISocketIOManager {
 
     private migrateToPool(item: Exclude<List<SocketAttributes>, null>, dst: Pool) {
         const current = item.value.ioMeta.pool.current;
+        if (current === dst) {
+            return;
+        }
         const stop = this.now();
         const start = item.value.ioMeta.pool.placementTime;
         //
@@ -227,9 +232,11 @@ export default class SocketIOManager implements ISocketIOManager {
                     return;
                 }
                 attributes.ioMeta.idleCounts++;
+                this.activityEvents.idle++;
                 // todo: fire notification idle event
                 // todo: check if we should migrate to some queue
                 // todo: remove below debugging logic
+                // todo: pass this on to protocolhandler
                 const {
                     time: { ts }
                 } = attributes.ioMeta;
@@ -247,8 +254,19 @@ export default class SocketIOManager implements ISocketIOManager {
         // todo: send notification
         socket.on('end', () => {
             this.updateNetworkStats(item, 'end');
-            // todo: put socket in termainal queue?
-            console.log('/event/end');
+            if (socket.writableEnded) {
+                // was intentional on our side
+                this.migrateToPool(item, 'terminal');
+                return;
+            }
+            // todo notify "end" (do ask protocol handler to add its info to end notify)
+            // todo: call something like  const aux = this.protocolManager.handleEnd(item);
+            // todo: dispatch IONofityEndEVent
+            if (isInPools(item, 'created', 'idle')) {
+                this.migrateToPool(item, 'terminal');
+                this.activityEvents.end++;
+                return;
+            }
         });
         // todo: send notification
         socket.on('drain', () => {
@@ -325,13 +343,13 @@ export default class SocketIOManager implements ISocketIOManager {
             const t2 = self.markTime(item);
             self.updateActivityWaitTimes('iom_code', t1, t2);
             if (rc === false) {
-                // todo; replace with bound logger
+                // todo; notigy
                 // logger(ERR_IOMAN_INTIALIZE_FAIL);
                 socket.end();
                 this.migrateToPool(item, 'terminal');
                 return;
             }
-            // todo; replace with bound logger
+            // todo; notify
             // logger(NFY_IOMAN_SOCKET_CONNECT_EVENT_HANDLED);
         });
         // use "once" instead of "on", sometimes connect is re-emitted after the connect happens immediatly after a socket disconnect, its weird!

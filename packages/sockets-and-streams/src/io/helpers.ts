@@ -1,5 +1,5 @@
-import type { PGSSLConfig } from './types';
-import type { AggregateError } from './types';
+import type { Pool, PGSSLConfig, AggregateError, SocketAttributes } from './types';
+import type { List } from '../utils/list';
 export function isAggregateError(err: unknown): err is AggregateError {
     return (err as AggregateError)?.errors !== undefined;
 }
@@ -35,4 +35,9 @@ export class PromiseExtended extends Promise<undefined> {
 
 export function createResolvePromiseExtended(resolveNow: boolean): PromiseExtended {
     return new PromiseExtended(resolveNow);
+}
+
+export function isInPools(item: Exclude<List<SocketAttributes>, null>, ...pools: Pool[]): boolean {
+    const current = item.value.ioMeta.pool.current;
+    return pools.includes(current);
 }

@@ -2,7 +2,7 @@ import type { TcpSocketConnectOpts, IpcSocketConnectOpts, ConnectOpts, Socket, N
 
 export type Pool = 'vis' | 'reservedEmpherical' | 'reservedPermanent' | 'active' | 'idle' | 'terminal' | 'created';
 export type ActivityWait = 'network' | 'iom_code' | 'connect' | 'sslConnect' | 'finish' | 'end' | 'close' | 'drained';
-export type ActivityCount = 'error';
+export type ActivityCount = 'error' | 'idle' | 'end';
 export type PoolFirstResidence = Exclude<Pool, 'active' | 'terminal' | 'reservedEmpherical' | 'created'>;
 
 import type { ConnectionOptions, TLSSocket } from 'tls';
@@ -116,3 +116,13 @@ export interface AggregateErrorConstructor {
 }
 
 export type SendingStatus = 'ok' | 'backpressure' | 'closed' | 'only-read' | 'ok-but-backpressure';
+
+export type IONotifyTimeout = {
+    type: 'timeout';
+    payload: number;
+};
+
+export type IONofityEndEvent<T = any> = {
+    type: 'end';
+    payload: { pool: Pool; aux: T };
+};
