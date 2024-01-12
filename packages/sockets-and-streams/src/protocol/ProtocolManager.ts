@@ -1,8 +1,8 @@
 import SocketIOManager from '../io/SocketIOManager';
-import { SocketAttributes, PGSSLConfig } from '../io/types';
+import { SocketAttributes } from '../io/types';
 import { GetClientConfig, PGConfig, SetClientConfig } from './types';
 import { normalizePGConfig, validatePGConnectionParams } from './helpers';
-import { List } from '../utils/list';
+import { SocketAttributeAuxMetadata } from '../initializer/types';
 
 export default class ProtocolManager {
     constructor(
@@ -12,7 +12,15 @@ export default class ProtocolManager {
         this.socketIOManager.setProtocolManager(this);
     }
 
-    public binDump(item: Exclude<List<SocketAttributes>, null>, data: Uint8Array): boolean {
+    handleTimeout(item: SocketAttributes<SocketAttributeAuxMetadata>): boolean {
+        return true;
+    }
+
+    public handleEnd(item: SocketAttributes<SocketAttributeAuxMetadata>): boolean {
+        return true;
+    }
+
+    public binDump(item: SocketAttributes<SocketAttributeAuxMetadata>, data: Uint8Array): boolean {
         return false;
     }
 

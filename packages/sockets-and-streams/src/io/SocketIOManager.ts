@@ -237,17 +237,12 @@ export default class SocketIOManager implements ISocketIOManager {
                 // todo: check if we should migrate to some queue
                 // todo: remove below debugging logic
                 // todo: pass this on to protocolhandler
-                const {
-                    time: { ts }
-                } = attributes.ioMeta;
-                const current = this.now();
-                // todo: remove debugging below and remove with a notification
-                const delay = current - ts;
-                console.log('/timout delay:%s', delay);
-                if (delay > 12e3) {
-                    // migrate socket to idle queue
-                    // todo: migrate to idel queue depending it is not actively involved in a query or notification channel
-                    console.log('should migrate socket to idle queue');
+                const rc = isInPools(item, 'created')
+                    ? this.initializer?.handleTimeout(attributes)
+                    : this.protocolManager?.handleTimeout(attributes);
+                if (rc === false) {
+                    this.migrateToPool(item, 'terminal');
+                    attributes.socket?.end();
                 }
             });
         }
@@ -262,11 +257,13 @@ export default class SocketIOManager implements ISocketIOManager {
             // todo notify "end" (do ask protocol handler to add its info to end notify)
             // todo: call something like  const aux = this.protocolManager.handleEnd(item);
             // todo: dispatch IONofityEndEVent
-            if (isInPools(item, 'created', 'idle')) {
-                this.migrateToPool(item, 'terminal');
-                this.activityEvents.end++;
-                return;
+            if (isInPools(item, 'created')) {
+                this.initializer?.handleEnd(item.value);
+            } else {
+                this.protocolManager?.handleEnd(item.value);
             }
+            this.migrateToPool(item, 'terminal');
+            this.activityEvents.end++;
         });
         // todo: send notification
         socket.on('drain', () => {
@@ -274,12 +271,12 @@ export default class SocketIOManager implements ISocketIOManager {
             attributes.ioMeta.backPressure.resolve(undefined); // pass undefined, but later maybe some other value
             console.log('/event/drain delay; %s', delay);
         });
-        socket.on('data', (buf: Uint8Array) => {
+        socket.on('data', async (buf: Uint8Array) => {
             // todo: send as notification
             console.log('/event/data received: %s', buf.byteLength);
             console.log(dump(buf));
             item.value.socket = socket;
-            const rc = self.processData(buf, item);
+            const rc = await self.processData(buf, item);
             if (rc === false) {
                 const srcPool = item.value.ioMeta.pool.current;
                 this.migrateToPool(item, 'terminal');
@@ -326,7 +323,7 @@ export default class SocketIOManager implements ISocketIOManager {
         // there is no argument for "connect" callback
         // use "once" instead of "on", sometimes connect is re-emitted after the connect happens immediatly after a socket disconnect, its weird!
         // todo: observe this occurrance again, this could have been an issue with a tsl upgrade
-        socket.once('connect', () => {
+        socket.once('connect', async () => {
             console.log('/event/connect');
             const t0 = attributes.ioMeta.time.ts;
             const t1 = self.markTime(item);
@@ -339,7 +336,7 @@ export default class SocketIOManager implements ISocketIOManager {
                 return;
             }
             // note: startup will be responsible to callback to socketIoManager to terminate connection on error
-            const rc = this.initializer.startupAfterConnect(attributes);
+            const rc = await this.initializer.startupAfterConnect(attributes);
             const t2 = self.markTime(item);
             self.updateActivityWaitTimes('iom_code', t1, t2);
             if (rc === false) {
@@ -363,12 +360,12 @@ export default class SocketIOManager implements ISocketIOManager {
             console.log('/lookup: [%o]', args);
         });
     }
-    private processData(buf: Uint8Array, item: Exclude<List<SocketAttributes>, null>): boolean {
+    private async processData(buf: Uint8Array, item: Exclude<List<SocketAttributes>, null>): Promise<boolean> {
         this.updateNetworkStats(item);
         const start = item!.value.ioMeta.time.ts;
         let rc: boolean | 'done' = false;
         if (item.value.ioMeta.pool.current === 'created') {
-            rc = this.initializer!.handleData(item, buf);
+            rc = await this.initializer!.handleData(item, buf);
             if (rc === 'done') {
                 const { current: srcPool, createdFor: targetPool } = item.value.ioMeta.pool;
                 this.migrateToPool(item, targetPool);
@@ -381,7 +378,7 @@ export default class SocketIOManager implements ISocketIOManager {
                 // todo: logger(ERR_IOMAN_NO_PROTOCOL_HANDLER);
                 return false;
             }
-            rc = this.protocolManager.binDump(item, buf);
+            rc = this.protocolManager.binDump(item.value, buf);
         }
         // other pools and states
         const stop = this.markTime(item);
@@ -459,7 +456,7 @@ export default class SocketIOManager implements ISocketIOManager {
         attr.socket = sslSocket;
         const t0 = this.markTime(item);
         this.decorate(item, extraOpt);
-        sslSocket.on('secureConnect', () => {
+        sslSocket.on('secureConnect', async () => {
             // todo log this in "notification"
             console.log('/secureConnect authorized', sslSocket.authorized);
             console.log('/secureConnect authorizationError', sslSocket.authorizationError);
@@ -470,7 +467,7 @@ export default class SocketIOManager implements ISocketIOManager {
             const t1 = this.markTime(item);
             this.updateActivityWaitTimes('sslConnect', t0, t1);
 
-            this.initializer!.startupAfterSSLConnect(attr);
+            await this.initializer!.startupAfterSSLConnect(attr);
 
             const t2 = this.markTime(item);
             this.updateActivityWaitTimes('iom_code', t1, t2);

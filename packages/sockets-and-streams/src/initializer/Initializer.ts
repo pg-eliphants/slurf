@@ -4,7 +4,7 @@ import { SocketAttributes } from '../io/types';
 import { PGConfig, SetSSLFallback } from '../protocol/types';
 import type { ISocketIOManager } from '../io/SocketIOManager';
 import ProtocolManager from '../protocol/ProtocolManager';
-import { SEND_NOT_OK } from '../io/constants';
+import { SEND_STATUS_OK, SEND_STATUS_OK_WITH_BACKPRESSURE } from '../io/constants';
 import type { GetSLLFallbackSpec } from './types';
 import { parse as parseError } from '../protocol/messages/back/ErrorResponse';
 import { parse as parseParameterStatus, ParameterStatus } from '../protocol/messages/back/ParameterStatus';
@@ -31,6 +31,8 @@ export default class Initializer implements IBaseInitializer<SocketAttributeAuxM
     ) {
         socketIoManager.setInitializer(this);
     }
+    public handleEnd(item: SocketAttributes<SocketAttributeAuxMetadata>) {}
+    public handleTimeout(item: SocketAttributes<SocketAttributeAuxMetadata>) {}
 
     // return undefined -> incomplete authentication message received wait for more data from socket
     // return true -> authentication message was processds (does not mean handshake complete)
@@ -126,7 +128,7 @@ export default class Initializer implements IBaseInitializer<SocketAttributeAuxM
         return setFallbackFn(r.config);
     }
 
-    private sendStartupMessage(socket: SocketAttributes<SocketAttributeAuxMetadata>): boolean {
+    private async sendStartupMessage(socket: SocketAttributes<SocketAttributeAuxMetadata>): Promise<boolean> {
         const r = this.protocol.requestConnectionParams();
         if ('errors' in r) {
             // TODO
@@ -140,19 +142,20 @@ export default class Initializer implements IBaseInitializer<SocketAttributeAuxM
             // return false -> end socket, remove from pool etc
             return false;
         }
-        if (this.socketIoManager.send(socket, bin) === SEND_NOT_OK) {
-            // TODO: msg not sent
-            // log error
-            // return false -> end socket, remove from pool etc
-            return false;
+        const rc = this.socketIoManager.send(socket, bin);
+        if (rc === SEND_STATUS_OK_WITH_BACKPRESSURE) {
+            await socket.ioMeta.backPressure;
         }
-        // all ok
-        socket.ioMeta.aux.startupSent = true;
-        return true;
+        if (rc === SEND_STATUS_OK) {
+            socket.ioMeta.aux.startupSent = true;
+            return true;
+        }
+        // todo: log error etc
+        return false;
     }
 
     // this is called on a "connect" event
-    public startupAfterConnect(socket: SocketAttributes<SocketAttributeAuxMetadata>): boolean {
+    public async startupAfterConnect(socket: SocketAttributes<SocketAttributeAuxMetadata>): Promise<boolean> {
         // request ssl params from ioManager
         socket.ioMeta.aux = {
             sslRequestSent: false,
@@ -182,52 +185,57 @@ export default class Initializer implements IBaseInitializer<SocketAttributeAuxM
             // return false -> end socket, remove from pool etc
             return false;
         }
-        if (this.socketIoManager.send(socket, bin) === SEND_NOT_OK) {
-            // TODO handle this error
-            // return false -> end socket, remove from pool etc
-            return false;
+        const rc = this.socketIoManager.send(socket, bin);
+        if (rc === SEND_STATUS_OK_WITH_BACKPRESSURE) {
+            await socket.ioMeta.backPressure;
         }
-        socket.ioMeta.aux.sslRequestSent = true;
-        return true;
+        if (rc === SEND_STATUS_OK) {
+            socket.ioMeta.aux.sslRequestSent = true;
+            return true;
+        }
+        // TODO handle this error
+        // return false -> end socket, remove from pool etc
+        return false;
     }
 
-    public startupAfterSSLConnect(socket: SocketAttributes<SocketAttributeAuxMetadata>): boolean {
+    public startupAfterSSLConnect(socket: SocketAttributes<SocketAttributeAuxMetadata>): Promise<boolean> {
         socket.ioMeta.aux.upgradedToSll = true;
         return this.sendStartupMessage(socket);
     }
 
-    public handleData(
+    public async handleData(
         item: Exclude<List<SocketAttributes<SocketAttributeAuxMetadata>>, null>,
         data: Uint8Array
-    ): boolean | 'done' {
+    ): Promise<boolean | 'done'> {
         // create parsing context if not exist
-        if (item.value.ioMeta.aux.parsingContext === undefined) {
-            item.value.ioMeta.aux.parsingContext = {
+        const attr = item.value;
+        if (attr.ioMeta.aux.parsingContext === undefined) {
+            attr.ioMeta.aux.parsingContext = {
                 buffer: data,
                 cursor: 0,
                 txtDecoder: this.txtDecoder
             };
         } else {
             // merge
-            const old = item.value.ioMeta.aux.parsingContext.buffer;
-            item.value.ioMeta.aux.parsingContext.buffer = new Uint8Array(old.byteLength + data.byteLength);
-            item.value.ioMeta.aux.parsingContext.buffer.set(old, 0);
-            item.value.ioMeta.aux.parsingContext.buffer.set(data, old.byteLength);
+            const old = attr.ioMeta.aux.parsingContext.buffer;
+            attr.ioMeta.aux.parsingContext.buffer = new Uint8Array(old.byteLength + data.byteLength);
+            attr.ioMeta.aux.parsingContext.buffer.set(old, 0);
+            attr.ioMeta.aux.parsingContext.buffer.set(data, old.byteLength);
         }
-        const parseCtx = item.value.ioMeta.aux.parsingContext;
+        const parseCtx = attr.ioMeta.aux.parsingContext;
         const len = data.byteLength;
 
         // seen weirder shit happen before
         if (len === 0) {
             return true;
         }
-        if (item.value.ioMeta.pool.current !== 'created') {
+        if (attr.ioMeta.pool.current !== 'created') {
             // todo:
             // log error
             // return false -> end socket, remove from pool etc
             return false;
         }
-        const aux = item.value.ioMeta.aux;
+        const aux = attr.ioMeta.aux;
         const { startupSent, sslRequestSent, upgradedToSll, authenticationOk } = aux;
         if (!startupSent && !sslRequestSent) {
             // this is sort of "out of band" data
@@ -249,7 +257,7 @@ export default class Initializer implements IBaseInitializer<SocketAttributeAuxM
                     return false;
                 }
                 parseCtx.cursor = 1;
-                return this.sendStartupMessage(item.value);
+                return this.sendStartupMessage(attr);
             }
             //'S' = 83, ok to upgrade to SSL
             else if (data[0] === 83 && len === 1) {
@@ -287,7 +295,7 @@ export default class Initializer implements IBaseInitializer<SocketAttributeAuxM
             return false;
         }
         if (!authenticationOk) {
-            const rc = this.handleAuthentication(item.value);
+            const rc = this.handleAuthentication(attr);
             if (rc === undefined) {
                 return true; // wait for more data
             }

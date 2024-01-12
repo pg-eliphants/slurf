@@ -116,13 +116,3 @@ export interface AggregateErrorConstructor {
 }
 
 export type SendingStatus = 'ok' | 'backpressure' | 'closed' | 'only-read' | 'ok-but-backpressure';
-
-export type IONotifyTimeout = {
-    type: 'timeout';
-    payload: number;
-};
-
-export type IONofityEndEvent<T = any> = {
-    type: 'end';
-    payload: { pool: Pool; aux: T };
-};

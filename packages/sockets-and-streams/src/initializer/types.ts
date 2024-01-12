@@ -21,7 +21,12 @@ export type SocketAttributeAuxMetadata = {
 };
 
 export interface IBaseInitializer<T = any> {
-    startupAfterConnect(socket: SocketAttributes<T>): boolean;
-    startupAfterSSLConnect(socket: SocketAttributes<T>): boolean;
-    handleData(item: Exclude<List<SocketAttributes<T>>, null>, data: Uint8Array): boolean | 'done';
+    startupAfterConnect(socket: SocketAttributes<T>): Promise<boolean>;
+    startupAfterSSLConnect(socket: SocketAttributes<T>): Promise<boolean>;
+    handleData(
+        item: Exclude<List<SocketAttributes<SocketAttributeAuxMetadata>>, null>,
+        data: Uint8Array
+    ): Promise<boolean | 'done'>;
+    handleEnd(item: SocketAttributes<T>);
+    handleTimeout(item: SocketAttributes<T>);
 }
