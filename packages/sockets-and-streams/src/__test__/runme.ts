@@ -13,39 +13,28 @@ import MemoryManager from '../utils/MemoryManager';
 import type { GetClientConfig, GetSLLFallbackSpec, PGConfig, SetClientConfig } from '../protocol/types';
 import Encoder from '../protocol/Encoder';
 import Initializer from '../initializer/Initializer';
-import { NFY_IOMAN_INITIAL_DONE, NFY_IOMAN_SOCKET_CONNECT_EVENT_HANDLED } from '../io/errors';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-import { IO_NAMESPACE } from '../constants';
+import { IO_NAMESPACE, IO_NAMESPACE_EVENTS } from '../constants';
 import { register } from '@mangos/debug-frontend';
 
 function test() {
     register(() => {
         return {
             send(ns: string, key: string, ...args) {
-                if (key === NFY_IOMAN_INITIAL_DONE) {
-                    console.log(
-                        key,
-                        'poolWaits & pollResidencies',
-                        ioManager.getPoolWaitTimes(),
-                        ioManager.getPoolResidencies()
-                    );
-                }
-                if (key === NFY_IOMAN_SOCKET_CONNECT_EVENT_HANDLED) {
-                    console.log(key, 'connect-handled', ioManager.getActivityWaits());
-                }
+                console.log(ns, key, ...args);
             },
             isEnabled(ns: string) {
                 switch (ns) {
                     case IO_NAMESPACE:
-                    case NFY_IOMAN_SOCKET_CONNECT_EVENT_HANDLED:
+                    case IO_NAMESPACE_EVENTS:
                         return true;
                 }
                 return false;
             }
         };
-    }, 'no-prefix');
+    });
 
     const spec: CreateSocketSpec = function (hints, setSocketCreator, allOptions) {
         setSocketCreator(createConnection);
@@ -81,7 +70,11 @@ function test() {
         network: activityTimeReducer,
         iom_code: activityTimeReducer,
         connect: activityTimeReducer,
-        sslConnect: activityTimeReducer
+        sslConnect: activityTimeReducer,
+        finish: activityTimeReducer,
+        end: activityTimeReducer,
+        close: activityTimeReducer,
+        drained: activityTimeReducer
     };
     const reduceTimeToPoolBins: PoolTimeBins = {
         vis: activityTimeReducer,

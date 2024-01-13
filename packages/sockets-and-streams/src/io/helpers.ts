@@ -22,11 +22,13 @@ export function validatePGSSLConfig(config?: PGSSLConfig): { errors: Error[] } |
 export class PromiseExtended extends Promise<undefined> {
     public resolve: (value: undefined | PromiseLike<undefined>) => void;
     public reject: (value: undefined | PromiseLike<undefined>) => void;
-    constructor(resolveNow: boolean) {
+    constructor(resolveNow: boolean, p: ((value: PromiseLike<undefined> | undefined) => void)[] = []) {
         super((resolve, reject) => {
-            this.resolve = resolve;
-            this.reject = reject;
+            p.push(resolve);
+            p.push(reject);
         });
+        this.reject = p[1];
+        this.resolve = p[0];
         if (resolveNow) {
             this.resolve(undefined);
         }

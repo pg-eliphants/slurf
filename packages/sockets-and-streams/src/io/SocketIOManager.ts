@@ -47,9 +47,7 @@ import {
     NFY_IOMAN_SOCKET_CONNECT_EVENT_HANDLED,
     ERR_IOMAN_NO_PROTOCOL_HANDLER
 } from '../tail/errors';
-import { IO_NAMESPACE } from '../constants';
-
-// const logger = createNS(IO_NAMESPACE);
+import { IO_NAMESPACE, IO_NAMESPACE_EVENTS } from '../constants';
 
 export interface ISocketIOManager<T = any> {
     setProtocolManager(protocolMngr: ProtocolManager): void;
@@ -74,8 +72,8 @@ export interface ISocketIOManager<T = any> {
     upgradeToSSL(item: Exclude<List<SocketAttributes>, null>);
 }
 
-const debug = createNS('io-manager');
-const trace = createNS('io-manager/events');
+const debug = createNS(IO_NAMESPACE);
+const trace = createNS(IO_NAMESPACE_EVENTS);
 
 export default class SocketIOManager implements ISocketIOManager {
     // pools
