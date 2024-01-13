@@ -54,6 +54,7 @@ export type ActivityCountBins = {
 };
 
 export type MetaSocketAttr<T> = {
+    id: number; // unique uuid for socket
     jitter: number; // random delay in ms when connecting
     pool: {
         createdFor: PoolFirstResidence;

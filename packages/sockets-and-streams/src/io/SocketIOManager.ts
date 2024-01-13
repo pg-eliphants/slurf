@@ -74,6 +74,9 @@ export interface ISocketIOManager<T = any> {
     upgradeToSSL(item: Exclude<List<SocketAttributes>, null>);
 }
 
+const debug = createNS('io-manager');
+const trace = createNS('io-manager/events');
+
 export default class SocketIOManager implements ISocketIOManager {
     // pools
     // pools
@@ -95,6 +98,8 @@ export default class SocketIOManager implements ISocketIOManager {
 
     private initializer: Initializer | null;
 
+    private socketId: number;
+
     constructor(
         private readonly crfn: CreateSocketSpec,
         private readonly sslcrfn: CreateSSLSocketSpec,
@@ -103,6 +108,7 @@ export default class SocketIOManager implements ISocketIOManager {
         private readonly reduceTimeToPoolBins: PoolTimeBins,
         private readonly reduceTimeToActivityBins: ActivityTimeBins // how are we going to do this?
     ) {
+        this.socketId = 1;
         this.residencies = {
             active: null,
             vis: null,
@@ -209,6 +215,7 @@ export default class SocketIOManager implements ISocketIOManager {
     ) {
         const attributes = item.value;
         const socket = attributes.socket!;
+        const id = attributes.ioMeta.id;
         // Writable
         const self = this;
         // finish event indicates that after this side "end()" pun the steam
@@ -220,44 +227,44 @@ export default class SocketIOManager implements ISocketIOManager {
         // by definition do not keep writing data after you have ended the stream yourself ofc
         // to only action to be taken here is log the time it took from the last network transmit (send) to when this event occurred
         socket.on('finish', () => {
+            const pool = attributes.ioMeta.pool.current;
             this.updateNetworkStats(item, 'finish');
+            trace('finish', id, pool);
         });
         if (otherOptions.timeout) {
             const timeOut = otherOptions.timeout;
             socket.setTimeout(timeOut);
             socket.on('timeout', () => {
                 socket.setTimeout(timeOut);
-                if (attributes.ioMeta.pool.current === 'idle') {
-                    attributes.ioMeta.idleCounts = 0; // idling sockets are idle so ofc they will get timeouts
+                const pool = attributes.ioMeta.pool.current;
+                trace('timeout', id, pool);
+                if (pool === 'idle') {
+                    // idling sockets are idle so ofc they will get timeouts
+                    attributes.ioMeta.idleCounts = 0;
                     return;
                 }
                 attributes.ioMeta.idleCounts++;
                 this.activityEvents.idle++;
-                // todo: fire notification idle event
-                // todo: check if we should migrate to some queue
-                // todo: remove below debugging logic
-                // todo: pass this on to protocolhandler
-                const rc = isInPools(item, 'created')
-                    ? this.initializer?.handleTimeout(attributes)
-                    : this.protocolManager?.handleTimeout(attributes);
+                const rc =
+                    pool === 'created'
+                        ? this.initializer?.handleTimeout(attributes)
+                        : this.protocolManager?.handleTimeout(attributes);
                 if (rc === false) {
                     this.migrateToPool(item, 'terminal');
-                    attributes.socket?.end();
+                    attributes.socket!.end();
                 }
             });
         }
-        // todo: send notification
         socket.on('end', () => {
+            const pool = attributes.ioMeta.pool.current;
+            trace('end', id, pool);
             this.updateNetworkStats(item, 'end');
             if (socket.writableEnded) {
                 // was intentional on our side
                 this.migrateToPool(item, 'terminal');
                 return;
             }
-            // todo notify "end" (do ask protocol handler to add its info to end notify)
-            // todo: call something like  const aux = this.protocolManager.handleEnd(item);
-            // todo: dispatch IONofityEndEVent
-            if (isInPools(item, 'created')) {
+            if (pool === 'created') {
                 this.initializer?.handleEnd(item.value);
             } else {
                 this.protocolManager?.handleEnd(item.value);
@@ -267,14 +274,14 @@ export default class SocketIOManager implements ISocketIOManager {
         });
         // todo: send notification
         socket.on('drain', () => {
+            const pool = attributes.ioMeta.pool.current;
+            trace('drain', id, pool);
             this.updateActivityWaitTimes('drained', this.now(), attributes.ioMeta.lastWriteTs);
-            attributes.ioMeta.backPressure.resolve(undefined); // pass undefined, but later maybe some other value
-            console.log('/event/drain delay; %s', delay);
+            attributes.ioMeta.backPressure.resolve(undefined);
         });
         socket.on('data', async (buf: Uint8Array) => {
-            // todo: send as notification
-            console.log('/event/data received: %s', buf.byteLength);
-            console.log(dump(buf));
+            const pool = attributes.ioMeta.pool.current;
+            trace('data', id, buf, pool);
             item.value.socket = socket;
             const rc = await self.processData(buf, item);
             if (rc === false) {
@@ -287,104 +294,116 @@ export default class SocketIOManager implements ISocketIOManager {
         });
         //todo: should be in global statistics
         socket.on('error', (err: Error & NodeJS.ErrnoException) => {
-            // todo: if readyState = 'closed' then migrate socket to terminal queue (if not already in terminal queue)
-            // todo: mark socket for termination
-            // todo: if it is not already in terminal pool put it there
+            const pool = attributes.ioMeta.pool.current;
+            const rc =
+                pool === 'created'
+                    ? this.initializer?.handleError(item.value, err)
+                    : this.protocolManager?.handleError(item.value, err);
             this.activityEvents.error++;
-            console.log('/event/error');
-            console.log('/event/error/endreadableEnded', socket.readableEnded); // start teardown
-            console.log('/event/error/writableEnded', socket.writableEnded); // flush buffers
-            console.log('/event/error/writableFinished', socket.writableFinished);
-            if (err.syscall) {
-                // todo: log error
-                console.log('/error occurred [%o]:', { syscall: err.syscall, name: err.name, code: err.code });
-                return;
-            }
-            if (isAggregateError(err)) {
-                const prunedErrors = Array.from(err.errors).map((err: Error) => ({
-                    message: String(err)
-                }));
-                // todo: log error
-                console.log('/error occurred [%o]:', prunedErrors);
+
+            const error = err.syscall
+                ? { syscall: err.syscall, name: err.name, code: err.code }
+                : isAggregateError(err)
+                ? Array.from(err.errors).map((err: Error) => ({ message: String(err) }))
+                : undefined;
+            trace('error', id, error || err, pool);
+
+            if (rc === false) {
+                /*
+                    WritableEnded    closed      action
+                    F                  F         end(), move to terminal
+                    X                  T         move to terminal
+                    T                  F         move to terminal
+                */
+                // upper layer want to terminate if connection is still open
+                this.migrateToPool(item, 'terminal');
+                const closed = socket.closed;
+                const writableEnded = socket.writableEnded;
+                if (!writableEnded && !closed) {
+                    socket.end();
+                }
             }
         });
         //
         socket.on('close', (hadError) => {
+            const pool = attributes.ioMeta.pool.current;
             this.updateNetworkStats(item, 'close');
-            console.log('/event/close');
-            console.log('/event/close/endreadableEnded', socket.readableEnded); // start teardown
-            console.log('/event/close/writableEnded', socket.writableEnded); // flush buffers
-            console.log('/event/close/writableFinished', socket.writableFinished);
-            // todo: mark socket for termination
-            // todo: if it is not already in terminal pool put it there
-            // todo: log event
-            console.log('/close: hadError: [%s]', hadError);
+            trace('close', id, hadError, pool);
+            if (pool === 'created') {
+                this.initializer?.handleClose(item.value);
+            } else {
+                this.protocolManager?.handleClose(item.value);
+            }
+            this.migrateToPool(item, 'terminal');
+            // todo: clean up socket, release resources, update global state
         });
         // there is no argument for "connect" callback
         // use "once" instead of "on", sometimes connect is re-emitted after the connect happens immediatly after a socket disconnect, its weird!
         // todo: observe this occurrance again, this could have been an issue with a tsl upgrade
         socket.once('connect', async () => {
-            console.log('/event/connect');
+            trace('connect', id);
             const t0 = attributes.ioMeta.time.ts;
             const t1 = self.markTime(item);
             self.updateActivityWaitTimes('connect', t0, t1);
             if (!this.initializer) {
-                // todo: [m] replace with bound logger
-                // logger(ERR_IOMAN_NO_INTIALIZER, 'connect');
-                socket.end();
+                trace('connect', id, 'no-intializer');
+                socket.destroy();
                 this.migrateToPool(item, 'terminal');
                 return;
             }
-            // note: startup will be responsible to callback to socketIoManager to terminate connection on error
             const rc = await this.initializer.startupAfterConnect(attributes);
             const t2 = self.markTime(item);
             self.updateActivityWaitTimes('iom_code', t1, t2);
             if (rc === false) {
-                // todo; notigy
-                // logger(ERR_IOMAN_INTIALIZE_FAIL);
+                trace('connect', id, 'initializer-fail');
                 socket.end();
                 this.migrateToPool(item, 'terminal');
                 return;
             }
-            // todo; notify
-            // logger(NFY_IOMAN_SOCKET_CONNECT_EVENT_HANDLED);
+            trace('connect', id, 'ok');
         });
         // use "once" instead of "on", sometimes connect is re-emitted after the connect happens immediatly after a socket disconnect, its weird!
         // todo, validate this again
         // what is the order 'connect','lookup', 'ready' document please for linux and windows
         socket.once('ready', (...args: unknown[]) => {
-            console.log('/ready: [%o]', args);
+            trace('ready', id, args);
         });
         //
         socket.on('lookup', (...args: unknown[]) => {
-            console.log('/lookup: [%o]', args);
+            trace('lookup', id, args);
         });
     }
     private async processData(buf: Uint8Array, item: Exclude<List<SocketAttributes>, null>): Promise<boolean> {
         this.updateNetworkStats(item);
-        const start = item!.value.ioMeta.time.ts;
+        const {
+            value: {
+                ioMeta: {
+                    id,
+                    time: { ts: start },
+                    pool: { current: pool }
+                }
+            }
+        } = item;
         let rc: boolean | 'done' = false;
-        if (item.value.ioMeta.pool.current === 'created') {
+        if (pool === 'created') {
             rc = await this.initializer!.handleData(item, buf);
             if (rc === 'done') {
                 const { current: srcPool, createdFor: targetPool } = item.value.ioMeta.pool;
                 this.migrateToPool(item, targetPool);
-                // todo: logger(NFY_IOMAN_INITIAL_DONE);
+                const stop = this.markTime(item);
+                this.updateActivityWaitTimes('iom_code', start, stop);
+                debug('processData', id, 'initializer-done');
                 return true;
             }
             return rc;
-        } else {
-            if (this.protocolManager === null) {
-                // todo: logger(ERR_IOMAN_NO_PROTOCOL_HANDLER);
-                return false;
-            }
-            rc = this.protocolManager.binDump(item.value, buf);
         }
-        // other pools and states
+        if (this.protocolManager === null) {
+            debug('err', id, 'absent-protocol-manager');
+            return false;
+        }
+        rc = this.protocolManager.binDump(item.value, buf);
         const stop = this.markTime(item);
         this.updateActivityWaitTimes('iom_code', start, stop);
-        // todo: log this as trace info
-        console.log('after data received and processes, activityWaits:[%o]', this.activityWaits);
         return rc;
     }
     private normalizeExtraOptions(extraOpt?: SocketOtherOptions): SocketOtherOptions {
@@ -439,6 +458,7 @@ export default class SocketIOManager implements ISocketIOManager {
 
     public upgradeToSSL(item: Exclude<List<SocketAttributes>, null>) {
         const attr = item.value;
+        const id = attr.ioMeta.id;
         // we already checked this during "init"
         const { createSSLConnection, conOpt } = this.getSLLSocketClassAndOptions(attr.ioMeta.pool.createdFor) as {
             createSSLConnection: CreateSLLConnection;
@@ -457,13 +477,7 @@ export default class SocketIOManager implements ISocketIOManager {
         const t0 = this.markTime(item);
         this.decorate(item, extraOpt);
         sslSocket.on('secureConnect', async () => {
-            // todo log this in "notification"
-            console.log('/secureConnect authorized', sslSocket.authorized);
-            console.log('/secureConnect authorizationError', sslSocket.authorizationError);
-            // for debugging
-            // const certificate = sslSocket.getPeerCertificate();
-            // console.log('/cerficate', certificate);
-            //
+            trace('secureConnect', id, sslSocket.authorized, sslSocket.authorizationError);
             const t1 = this.markTime(item);
             this.updateActivityWaitTimes('sslConnect', t0, t1);
 
@@ -473,12 +487,10 @@ export default class SocketIOManager implements ISocketIOManager {
             this.updateActivityWaitTimes('iom_code', t1, t2);
         });
         sslSocket.on('tlsClientError', (exception: Error) => {
-            // todo should we terminate the socket?
-            console.error('/tlsClientError', exception);
+            trace('tlsClientError', id, exception);
         });
         sslSocket.on('error', (error: Error) => {
-            // todo:  // todo should we terminate the socket?
-            console.error('/ssl/error:', String(error));
+            trace('errorssl', id, error);
         });
     }
     //
@@ -570,6 +582,7 @@ export default class SocketIOManager implements ISocketIOManager {
 
     public send(attributes: SocketAttributes, bin: Uint8Array): SendingStatus {
         const socket = attributes.socket!;
+        const id = attributes.ioMeta.id;
         if (socket.closed) {
             return SEND_STATUS_CLOSED; // this socket is closed
         }
@@ -585,7 +598,7 @@ export default class SocketIOManager implements ISocketIOManager {
             attributes.ioMeta.backPressure = createResolvePromiseExtended(rc);
             attributes.ioMeta.lastWriteTs = this.now();
         }
-        console.log('sending:', dump(bin));
+        debug('sending', id, bin);
         return rc === true ? SEND_STATUS_OK : SEND_STATUS_OK_WITH_BACKPRESSURE; // return OK status
     }
 
@@ -647,6 +660,7 @@ export default class SocketIOManager implements ISocketIOManager {
         const attributes: SocketAttributes = {
             socket,
             ioMeta: {
+                id: this.socketId++,
                 jitter,
                 pool: {
                     placementTime,

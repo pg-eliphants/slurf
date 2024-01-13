@@ -27,6 +27,8 @@ export interface IBaseInitializer<T = any> {
         item: Exclude<List<SocketAttributes<SocketAttributeAuxMetadata>>, null>,
         data: Uint8Array
     ): Promise<boolean | 'done'>;
-    handleEnd(item: SocketAttributes<T>);
-    handleTimeout(item: SocketAttributes<T>);
+    handleEnd(item: SocketAttributes<T>): boolean;
+    handleTimeout(item: SocketAttributes<T>): boolean;
+    handleError(item: SocketAttributes<T>, err: Error & NodeJS.ErrnoException): boolean;
+    handleClose(item: SocketAttributes<SocketAttributeAuxMetadata>): void;
 }

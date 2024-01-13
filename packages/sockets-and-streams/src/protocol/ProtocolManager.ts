@@ -13,11 +13,22 @@ export default class ProtocolManager {
     }
 
     handleTimeout(item: SocketAttributes<SocketAttributeAuxMetadata>): boolean {
-        return true;
+        return true; // handler does not want connection explicitly terminated
     }
 
     public handleEnd(item: SocketAttributes<SocketAttributeAuxMetadata>): boolean {
-        return true;
+        return true; // handler does not want connection explicitly terminated
+    }
+
+    public handleError(
+        item: SocketAttributes<SocketAttributeAuxMetadata>,
+        err: Error & NodeJS.ErrnoException
+    ): boolean {
+        return true; // handler does not want connection explicitly terminated
+    }
+
+    public handleClose(item: SocketAttributes<SocketAttributeAuxMetadata>): void {
+        return;
     }
 
     public binDump(item: SocketAttributes<SocketAttributeAuxMetadata>, data: Uint8Array): boolean {

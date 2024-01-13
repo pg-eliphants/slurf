@@ -31,8 +31,16 @@ export default class Initializer implements IBaseInitializer<SocketAttributeAuxM
     ) {
         socketIoManager.setInitializer(this);
     }
-    public handleEnd(item: SocketAttributes<SocketAttributeAuxMetadata>) {}
-    public handleTimeout(item: SocketAttributes<SocketAttributeAuxMetadata>) {}
+    public handleEnd(item: SocketAttributes<SocketAttributeAuxMetadata>) {
+        return true;
+    }
+    public handleTimeout(item: SocketAttributes<SocketAttributeAuxMetadata>) {
+        return true;
+    }
+    public handleError(item: SocketAttributes<SocketAttributeAuxMetadata>, err: Error & NodeJS.ErrnoException) {
+        return true;
+    }
+    public handleClose(item: SocketAttributes<SocketAttributeAuxMetadata>) {}
 
     // return undefined -> incomplete authentication message received wait for more data from socket
     // return true -> authentication message was processds (does not mean handshake complete)
