@@ -5,7 +5,7 @@ export default class Jitter {
         private readonly max = 1
     ) {}
     public getRandom(): number {
-        return this.min + 1e3 * this.random() * (this.max - this.min);
+        return 0; //this.min + 1e3 * this.random() * (this.max - this.min);
     }
 }
 

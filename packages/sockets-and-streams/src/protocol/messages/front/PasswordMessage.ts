@@ -14,5 +14,5 @@ import type { MemoryErrors } from '../../types';
 import { PASSWORD_RESPONSE } from './constants';
 
 export default function createPasswordResponse(encoder: Encoder, passwordEncrypted: string): Uint8Array | undefined {
-    return encoder.init('4096').nextMessage(PASSWORD_RESPONSE)?.cstr(passwordEncrypted)?.setLenght().getMessage();
+    return encoder.init('4096').nextMessage(PASSWORD_RESPONSE)?.cstr(passwordEncrypted)?.setLength().getMessage();
 }

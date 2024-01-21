@@ -10,5 +10,5 @@ import type Encoder from '../../Encoder';
 import { FLUSH } from './constants';
 
 export default function createExecuteMessage(encoder: Encoder): Uint8Array | undefined {
-    return encoder.init('128').nextMessage(FLUSH)?.setLenght().getMessage();
+    return encoder.init('128').nextMessage(FLUSH)?.setLength().getMessage();
 }

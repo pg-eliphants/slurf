@@ -26,6 +26,6 @@ export default function createCloseMessage(
         .nextMessage(CLOSE)
         ?.ui8(isPreparedStatement ? S : P)
         ?.cstr(name)
-        ?.setLenght()
+        ?.setLength()
         .getMessage();
 }

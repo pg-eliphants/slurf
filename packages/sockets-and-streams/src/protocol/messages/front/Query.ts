@@ -22,5 +22,5 @@ export default function createQueryMessage(encoder: Encoder, sql: string): Uint8
     if (memSize > MAX_MEM_BLOCK_SIZE) {
         return ERR_MEM_MAX_EXCEEDED;
     }
-    return encoder.init(mc).nextMessage(QUERY)?.cstr(sql)?.setLenght().getMessage();
+    return encoder.init(mc).nextMessage(QUERY)?.cstr(sql)?.setLength().getMessage();
 }

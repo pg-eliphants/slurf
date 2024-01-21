@@ -7,6 +7,8 @@ import type { ParseContext, Notifications } from '../protocol/messages/back/type
 import type { List } from '../utils/list';
 export type SocketAttributeAuxMetadata = {
     sslRequestSent: boolean;
+    sslReplyReceived: boolean;
+    //
     startupSent: boolean;
     upgradedToSll: boolean;
     authenticationOk: boolean;
@@ -17,7 +19,8 @@ export type SocketAttributeAuxMetadata = {
     cancelSecret?: number;
     runtimeParameters: Record<string, string>;
     parsingContext?: ParseContext;
-    error: null | Notifications;
+    errors: Notifications[];
+    notices: Notifications[];
 };
 
 export interface IBaseInitializer<T = any> {

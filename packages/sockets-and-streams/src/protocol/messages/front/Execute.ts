@@ -21,6 +21,6 @@ export default function createExecuteMessage(encoder: Encoder, name?: string, ma
         .nextMessage(EXECUTE)
         ?.cstr(name)
         ?.i32(maxRows ?? 0)
-        ?.setLenght()
+        ?.setLength()
         .getMessage();
 }

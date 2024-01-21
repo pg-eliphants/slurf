@@ -270,7 +270,6 @@ export default class SocketIOManager implements ISocketIOManager {
             this.migrateToPool(item, 'terminal');
             this.activityEvents.end++;
         });
-        // todo: send notification
         socket.on('drain', () => {
             const pool = attributes.ioMeta.pool.current;
             trace('drain', id, pool);
@@ -303,8 +302,8 @@ export default class SocketIOManager implements ISocketIOManager {
                 ? { syscall: err.syscall, name: err.name, code: err.code }
                 : isAggregateError(err)
                 ? Array.from(err.errors).map((err: Error) => ({ message: String(err) }))
-                : undefined;
-            trace('error', id, error || err, pool);
+                : err.message;
+            trace('error', id, error, pool);
 
             if (rc === false) {
                 /*
@@ -335,7 +334,6 @@ export default class SocketIOManager implements ISocketIOManager {
             this.migrateToPool(item, 'terminal');
             // todo: clean up socket, release resources, update global state
         });
-        // there is no argument for "connect" callback
         // use "once" instead of "on", sometimes connect is re-emitted after the connect happens immediatly after a socket disconnect, its weird!
         // todo: observe this occurrance again, this could have been an issue with a tsl upgrade
         socket.once('connect', async () => {
@@ -345,7 +343,7 @@ export default class SocketIOManager implements ISocketIOManager {
             self.updateActivityWaitTimes('connect', t0, t1);
             if (!this.initializer) {
                 trace('connect', id, 'no-intializer');
-                socket.destroy();
+                socket.end();
                 this.migrateToPool(item, 'terminal');
                 return;
             }
@@ -457,7 +455,7 @@ export default class SocketIOManager implements ISocketIOManager {
     public upgradeToSSL(item: Exclude<List<SocketAttributes>, null>) {
         const attr = item.value;
         const id = attr.ioMeta.id;
-        // we already checked this during "init"
+        // we already checked this during "startupAfterConnect"
         const { createSSLConnection, conOpt } = this.getSLLSocketClassAndOptions(attr.ioMeta.pool.createdFor) as {
             createSSLConnection: CreateSLLConnection;
             conOpt: PGSSLConfig;

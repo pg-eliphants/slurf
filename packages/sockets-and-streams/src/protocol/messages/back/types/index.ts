@@ -13,10 +13,10 @@ export type Parse<T> = (ctx: ParseContext) => null | false | undefined | T;
 export type MessageState = 'undec' | 'is' | 'not' | 'error';
 
 export type CopyResponse = {
-    isText : boolean;
+    isText: boolean;
     numCol: number;
     formatCodes: number[];
-}
+};
 
 export type NotificationAndErrorFields =
     | 'S'

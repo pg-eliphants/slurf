@@ -84,5 +84,5 @@ export default function createBindMessage(
             : 1
     );
 
-    return encoder.setLenght().getMessage();
+    return encoder.setLength().getMessage();
 }

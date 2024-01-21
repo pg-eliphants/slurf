@@ -34,7 +34,6 @@ export function parse(ctx: ParseContext): undefined | false | BackendKeyData {
     if (matched === MSG_UNDECIDED) {
         return undefined;
     }
-    const len = messageLength(buffer, cursor);
     const bkd = {
         pid: i32(buffer, cursor + 5),
         secret: i32(buffer, 9)

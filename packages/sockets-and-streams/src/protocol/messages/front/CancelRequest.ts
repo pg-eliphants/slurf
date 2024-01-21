@@ -19,5 +19,5 @@ export default function createCancelRequestMessage(
     processId: number,
     backendKey: number
 ): Uint8Array | undefined {
-    return encoder.init('64').nextMessage()?.i32(80877102)?.i32(processId)?.i32(backendKey)?.setLenght().getMessage();
+    return encoder.init('64').nextMessage()?.i32(80877102)?.i32(processId)?.i32(backendKey)?.setLength().getMessage();
 }

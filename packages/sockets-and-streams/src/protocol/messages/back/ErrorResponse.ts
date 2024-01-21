@@ -36,7 +36,7 @@ export function parse(ctx: ParseContext): null | undefined | false | Notificatio
     const endPosition = messageLength(buffer, cursor) + cursor;
     const fields = { ...noticationsTemplate };
     for (let pos = cursor + 5; pos < endPosition; ) {
-        const type = String.fromCharCode(buffer[pos]) as (NotificationAndErrorFields | '\x00');
+        const type = String.fromCharCode(buffer[pos]) as NotificationAndErrorFields | '\x00';
         if (type === '\x00') {
             // termination
             if (pos === endPosition - 1) {

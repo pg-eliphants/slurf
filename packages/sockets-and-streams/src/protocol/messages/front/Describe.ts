@@ -29,5 +29,5 @@ export default function createDescribeMessage(
         .nextMessage(DESCRIBE)
         ?.ui8(isPreparedSt ? 83 : 80)
         ?.cstr(name);
-    return encoder.setLenght().getMessage();
+    return encoder.setLength().getMessage();
 }
