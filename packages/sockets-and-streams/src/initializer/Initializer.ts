@@ -41,7 +41,7 @@ import { addBufferToParseContext, bytesLeft, createParseContext } from './helper
 import { IBaseInitializer, SocketAttributeAuxMetadata } from './types';
 import createNS from '@mangos/debug-frontend';
 import { INITIALIZER, INITIALIZER_EVENTS } from '../constants';
-
+import { ErrorEventCodeType, ErrorEventStore } from '../journal/types';
 const debug = createNS(INITIALIZER);
 const trace = createNS(INITIALIZER_EVENTS);
 
@@ -66,46 +66,102 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
     }
     public handleClose(item: SocketAttributes<SocketAttributeAuxMetadata>) {}
 
-    // when socket connected (non ssl), data is received (not good)
-    // handle this situation
-    private handleNoticeAndErrorResponseAndBinaryLeftOver(attr: SocketAttributes<SocketAttributeAuxMetadata>): number {
+    private optionallyHandleUnprocessedBinary(ctx: ParseContext): Uint8Array | false {
+        if (!bytesLeft(ctx)) {
+            return false;
+        }
+        return ctx.buffer.slice(ctx.cursor);
+    }
+
+    private optionallyHandleErrorAndNoticeResponse(ctx: ParseContext): null | undefined | false | Notifications[] {
+        const collect: Notifications[] = [];
+        for (;;) {
+            const rcErr = parseError(ctx);
+            if (rcErr === undefined) {
+                return undefined;
+            }
+            if (rcErr === null) {
+                return null;
+            }
+            if (rcErr !== false) {
+                collect.push(rcErr);
+                continue;
+            }
+            // here rcErr === false
+            const rcNotice = parseNoticeResponse(ctx);
+            if (rcNotice === undefined) {
+                return undefined;
+            }
+            if (rcNotice === null) {
+                return null;
+            }
+            if (rcNotice !== false) {
+                collect.push(rcNotice);
+                continue;
+            }
+            break;
+        }
+        if (collect.length === 0) {
+            return false;
+        }
+        return collect;
+    }
+
+    private handleNoticeAndErrorResponseAndBinaryLeftOver<
+        TName extends ErrorEventCodeType,
+        TStore extends ErrorEventStore<TName>
+    >(attr: SocketAttributes<SocketAttributeAuxMetadata>, code: TName, store: TStore): number {
         // server sends me stuff before I send it any data
         // is it an error?
         const ctx = attr.ioMeta.aux.parsingContext!;
-        {
+        const collect: (Notifications | Uint8Array)[] = [];
+        let errno = 0;
+        for (;;) {
             const rcErr = parseError(ctx);
             if (rcErr === undefined) {
-                return true; //  wait for more data
+                errno = 1;
+                break; //  wait for more data
             }
             if (rcErr === null) {
-                // it was an error but malformed message
-                // todo: log globally errno: socket_id, bin-data, cursor
-                return false; // close socket
+                errno = 4;
+                break; // will collect data as raw binary
             }
             if (rcErr !== false) {
-                // todo: log-globally: socket_id, errorMessage
+                collect.push(rcErr);
+                errno = 2;
+                continue;
             }
-        }
-        // is there also a NotifyMessage?
-        {
+            // here rcErr === false
             const rcNotice = parseNoticeResponse(ctx);
             if (rcNotice === undefined) {
-                return true;
+                return 1;
             }
             if (rcNotice === null) {
-                // it was an error but malformed message
-                // todo: log globally errno: socket_id, bin-data, cursor
-                return false; // close socket
+                errno = 4;
+                break; // collect data as raw binary
             }
             if (rcNotice !== false) {
-                // todo: log-globally: socket_id, errorMessage
+                collect.push(rcNotice);
+                errno = 2;
+                continue;
             }
+            // here rcErr === false
+            break;
         }
-        if (bytesLeft(ctx)) {
-            // todo: log-globally: socket_id, bytesLeft
-            // global: err: context | errorResponse, NoticeResponse, bin, socket_id,
+        if (errno === 1 || errno === 0) {
+            return errno;
         }
-        return false; // close this socket
+        if (errno === 2) {
+            if (bytesLeft(ctx)) {
+                collect.push(ctx.buffer.slice(ctx.cursor, ctx.buffer.byteLength));
+            }
+            // todo: send "collect" to the journal with "code" and "store"
+        }
+        if (errno === 4) {
+            collect.push(ctx.buffer.slice(ctx.cursor, ctx.buffer.byteLength));
+            // todo: send "collect" to the journal with "code" and "store"
+        }
+        return 2; // close this socket
     }
     // handle SSLRespone to SSLRequest Sent
     private async handleSSLResponse(attr: SocketAttributes<SocketAttributeAuxMetadata>) {
@@ -329,7 +385,8 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
 
         // no handshake was ever initiated but pg-server sent us data
         if (!startupSent && !sslRequestSent) {
-            this.handleNoticeAndErrorResponseAndBinaryLeftOver(attr);
+            const bin = this.optionallyHandleUnprocessedBinary(aux.parsingContext) as Uint8Array;
+            // todo: this.journal.protocolError(bin)
             return false;
         }
         // sslRequest Sent but no answer received yes,
@@ -351,7 +408,9 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
                 // return false -> end socket, remove from pool etc
                 return false;
             }
-            this.handleNoticeAndErrorResponseAndBinaryLeftOver(attr);
+            const bin = this.optionallyHandleUnprocessedBinary(aux.parsingContext) as Uint8Array;
+            // todo: this.journal.protocolError(bin)
+            return false;
             return false;
         }
 
@@ -362,7 +421,8 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
         //
         if (startupSent === false) {
             // somehow we got data after/while ending the socket
-            this.handleNoticeAndErrorResponseAndBinaryLeftOver(attr);
+            const bin = this.optionallyHandleUnprocessedBinary(aux.parsingContext) as Uint8Array;
+            // todo: this.journal.protocolError(bin)
             return false;
         }
 
@@ -380,7 +440,8 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
                 // 1. it is an authentication message but malformed
                 // 2. it was not an authentication message (maybe error/notice response)
                 // context "authentication"
-                this.handleNoticeAndErrorResponseAndBinaryLeftOver(attr);
+                const bin = this.optionallyHandleUnprocessedBinary(aux.parsingContext) as Uint8Array;
+                // todo: this.journal.protocolError(bin)
                 return false;
             }
             if (rc === 'done') {
@@ -406,7 +467,8 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
             if (idx < 0) {
                 // context: forbidden message, after Authok received
                 // todo: log error globally
-                this.handleNoticeAndErrorResponseAndBinaryLeftOver(attr);
+                const bin = this.optionallyHandleUnprocessedBinary(aux.parsingContext) as Uint8Array;
+                // todo: this.journal.protocolError(bin)
                 return false;
             }
             // 83, 'S' param status
@@ -420,8 +482,8 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
                     return true; // wait for more data to arrive
                 }
                 if (response === null) {
-                    // todo: global context: "param status" after authenOk
-                    this.handleNoticeAndErrorResponseAndBinaryLeftOver(attr);
+                    const bin = this.optionallyHandleUnprocessedBinary(aux.parsingContext) as Uint8Array;
+                    // todo: this.journal.protocolError(bin)
                     return false;
                 }
                 aux.runtimeParameters[response.name] = response.value;
@@ -438,8 +500,8 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
                     return true; // wait for more data to arrive
                 }
                 if (response === null) {
-                    // todo: global context: "ready for query" after authenOk
-                    this.handleNoticeAndErrorResponseAndBinaryLeftOver(attr);
+                    const bin = this.optionallyHandleUnprocessedBinary(aux.parsingContext) as Uint8Array;
+                    // todo: this.journal.protocolError(bin)
                     return false;
                 }
                 aux.readyForQuery = response;
@@ -463,13 +525,20 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
                 aux.cancelSecret = response.secret;
                 continue;
             }
-            // error or notice
-            const rc = this.handleNoticeAndErrorResponseAndBinaryLeftOver(attr);
-            if (!(rc & 4)) {
-                // todo: log error: context: before R4Q
+            // we have error and notice
+            const response = this.optionallyHandleErrorAndNoticeResponse(aux.parsingContext);
+            // partial message received
+            if (response === undefined) {
+                return true;
+            }
+            if (response === null) {
+                const bin = this.optionallyHandleUnprocessedBinary(aux.parsingContext) as Uint8Array;
+                // todo: this.journal.protocolError(bin)
                 return false;
             }
-        } // for
+            // todo: this.journal.handleNotices(response)
+            continue;
+        } // while
         // state:
         //  ready4Query: true
         //  startupSent: true
@@ -480,13 +549,17 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
         //  at this point we consume:
         //      "parameter status(es)", "backend key" data, and "ready for query",
         // if there is data left, error
-        if (bytesLeft(aux.parsingContext!)) {
-            const rc = this.handleNoticeAndErrorResponseAndBinaryLeftOver(attr);
-            if (!(rc & 4)) {
-                // todo: log error: context: just after R4Q,
-                return false;
-            }
+        const response = this.optionallyHandleErrorAndNoticeResponse(aux.parsingContext);
+        // partial message received
+        if (response === undefined) {
+            return true;
         }
+        if (response === null || response === false) {
+            const bin = this.optionallyHandleUnprocessedBinary(aux.parsingContext) as Uint8Array;
+            // todo: this.journal.protocolError(bin)
+            return false;
+        }
+        // todo: this.journal.handleNotices(response)
         return 'done';
     }
 }
