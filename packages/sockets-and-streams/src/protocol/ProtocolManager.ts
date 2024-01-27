@@ -3,13 +3,27 @@ import { SocketAttributes } from '../io/types';
 import { GetClientConfig, PGConfig, SetClientConfig } from './types';
 import { normalizePGConfig, validatePGConnectionParams } from './helpers';
 import { SocketAttributeAuxMetadata } from '../initializer/types';
+import { JournalFactory, Journal } from '../journal';
+
+export function ProtocolManagerFactory(getClientConfig: GetClientConfig) {
+    return function newProtocolManager(
+        socketIoManager: SocketIOManager,
+        journalFactory: ReturnType<typeof JournalFactory>
+    ) {
+        return new ProtocolManager(socketIoManager, getClientConfig, journalFactory);
+    };
+}
 
 export default class ProtocolManager {
+    private readonly journal: Journal;
+
     constructor(
         private readonly socketIOManager: SocketIOManager,
-        private readonly getClientConfig: GetClientConfig
+        private readonly getClientConfig: GetClientConfig,
+        private readonly journalFactory: ReturnType<typeof JournalFactory>
     ) {
         this.socketIOManager.setProtocolManager(this);
+        this.journal = journalFactory(this);
     }
 
     handleTimeout(item: SocketAttributes<SocketAttributeAuxMetadata>): boolean {

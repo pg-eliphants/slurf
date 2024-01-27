@@ -6,18 +6,19 @@ import { connect as tslConnect } from 'node:tls';
 import { resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
 import SocketIOManager from '../io/SocketIOManager';
-import ProtocolManager from '../protocol/ProtocolManager';
+import { ProtocolManagerFactory } from '../protocol/ProtocolManager';
 import Jitter from '../io/Jitter';
 import type { CreateSSLSocketSpec, CreateSocketSpec, PoolTimeBins, ActivityTimeBins } from '../io/types';
 import MemoryManager from '../utils/MemoryManager';
 import type { GetClientConfig, GetSLLFallbackSpec, PGConfig, SetClientConfig } from '../protocol/types';
 import Encoder from '../protocol/Encoder';
-import Initializer from '../initializer/Initializer';
+import { InitializerFactory } from '../initializer/Initializer';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 import { IO_NAMESPACE, IO_NAMESPACE_EVENTS } from '../constants';
 import { register } from '@mangos/debug-frontend';
+import { JournalFactory, JournalReducer } from '../journal';
 
 function test() {
     register(() => {
@@ -85,29 +86,38 @@ function test() {
         terminal: activityTimeReducer,
         created: activityTimeReducer
     };
-    const ioManager = new SocketIOManager(spec, sslSpec, jitter, now, reduceTimeToPoolBins, reduceTimeToActivityBins);
-    const memoryManager = new MemoryManager();
     //
+    const memoryManager = new MemoryManager();
+    const textEncoder = new TextEncoder();
+    const txtDecoder = new TextDecoder();
+    const encoder = new Encoder(memoryManager, textEncoder);
+    const getSSLFallback: GetSLLFallbackSpec = (setConfig) => {
+        setConfig((config: PGConfig) => {
+            return false;
+        });
+    };
     const getClientConfig: GetClientConfig = (setClientConfig: SetClientConfig) => {
         setClientConfig({
             user: 'role_ssl_nopasswd',
             database: 'auth_db'
         });
     };
-    const protocolManager = new ProtocolManager(ioManager, getClientConfig);
-
-    const getSSLFallback: GetSLLFallbackSpec = (setConfig) => {
-        setConfig((config: PGConfig) => {
-            return false;
-        });
-    };
-
-    const textEncoder = new TextEncoder();
-    const txtDecoder = new TextDecoder();
-    const encoder = new Encoder(memoryManager, textEncoder);
     //
-    const initializer = new Initializer(encoder, txtDecoder, ioManager, protocolManager, getSSLFallback);
-    ioManager.setInitializer(initializer);
+    //  const initializer = new Initializer(encoder, txtDecoder, ioManager, protocolManager, getSSLFallback);
+    const initialFactory = InitializerFactory(encoder, txtDecoder, getSSLFallback);
+    const protocolManagerFactory = ProtocolManagerFactory(getClientConfig);
+
+    const ioManager = new SocketIOManager(
+        spec,
+        sslSpec,
+        jitter,
+        now,
+        reduceTimeToPoolBins,
+        reduceTimeToActivityBins,
+        initialFactory,
+        protocolManagerFactory,
+        JournalFactory(new JournalReducer(Date.now))
+    );
     ioManager.createSocketForPool('idle');
 }
 

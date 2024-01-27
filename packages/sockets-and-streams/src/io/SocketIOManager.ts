@@ -1,7 +1,5 @@
 import type { TcpSocketConnectOpts, IpcSocketConnectOpts, ConnectOpts } from 'net';
-import dump from 'buffer-hexdump';
-import createNS from '@mangos/debug-frontend';
-
+import { InitializerFactory } from '../initializer/Initializer';
 import type { Jitter } from './Jitter';
 import type {
     CreateSocketSpec,
@@ -25,7 +23,7 @@ import type {
     ActivityCountBins
 } from './types';
 
-import ProtocolManager from '../protocol/ProtocolManager';
+import ProtocolManager, { ProtocolManagerFactory } from '../protocol/ProtocolManager';
 
 import { createResolvePromiseExtended, isAggregateError, isInPools, validatePGSSLConfig } from './helpers';
 import delay from '../utils/delay';
@@ -40,14 +38,7 @@ import {
     SEND_STATUS_OK_WITH_BACKPRESSURE,
     SEND_STATUS_ONLY_READ
 } from './constants';
-import {
-    ERR_IOMAN_NO_INTIALIZER,
-    NFY_IOMAN_INITIAL_DONE,
-    ERR_IOMAN_INTIALIZE_FAIL,
-    NFY_IOMAN_SOCKET_CONNECT_EVENT_HANDLED,
-    ERR_IOMAN_NO_PROTOCOL_HANDLER
-} from '../tail/errors';
-import { IO_NAMESPACE, IO_NAMESPACE_EVENTS } from '../constants';
+import { JournalFactory, Journal } from '../journal';
 
 export interface ISocketIOManager<T = any> {
     setProtocolManager(protocolMngr: ProtocolManager): void;
@@ -72,9 +63,6 @@ export interface ISocketIOManager<T = any> {
     upgradeToSSL(item: Exclude<List<SocketAttributes>, null>);
 }
 
-const debug = createNS(IO_NAMESPACE);
-const trace = createNS(IO_NAMESPACE_EVENTS);
-
 export default class SocketIOManager implements ISocketIOManager {
     // pools
     // pools
@@ -92,11 +80,13 @@ export default class SocketIOManager implements ISocketIOManager {
     private readonly activityEvents: ActivityCountBins;
 
     // reference to protocol manager
-    private protocolManager: ProtocolManager | null;
+    private protocolManager: ProtocolManager;
 
-    private initializer: Initializer | null;
+    private initializer: Initializer;
 
     private socketId: number;
+
+    private journal: Journal;
 
     constructor(
         private readonly crfn: CreateSocketSpec,
@@ -104,8 +94,13 @@ export default class SocketIOManager implements ISocketIOManager {
         private readonly jitter: Jitter,
         private readonly now: () => number,
         private readonly reduceTimeToPoolBins: PoolTimeBins,
-        private readonly reduceTimeToActivityBins: ActivityTimeBins // how are we going to do this?
+        private readonly reduceTimeToActivityBins: ActivityTimeBins, // how are we going to do this?
+        private readonly initializerFactory: ReturnType<typeof InitializerFactory>,
+        private readonly protocolManagerFactory: ReturnType<typeof ProtocolManagerFactory>,
+        private readonly journalFactory: ReturnType<typeof JournalFactory>
     ) {
+        this.protocolManager = protocolManagerFactory(this, journalFactory);
+        this.initializer = initializerFactory(this, this.protocolManager, journalFactory);
         this.socketId = 1;
         this.residencies = {
             active: null,
@@ -141,9 +136,7 @@ export default class SocketIOManager implements ISocketIOManager {
             idle: 0,
             end: 0
         };
-        //
-        this.protocolManager = null;
-        this.initializer = null;
+        this.journal = journalFactory(this);
     }
 
     private markTime(item: List<SocketAttributes>) {
@@ -227,7 +220,7 @@ export default class SocketIOManager implements ISocketIOManager {
         socket.on('finish', () => {
             const pool = attributes.ioMeta.pool.current;
             this.updateNetworkStats(item, 'finish');
-            trace('finish', id, pool);
+            // //trace('finish', id, pool);
         });
         if (otherOptions.timeout) {
             const timeOut = otherOptions.timeout;
@@ -235,7 +228,7 @@ export default class SocketIOManager implements ISocketIOManager {
             socket.on('timeout', () => {
                 socket.setTimeout(timeOut);
                 const pool = attributes.ioMeta.pool.current;
-                trace('timeout', id, pool);
+                // trace('timeout', id, pool);
                 if (pool === 'idle') {
                     // idling sockets are idle so ofc they will get timeouts
                     attributes.ioMeta.idleCounts = 0;
@@ -255,7 +248,7 @@ export default class SocketIOManager implements ISocketIOManager {
         }
         socket.on('end', () => {
             const pool = attributes.ioMeta.pool.current;
-            trace('end', id, pool);
+            // trace('end', id, pool);
             this.updateNetworkStats(item, 'end');
             if (socket.writableEnded) {
                 // was intentional on our side
@@ -272,13 +265,13 @@ export default class SocketIOManager implements ISocketIOManager {
         });
         socket.on('drain', () => {
             const pool = attributes.ioMeta.pool.current;
-            trace('drain', id, pool);
+            // trace('drain', id, pool);
             this.updateActivityWaitTimes('drained', this.now(), attributes.ioMeta.lastWriteTs);
             attributes.ioMeta.backPressure.resolve(undefined);
         });
         socket.on('data', async (buf: Uint8Array) => {
             const pool = attributes.ioMeta.pool.current;
-            trace('data', id, buf, pool);
+            // trace('data', id, buf, pool);
             item.value.socket = socket;
             const rc = await self.processData(buf, item);
             if (rc === false) {
@@ -303,7 +296,7 @@ export default class SocketIOManager implements ISocketIOManager {
                 : isAggregateError(err)
                 ? Array.from(err.errors).map((err: Error) => ({ message: String(err) }))
                 : err.message;
-            trace('error', id, error, pool);
+            // trace('error', id, error, pool);
 
             if (rc === false) {
                 /*
@@ -325,7 +318,7 @@ export default class SocketIOManager implements ISocketIOManager {
         socket.on('close', (hadError) => {
             const pool = attributes.ioMeta.pool.current;
             this.updateNetworkStats(item, 'close');
-            trace('close', id, hadError, pool);
+            // trace('close', id, hadError, pool);
             if (pool === 'created') {
                 this.initializer?.handleClose(item.value);
             } else {
@@ -337,12 +330,12 @@ export default class SocketIOManager implements ISocketIOManager {
         // use "once" instead of "on", sometimes connect is re-emitted after the connect happens immediatly after a socket disconnect, its weird!
         // todo: observe this occurrance again, this could have been an issue with a tsl upgrade
         socket.once('connect', async () => {
-            trace('connect', id);
+            // trace('connect', id);
             const t0 = attributes.ioMeta.time.ts;
             const t1 = self.markTime(item);
             self.updateActivityWaitTimes('connect', t0, t1);
             if (!this.initializer) {
-                trace('connect', id, 'no-intializer');
+                // trace('connect', id, 'no-intializer');
                 socket.end();
                 this.migrateToPool(item, 'terminal');
                 return;
@@ -351,22 +344,22 @@ export default class SocketIOManager implements ISocketIOManager {
             const t2 = self.markTime(item);
             self.updateActivityWaitTimes('iom_code', t1, t2);
             if (rc === false) {
-                trace('connect', id, 'initializer-fail');
+                //trace('connect', id, 'initializer-fail');
                 socket.end();
                 this.migrateToPool(item, 'terminal');
                 return;
             }
-            trace('connect', id, 'ok');
+            //trace('connect', id, 'ok');
         });
         // use "once" instead of "on", sometimes connect is re-emitted after the connect happens immediatly after a socket disconnect, its weird!
         // todo, validate this again
         // what is the order 'connect','lookup', 'ready' document please for linux and windows
         socket.once('ready', (...args: unknown[]) => {
-            trace('ready', id, args);
+            //trace('ready', id, args);
         });
         //
         socket.on('lookup', (...args: unknown[]) => {
-            trace('lookup', id, args);
+            //trace('lookup', id, args);
         });
     }
     private async processData(buf: Uint8Array, item: Exclude<List<SocketAttributes>, null>): Promise<boolean> {
@@ -388,13 +381,13 @@ export default class SocketIOManager implements ISocketIOManager {
                 this.migrateToPool(item, targetPool);
                 const stop = this.markTime(item);
                 this.updateActivityWaitTimes('iom_code', start, stop);
-                debug('processData', id, 'initializer-done');
+                // debug('processData', id, 'initializer-done');
                 return true;
             }
             return rc;
         }
         if (this.protocolManager === null) {
-            debug('err', id, 'absent-protocol-manager');
+            // debug('err', id, 'absent-protocol-manager');
             return false;
         }
         rc = this.protocolManager.binDump(item.value, buf);
@@ -473,7 +466,7 @@ export default class SocketIOManager implements ISocketIOManager {
         const t0 = this.markTime(item);
         this.decorate(item, extraOpt);
         sslSocket.on('secureConnect', async () => {
-            trace('secureConnect', id, sslSocket.authorized, sslSocket.authorizationError);
+            //trace('secureConnect', id, sslSocket.authorized, sslSocket.authorizationError);
             const t1 = this.markTime(item);
             this.updateActivityWaitTimes('sslConnect', t0, t1);
 
@@ -483,10 +476,10 @@ export default class SocketIOManager implements ISocketIOManager {
             this.updateActivityWaitTimes('iom_code', t1, t2);
         });
         sslSocket.on('tlsClientError', (exception: Error) => {
-            trace('tlsClientError', id, exception);
+            //trace('tlsClientError', id, exception);
         });
         sslSocket.on('error', (error: Error) => {
-            trace('errorssl', id, error);
+            //trace('errorssl', id, error);
         });
     }
     //
@@ -594,7 +587,7 @@ export default class SocketIOManager implements ISocketIOManager {
             attributes.ioMeta.backPressure = createResolvePromiseExtended(rc);
             attributes.ioMeta.lastWriteTs = this.now();
         }
-        debug('sending', id, bin);
+        // debug('sending', id, bin);
         return rc === true ? SEND_STATUS_OK : SEND_STATUS_OK_WITH_BACKPRESSURE; // return OK status
     }
 
@@ -656,7 +649,7 @@ export default class SocketIOManager implements ISocketIOManager {
         const attributes: SocketAttributes = {
             socket,
             ioMeta: {
-                id: this.socketId++,
+                id: new Number(this.socketId++),
                 jitter,
                 pool: {
                     placementTime,

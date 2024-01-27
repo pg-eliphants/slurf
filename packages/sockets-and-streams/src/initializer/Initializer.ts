@@ -42,18 +42,28 @@ import { IBaseInitializer, SocketAttributeAuxMetadata } from './types';
 import createNS from '@mangos/debug-frontend';
 import { INITIALIZER, INITIALIZER_EVENTS } from '../constants';
 import { ErrorEventCodeType, ErrorEventStore } from '../journal/types';
-const debug = createNS(INITIALIZER);
-const trace = createNS(INITIALIZER_EVENTS);
+import { JournalFactory, Journal } from '../journal';
 
+export function InitializerFactory(encode: Encoder, txtDecoder: TextDecoder, getSSLFallback: GetSLLFallbackSpec) {
+    return function newInitialize(
+        socketIoManager: ISocketIOManager<SocketAttributeAuxMetadata>,
+        protocolManager: ProtocolManager,
+        journalFactory: ReturnType<typeof JournalFactory>
+    ) {
+        return new Initializer(encode, txtDecoder, socketIoManager, protocolManager, getSSLFallback, journalFactory);
+    };
+}
 export default class Initializer /*implements IBaseInitializer<SocketAttributeAuxMetadata>*/ {
+    private readonly journal: Journal;
     constructor(
         private readonly encoder: Encoder,
         private readonly txtDecoder: TextDecoder,
         private readonly socketIoManager: ISocketIOManager<SocketAttributeAuxMetadata>,
         private readonly protocol: ProtocolManager,
-        private readonly getSSLFallback: GetSLLFallbackSpec
+        private readonly getSSLFallback: GetSLLFallbackSpec,
+        private readonly journalFactory: ReturnType<typeof JournalFactory>
     ) {
-        socketIoManager.setInitializer(this);
+        this.journal = journalFactory(this);
     }
     public handleEnd(item: SocketAttributes<SocketAttributeAuxMetadata>) {
         return true;
@@ -107,70 +117,16 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
         return collect;
     }
 
-    private handleNoticeAndErrorResponseAndBinaryLeftOver<
-        TName extends ErrorEventCodeType,
-        TStore extends ErrorEventStore<TName>
-    >(attr: SocketAttributes<SocketAttributeAuxMetadata>, code: TName, store: TStore): number {
-        // server sends me stuff before I send it any data
-        // is it an error?
-        const ctx = attr.ioMeta.aux.parsingContext!;
-        const collect: (Notifications | Uint8Array)[] = [];
-        let errno = 0;
-        for (;;) {
-            const rcErr = parseError(ctx);
-            if (rcErr === undefined) {
-                errno = 1;
-                break; //  wait for more data
-            }
-            if (rcErr === null) {
-                errno = 4;
-                break; // will collect data as raw binary
-            }
-            if (rcErr !== false) {
-                collect.push(rcErr);
-                errno = 2;
-                continue;
-            }
-            // here rcErr === false
-            const rcNotice = parseNoticeResponse(ctx);
-            if (rcNotice === undefined) {
-                return 1;
-            }
-            if (rcNotice === null) {
-                errno = 4;
-                break; // collect data as raw binary
-            }
-            if (rcNotice !== false) {
-                collect.push(rcNotice);
-                errno = 2;
-                continue;
-            }
-            // here rcErr === false
-            break;
-        }
-        if (errno === 1 || errno === 0) {
-            return errno;
-        }
-        if (errno === 2) {
-            if (bytesLeft(ctx)) {
-                collect.push(ctx.buffer.slice(ctx.cursor, ctx.buffer.byteLength));
-            }
-            // todo: send "collect" to the journal with "code" and "store"
-        }
-        if (errno === 4) {
-            collect.push(ctx.buffer.slice(ctx.cursor, ctx.buffer.byteLength));
-            // todo: send "collect" to the journal with "code" and "store"
-        }
-        return 2; // close this socket
-    }
     // handle SSLRespone to SSLRequest Sent
+    // ctx.buffer[cursor] is prechecked to be 78 or 83
+    // ctx.buffer.byteLength - ctx.cursor - ctx checked to be 1
     private async handleSSLResponse(attr: SocketAttributes<SocketAttributeAuxMetadata>) {
         const ctx = attr.ioMeta.aux.parsingContext!;
         const cursor = ctx.cursor;
         // 78 = 'N'
         if (ctx.buffer[cursor] === 78) {
             ctx.cursor += 1;
-            trace('pg-server not configured for ssl');
+            // trace('pg-server not configured for ssl');
             // pg-server not have ssl configured
             // fallback to non ssl possible?
             if (this.approveNonSSLConnection() === false) {
@@ -199,6 +155,7 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
 
         for (;;) {
             if (!bytesLeft(pc)) {
+                // no more bytes left but still in this loop
                 return undefined; // load more
             }
 
