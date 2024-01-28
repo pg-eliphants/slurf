@@ -6,17 +6,19 @@ import SocketIOManager from '../io/SocketIOManager';
 import ProtocolManager from '../protocol/ProtocolManager';
 import { SEND_STATUS_OK, SEND_STATUS_OK_WITH_BACKPRESSURE } from '../io/constants';
 import type { GetSLLFallbackSpec } from './types';
-import { parse as parseError } from '../protocol/messages/back/ErrorResponse';
-import { parse as parseParameterStatus, ParameterStatus } from '../protocol/messages/back/ParameterStatus';
-import { BackendKeyData, parse as parseBackendKeyData } from '../protocol/messages/back/BackendKeyData';
+import { parse as parseParameterStatus } from '../protocol/messages/back/ParameterStatus';
+import { parse as parseBackendKeyData } from '../protocol/messages/back/BackendKeyData';
 import { parse as parseReady4Query } from '../protocol/messages/back/ReadyForQuery';
-import type { Notifications, Parse, ParseContext } from '../protocol/messages/back/types';
+import { parse as parseNegotiateProtocolVersion } from '../protocol/messages/back/NegotiateProtocolVersion';
+import { Notifications } from '../protocol/messages/back/types';
+
 import {
     PARAM_STATUS,
     READY_4_QUERY,
     BACKEND_KEY_DATA,
     ERROR,
-    NOTICE_RESPONSE
+    NOTICE_RESPONSE,
+    NEGOTIATE_PROTOCOL
 } from '../protocol/messages/back/constants';
 import {
     OK,
@@ -29,21 +31,16 @@ import {
     SASL,
     SASLCONTINUE,
     SASLFINAL,
-    SASLContinue,
-    SASLFinal,
     parse as parseAuthenticationMsg
 } from '../protocol/messages/back/authentication';
 
 import { NOTIFY } from './constants';
 
-import { parse as parseNoticeResponse } from '../protocol/messages/back/NoticeResponse';
+import { parse as optionallyHandleErrorAndNoticeResponse } from '../protocol/messages/back/NoticeResponse';
 
-import { addBufferToParseContext, bytesLeft, createParseContext } from './helper';
+import { addBufferToParseContext, bytesLeft, createParseContext, optionallyHandleUnprocessedBinary } from './helper';
 
 import { IBaseInitializer, SocketAttributeAuxMetadata } from './types';
-import createNS from '@mangos/debug-frontend';
-import { INITIALIZER, INITIALIZER_EVENTS } from '../constants';
-import { ErrorEventCodeType, ErrorEventStore } from '../journal/types';
 import { JournalFactory, Journal } from '../journal';
 
 export function InitializerFactory(
@@ -91,80 +88,41 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
         return true;
     }
     public handleClose(item: SocketAttributes<SocketAttributeAuxMetadata>) {}
-
-    private optionallyHandleUnprocessedBinary(ctx: ParseContext): Uint8Array | false {
-        if (!bytesLeft(ctx)) {
-            return false;
-        }
-        return ctx.buffer.slice(ctx.cursor);
-    }
-
-    private markTime(item: List<SocketAttributes<SocketAttributeAuxMetadata>>) {
-        return (item!.value.ioMeta.time.ts = this.now());
-    }
-
-    private optionallyHandleErrorAndNoticeResponse(ctx: ParseContext): null | undefined | false | Notifications[] {
-        const collect: Notifications[] = [];
-        for (;;) {
-            const rcErr = parseError(ctx);
-            if (rcErr === undefined) {
-                return undefined;
-            }
-            if (rcErr === null) {
-                return null;
-            }
-            if (rcErr !== false) {
-                collect.push(rcErr);
-                continue;
-            }
-            // here rcErr === false
-            const rcNotice = parseNoticeResponse(ctx);
-            if (rcNotice === undefined) {
-                return undefined;
-            }
-            if (rcNotice === null) {
-                return null;
-            }
-            if (rcNotice !== false) {
-                collect.push(rcNotice);
-                continue;
-            }
-            break;
-        }
-        if (collect.length === 0) {
-            return false;
-        }
-        return collect;
-    }
-
     // handle SSLRespone to SSLRequest Sent
-    // ctx.buffer[cursor] is prechecked to be 78 or 83
-    // ctx.buffer.byteLength - ctx.cursor - ctx checked to be 1
+    // ctx.buffer[cursor] is pre-checked to be 78 or 83
+    // ctx.buffer.byteLength - ctx.cursor - ctx pre-checked to be 1
     private async handleSSLResponse(attr: SocketAttributes<SocketAttributeAuxMetadata>) {
-        const ctx = attr.ioMeta.aux.parsingContext!;
-        const cursor = ctx.cursor;
+        const {
+            ioMeta: {
+                id,
+                aux,
+                aux: { parsingContext: pc }
+            }
+        } = attr!;
+
         // 78 = 'N'
-        if (ctx.buffer[cursor] === 78) {
-            ctx.cursor += 1;
-            // trace('pg-server not configured for ssl');
-            // pg-server not have ssl configured
+        if (pc!.buffer[pc!.cursor] === 78) {
+            pc!.cursor += 1;
+            this.journal.add(id, NOTIFY.PG_NOT_COMPILED_WITH_SSL);
+            // pg-server not compiled with ssl
             // fallback to non ssl possible?
             const r = this.approveNonSSLConnection();
             if (r === false) {
-                // todo: err: no fallback to non-ssl connection allowed
+                this.journal.add(id, NOTIFY.CONNECT_FALLBACK_TO_NONSSL_DENIED);
                 return false;
             }
             if (r === true) {
-                attr.ioMeta.aux.startupSent = true;
+                aux.startupSent = true;
                 return await this.sendStartupMessage(attr);
             }
             if ('errors' in r) {
-                // todo: err: socket-id, no fallback to ssl
+                this.journal.add(id, NOTIFY.ERROR_REQUEST_PG_CONNECT_PARAMS, r.errors);
+                return false;
             }
         }
         // only possiblity left is 'S' (this is  pre-checked before entering this function)
         // 'S' = 83,
-        ctx.cursor += 1;
+        pc!.cursor += 1;
         return true;
     }
 
@@ -177,54 +135,41 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
     ): undefined | null | 'done' | false {
         const aux = item.ioMeta.aux;
         const pc = aux.parsingContext!;
+        const id = item.ioMeta.id;
 
-        for (;;) {
-            if (!bytesLeft(pc)) {
-                // no more bytes left but still in this loop
-                return undefined; // load more
-            }
-
-            const parseResult = parseAuthenticationMsg(pc);
-            if (parseResult === null) {
-                // todo: errno: socket-id: malformed auth pg backend message
-                return null;
-            }
-            if (parseResult === undefined) {
-                // todo: notify: socket-id: incomplete received auth message
-                return undefined;
-            }
-            if (parseResult === false) {
-                return false;
-            }
-
-            if (parseResult.type === OK) {
-                aux.authenticationOk = true;
-                return 'done';
-            }
-            if (parseResult.type === MD5PASSWORD) {
-                // todo: errno: md5 not supported
-                if (aux.authenticationMD5Sent) {
-                    // todo: errno: already sent
-                    return null;
-                }
-                // todo: send salted MD5 password
-                aux.authenticationMD5Sent = true;
-                return null;
-            }
-            if (parseResult.type === CLEARTEXTPASSWORD) {
-                // todo: error: cleartext not supported
-                if (aux.authenticationClearTextSent) {
-                    // todo: errno: already sent
-                    return null;
-                }
-                // todo: send clearTextPassword
-                aux.authenticationClearTextSent = true;
-                return null;
-            }
-            // unsupprted auth
-            // log errors
+        const parseResult = parseAuthenticationMsg(pc);
+        if (parseResult === null) {
+            this.journal.add(id, NOTIFY.ERROR_PARSE_AUTHENTICATION_MSG, optionallyHandleUnprocessedBinary(pc));
             return null;
-        } // for(;;)
+        }
+        if (parseResult === undefined) {
+            this.journal.add(id, NOTIFY.INCOMPLETE_AUTHENTICATION_MSG);
+            return undefined;
+        }
+        if (parseResult === false) {
+            return false;
+        }
+
+        if (parseResult.type === OK) {
+            aux.authenticationOk = true;
+            return 'done';
+        }
+        if (
+            [
+                KERBEROSV5,
+                CLEARTEXTPASSWORD,
+                MD5PASSWORD,
+                GSS,
+                GSSCONTINUE,
+                SSPI,
+                SASL,
+                SASLCONTINUE,
+                SASLFINAL
+            ].includes(parseResult.type)
+        ) {
+            this.journal.add(id, NOTIFY.AUTH_UNSUPPORTED);
+            return null;
+        }
     }
 
     private createStartupMessage(config: Required<PGConfig>): Uint8Array | undefined {
@@ -244,7 +189,8 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
             ?.getMessage();
         return bin;
     }
-
+    // popstgres has specified not handle ssl connection
+    // so this request developer if we can continue with an non-ssl connection
     private approveNonSSLConnection(): boolean | { errors: Error[] } | { config: Required<PGConfig> } {
         const r = this.protocol.requestConnectionParams();
         if ('errors' in r) {
@@ -265,7 +211,7 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
         const ioMeta = attr.ioMeta;
         const r = this.protocol.requestConnectionParams();
         if ('errors' in r) {
-            this.journal.add(ioMeta.id, NOTIFY.ERROR_REQUEST_PG_CONNET_PARAMS, r.errors);
+            this.journal.add(ioMeta.id, NOTIFY.ERROR_REQUEST_PG_CONNECT_PARAMS, r.errors);
             return false;
         }
         const bin = this.createStartupMessage(r.config);
@@ -343,35 +289,41 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
         item: Exclude<List<SocketAttributes<SocketAttributeAuxMetadata>>, null>,
         data: Uint8Array
     ): Promise<boolean | 'done'> {
-        const len = data.byteLength;
+        const {
+            value: attr,
+            value: {
+                ioMeta,
+                ioMeta: {
+                    id,
+                    aux,
+                    aux: { parsingContext }
+                }
+            }
+        } = item;
+        let pc = parsingContext;
+        if (!pc) {
+            pc = aux.parsingContext = createParseContext(data, this.txtDecoder);
+        } else {
+            addBufferToParseContext(pc!, data);
+        }
+        // can happen (bug in nodejs?)
+        const len = bytesLeft(pc!);
         if (len === 0) {
+            this.journal.add(id, NOTIFY.SOCKET_EMITED_ZERO_LENGTH_DATA);
             return true;
         }
-        const attr = item.value;
-        const ioMeta = attr.ioMeta;
-        const aux = ioMeta.aux;
-        const id = ioMeta.id;
-
-        if (!aux.parsingContext) {
-            aux.parsingContext = createParseContext(data, this.txtDecoder);
-        } else {
-            addBufferToParseContext(aux.parsingContext, data);
-        }
-
-        const ctx = aux.parsingContext;
-        const buffer = ctx.buffer;
 
         const { startupSent, sslRequestSent, upgradedToSll, authenticationOk, sslReplyReceived } = aux;
 
         // no handshake was ever initiated but pg-server sent us data
         if (!startupSent && !sslRequestSent) {
-            const bin = this.optionallyHandleUnprocessedBinary(aux.parsingContext) as Uint8Array;
-            this.journal.add(id, NOTIFY.GOT_DATA_BEFORE_INIT_HANDSHAKE, bin);
+            this.journal.add(id, NOTIFY.GOT_DATA_BEFORE_INIT_HANDSHAKE, optionallyHandleUnprocessedBinary(pc!));
             return false;
         }
+        const buffer = pc!.buffer;
         // sslRequest Sent but no answer received yes,
         if (sslRequestSent && !sslReplyReceived) {
-            const firstByte = buffer[ctx.cursor];
+            const firstByte = buffer[pc!.cursor];
             if (firstByte === 78 || firstByte === 83) {
                 if (len === 1) {
                     aux.sslReplyReceived = true;
@@ -381,14 +333,20 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
                     }
                     return rc;
                 }
-                this.journal.add(id, NOTIFY.BUFFER_STUFFING_ATTACK_MAYBE);
+                this.journal.add(id, NOTIFY.BUFFER_STUFFING_ATTACK_MAYBE, optionallyHandleUnprocessedBinary(pc!));
                 // protocol violation: https://www.postgresql.org/docs/current/protocol-flow.html
                 // this is possibly a buffer-stuffing attack (CVE-2021-23222).
                 // https://www.postgresql.org/support/security/CVE-2021-23222
                 return false;
             }
-            const bin = this.optionallyHandleUnprocessedBinary(aux.parsingContext) as Uint8Array;
-            // todo: this.journal.protocolError(bin)
+            const errors = optionallyHandleErrorAndNoticeResponse(pc!);
+            if (errors === undefined) {
+                return true; // wait for more data;
+            }
+            if (!(errors === null || errors === false)) {
+                aux.errors.push(errors);
+            }
+            this.journal.add(id, NOTIFY.AUTH_PROTOCOL_VIOLATION, optionallyHandleUnprocessedBinary(pc!));
             return false;
         }
 
@@ -398,9 +356,7 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
         //  sslReplyReceived: true (must)
         //
         if (startupSent === false) {
-            // somehow we got data after/while ending the socket
-            const bin = this.optionallyHandleUnprocessedBinary(aux.parsingContext) as Uint8Array;
-            // todo: this.journal.protocolError(bin)
+            this.journal.add(id, NOTIFY.RECEIVED_LATENT_DATA, optionallyHandleUnprocessedBinary(pc!));
             return false;
         }
 
@@ -417,9 +373,7 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
             if (rc === null || rc === false) {
                 // 1. it is an authentication message but malformed
                 // 2. it was not an authentication message (maybe error/notice response)
-                // context "authentication"
-                const bin = this.optionallyHandleUnprocessedBinary(aux.parsingContext) as Uint8Array;
-                // todo: this.journal.protocolError(bin)
+                // 3. errors are already journalled in "handleAuthentication(..)" function
                 return false;
             }
             if (rc === 'done') {
@@ -438,14 +392,16 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
             if (!bytesLeft(aux.parsingContext!)) {
                 return true; // wait for more data to arrive
             }
-            const idx = [PARAM_STATUS, READY_4_QUERY, BACKEND_KEY_DATA, ERROR, NOTICE_RESPONSE].indexOf(
-                buffer[ctx.cursor]
-            );
+            const idx = [
+                PARAM_STATUS, //0
+                READY_4_QUERY,
+                BACKEND_KEY_DATA,
+                ERROR,
+                NOTICE_RESPONSE, // 4
+                NEGOTIATE_PROTOCOL // 5
+            ].indexOf(buffer[pc!.cursor]);
             if (idx < 0) {
-                // context: forbidden message, after Authok received
-                // todo: log error globally
-                const bin = this.optionallyHandleUnprocessedBinary(aux.parsingContext) as Uint8Array;
-                // todo: this.journal.protocolError(bin)
+                this.journal.add(id, NOTIFY.AFTER_AUTH_OK_FORBIDDEN_MSG, optionallyHandleUnprocessedBinary(pc!));
                 return false;
             }
             // 83, 'S' param status
@@ -459,8 +415,7 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
                     return true; // wait for more data to arrive
                 }
                 if (response === null) {
-                    const bin = this.optionallyHandleUnprocessedBinary(aux.parsingContext) as Uint8Array;
-                    // todo: this.journal.protocolError(bin)
+                    this.journal.add(id, NOTIFY.AFTER_AUTH_OK_BROKEN_PARAM_MSG, optionallyHandleUnprocessedBinary(pc!));
                     return false;
                 }
                 aux.runtimeParameters[response.name] = response.value;
@@ -477,8 +432,7 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
                     return true; // wait for more data to arrive
                 }
                 if (response === null) {
-                    const bin = this.optionallyHandleUnprocessedBinary(aux.parsingContext) as Uint8Array;
-                    // todo: this.journal.protocolError(bin)
+                    this.journal.add(id, NOTIFY.AFTER_AUTH_OK_BROKEN_R4Q_MSG, optionallyHandleUnprocessedBinary(pc!));
                     return false;
                 }
                 aux.readyForQuery = response;
@@ -500,18 +454,43 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
                 aux.cancelSecret = response.secret;
                 continue;
             }
-            // we have error and notice
-            const response = this.optionallyHandleErrorAndNoticeResponse(aux.parsingContext);
-            // partial message received
-            if (response === undefined) {
-                return true;
+            if (idx === 3 || idx === 4) {
+                // we have error and notice, or protocolversion error
+                const response = optionallyHandleErrorAndNoticeResponse(pc!) as Exclude<
+                    ReturnType<typeof optionallyHandleErrorAndNoticeResponse>,
+                    false
+                >;
+                // partial message received
+                if (response === undefined) {
+                    return true;
+                }
+                if (response === null) {
+                    this.journal.add(
+                        id,
+                        NOTIFY.AFTER_AUTH_OK_BROKEN_ERROR__NOTICE_MSG,
+                        optionallyHandleUnprocessedBinary(pc!)
+                    );
+                    return false;
+                }
+                aux.errors.push(response);
             }
-            if (response === null) {
-                const bin = this.optionallyHandleUnprocessedBinary(aux.parsingContext) as Uint8Array;
-                // todo: this.journal.protocolError(bin)
-                return false;
+            if (idx === 5) {
+                const response = parseNegotiateProtocolVersion(pc!) as Exclude<
+                    ReturnType<typeof parseNegotiateProtocolVersion>,
+                    false
+                >;
+                if (response === undefined) {
+                    return true;
+                }
+                if (response === null) {
+                    this.journal.add(
+                        id,
+                        NOTIFY.AFTER_AUTH_OK_BROKEN_NEGOTIATION_MSG,
+                        optionallyHandleUnprocessedBinary(pc!)
+                    );
+                    return false;
+                }
             }
-            // todo: this.journal.handleNotices(response)
             continue;
         } // while
         // state:
@@ -525,19 +504,20 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
         //      "parameter status(es)", "backend key" data, and "ready for query",
         // if there is data left, error
         if (bytesLeft(aux.parsingContext!)) {
-            const response = this.optionallyHandleErrorAndNoticeResponse(aux.parsingContext);
+            const response = optionallyHandleErrorAndNoticeResponse(pc!);
             // partial message received
             if (response === undefined) {
                 return true; // need more data
             }
             if (response === null || response === false) {
-                const bin = this.optionallyHandleUnprocessedBinary(aux.parsingContext) as Uint8Array;
-                // todo: this.journal.protocolError(bin)
+                const bin = optionallyHandleUnprocessedBinary(pc!) as Uint8Array;
+                const code = response === null ? NOTIFY.AFTER_R4Q_BROKEN_ERROR_NOTICE_MSG : NOTIFY.UNKNOWN_DATA_FORMAT;
+                this.journal.add(id, code, optionallyHandleUnprocessedBinary(pc!));
                 return false;
             }
             // still bytes remain
             if (bytesLeft(aux.parsingContext!)) {
-                const bin = this.optionallyHandleUnprocessedBinary(aux.parsingContext) as Uint8Array;
+                const bin = optionallyHandleUnprocessedBinary(pc!) as Uint8Array;
                 // todo: this.journal.protocolError(bin)
                 return false;
             }

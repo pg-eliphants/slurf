@@ -16,27 +16,9 @@ import { InitializerFactory } from '../initializer/Initializer';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-import { IO_NAMESPACE, IO_NAMESPACE_EVENTS } from '../constants';
-import { register } from '@mangos/debug-frontend';
 import { JournalFactory, JournalReducer } from '../journal';
 
 function test() {
-    register(() => {
-        return {
-            send(ns: string, key: string, ...args) {
-                console.log(ns, key, ...args);
-            },
-            isEnabled(ns: string) {
-                switch (ns) {
-                    case IO_NAMESPACE:
-                    case IO_NAMESPACE_EVENTS:
-                        return true;
-                }
-                return false;
-            }
-        };
-    });
-
     const spec: CreateSocketSpec = function (hints, setSocketCreator, allOptions) {
         setSocketCreator(createConnection);
         allOptions(
