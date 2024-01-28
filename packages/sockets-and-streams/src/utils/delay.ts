@@ -1,3 +1,3 @@
-export default function delay(ts: number): Promise<void> {
+export default function delayMillis(ts: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ts));
 }

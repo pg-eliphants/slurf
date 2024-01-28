@@ -22,23 +22,29 @@ export class JournalReducer {
     }
 }
 
-export class Journal {
+export class Journal<T extends Object> {
     constructor(
         private readonly history: Map<Number, JournalEntryInternal[]>,
-        private readonly reducer: JournalReducer
+        private readonly reducer: JournalReducer,
+        private readonly origin: T
     ) {}
     add(socketId: Number, code: number, ...args: unknown[]) {
         const extended = Object.fromEntries(args.map((v, i) => [`arg${i}`, v]));
         const histInternal = this.history.get(socketId) || [];
         this.history.set(socketId, histInternal);
-        this.reducer.reduce(histInternal, { code, origin, ...extended });
+        const pl: JournalEntry = { code, origin: this.origin, ...extended };
+        this.reducer.reduce(histInternal, pl);
+        console.log({ code, ...extended });
     }
     remove(socketId: Number) {}
+    consolidate(socketId: Number): unknown {
+        return null;
+    }
 }
 
 export function JournalFactory(reducer: JournalReducer) {
     const history: Map<Number, JournalEntryInternal[]> = new Map();
-    return function (origin: Object) {
-        return new Journal(history, reducer);
+    return function <T extends Object>(origin: T) {
+        return new Journal<T>(history, reducer, origin);
     };
 }

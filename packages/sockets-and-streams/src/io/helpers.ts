@@ -38,8 +38,3 @@ export class PromiseExtended extends Promise<undefined> {
 export function createResolvePromiseExtended(resolveNow: boolean): PromiseExtended {
     return new PromiseExtended(resolveNow);
 }
-
-export function isInPools(item: Exclude<List<SocketAttributes>, null>, ...pools: Pool[]): boolean {
-    const current = item.value.ioMeta.pool.current;
-    return pools.includes(current);
-}

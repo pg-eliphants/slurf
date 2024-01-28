@@ -61,7 +61,7 @@ export function parse(ctx: ParseContext): false | null | ParameterStatus | undef
     if (buffer[endPosition - 1] !== 0) {
         return null;
     }
-    const value = txtDecoder.decode(buffer.slice(split + 1, endPosition));
+    const value = txtDecoder.decode(buffer.slice(split + 1, endPosition - 1));
     ctx.cursor = endPosition;
     return { name, value };
 }

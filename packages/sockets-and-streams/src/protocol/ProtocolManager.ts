@@ -4,6 +4,7 @@ import { GetClientConfig, PGConfig, SetClientConfig } from './types';
 import { normalizePGConfig, validatePGConnectionParams } from './helpers';
 import { SocketAttributeAuxMetadata } from '../initializer/types';
 import { JournalFactory, Journal } from '../journal';
+import dump from 'buffer-hexdump';
 
 export function ProtocolManagerFactory(getClientConfig: GetClientConfig) {
     return function newProtocolManager(
@@ -15,14 +16,13 @@ export function ProtocolManagerFactory(getClientConfig: GetClientConfig) {
 }
 
 export default class ProtocolManager {
-    private readonly journal: Journal;
+    private readonly journal: Journal<ProtocolManager>;
 
     constructor(
         private readonly socketIOManager: SocketIOManager,
         private readonly getClientConfig: GetClientConfig,
         private readonly journalFactory: ReturnType<typeof JournalFactory>
     ) {
-        this.socketIOManager.setProtocolManager(this);
         this.journal = journalFactory(this);
     }
 
@@ -46,7 +46,8 @@ export default class ProtocolManager {
     }
 
     public binDump(item: SocketAttributes<SocketAttributeAuxMetadata>, data: Uint8Array): boolean {
-        return false;
+        console.log(dump(data));
+        return true;
     }
 
     public requestConnectionParams(): { errors: Error[] } | { config: Required<PGConfig> } {

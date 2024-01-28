@@ -2,7 +2,7 @@ import type { TcpSocketConnectOpts, IpcSocketConnectOpts, ConnectOpts, Socket, N
 
 export type Pool = 'vis' | 'reservedEmpherical' | 'reservedPermanent' | 'active' | 'idle' | 'terminal' | 'created';
 export type ActivityWait = 'network' | 'iom_code' | 'connect' | 'sslConnect' | 'finish' | 'end' | 'close' | 'drained';
-export type ActivityCount = 'error' | 'idle' | 'end';
+export type ActivityCount = 'error' | 'idle' | 'end' | 'close';
 export type PoolFirstResidence = Exclude<Pool, 'active' | 'terminal' | 'reservedEmpherical' | 'created'>;
 
 import type { ConnectionOptions, TLSSocket } from 'tls';
@@ -71,6 +71,7 @@ export type MetaSocketAttr<T> = {
     };
     idleCounts: number;
     backPressure: PromiseExtended;
+    ready4Use: PromiseExtended;
     lastWriteTs: number;
     aux: T;
 };
