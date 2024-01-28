@@ -1,11 +1,14 @@
 export default class Jitter {
     constructor(
         private readonly random = Math.random,
-        private readonly min: number = 0,
-        private readonly max = 1
+        private readonly min: number = 0, // seconds
+        private readonly max = 1 // seconds
     ) {}
     public getRandom(): number {
-        return 0; //this.min + 1e3 * this.random() * (this.max - this.min);
+        return this.min + this.random() * (this.max - this.min);
+    }
+    public getRandomDelayInMs() {
+        return this.getRandom() * 1000;
     }
 }
 

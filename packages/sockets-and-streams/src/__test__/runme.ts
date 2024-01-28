@@ -56,7 +56,7 @@ function test() {
         });
     };
 
-    const jitter = new Jitter(() => Math.random(), 0, 0.01);
+    const jitter = new Jitter(() => Math.random(), 0, 1);
     const now = (function () {
         // let cnt = 1;
         return function () {
@@ -104,7 +104,7 @@ function test() {
     };
     //
     //  const initializer = new Initializer(encoder, txtDecoder, ioManager, protocolManager, getSSLFallback);
-    const initialFactory = InitializerFactory(encoder, txtDecoder, getSSLFallback);
+    const initialFactory = InitializerFactory(encoder, txtDecoder, getSSLFallback, now);
     const protocolManagerFactory = ProtocolManagerFactory(getClientConfig);
 
     const ioManager = new SocketIOManager(

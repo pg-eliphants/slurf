@@ -591,7 +591,7 @@ export default class SocketIOManager implements ISocketIOManager {
         const { createConnection, conOpt, extraOpt } = r;
         const self = this;
         const placementTime = this.now();
-        const jitter = this.jitter.getRandom();
+        const jitter = this.jitter.getRandomDelayInMs();
 
         // wait daily ms
         await delayMillis(jitter);
