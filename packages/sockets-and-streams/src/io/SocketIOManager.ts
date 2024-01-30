@@ -180,8 +180,7 @@ export default class SocketIOManager implements ISocketIOManager {
 
     private decorate(
         // opaque value for the io manager
-        item: Exclude<List<SocketAttributes>, null>,
-        otherOptions: SocketOtherOptions
+        item: Exclude<List<SocketAttributes>, null>
     ) {
         const attr = item.value;
         const socket = attr.socket!;
@@ -201,17 +200,16 @@ export default class SocketIOManager implements ISocketIOManager {
             const pool = attr.ioMeta.pool.current;
             this.updateNetworkStats(item, 'finish');
         });
-        if (otherOptions.timeout) {
-            const timeOut = otherOptions.timeout;
-            socket.setTimeout(timeOut);
+        if (ioMeta.timeout) {
+            socket.setTimeout(ioMeta.timeout);
             socket.on('timeout', () => {
-                socket.setTimeout(timeOut);
                 const pool = ioMeta.pool.current;
                 if (pool === 'idle') {
                     // idling sockets are idle so ofc they will get timeouts
                     ioMeta.idleCounts = 0;
                     return;
                 }
+                socket.setTimeout(ioMeta.timeout);
                 // a timeout received on a socket that is not "idle"
                 ioMeta.idleCounts++;
                 this.activityEvents.idle++;
@@ -399,6 +397,11 @@ export default class SocketIOManager implements ISocketIOManager {
         };
     }
 
+    public setEnableTimeout(item: SocketAttributes): void {
+        const socket = item.socket;
+        socket?.setTimeout(item.ioMeta.timeout);
+    }
+
     public async handleBackPressure(attr: SocketAttributes): Promise<void> {
         const t0 = attr.ioMeta.time.ts;
         const t1 = this.markTime(attr);
@@ -426,7 +429,7 @@ export default class SocketIOManager implements ISocketIOManager {
         const sslSocket = createSSLConnection(conOpt); // this call takes 29ms
         attr.socket = sslSocket;
         const t0 = this.markTime(attr);
-        this.decorate(item, extraOpt);
+        this.decorate(item);
         sslSocket.on('secureConnect', async () => {
             //trace('secureConnect', id, sslSocket.authorized, sslSocket.authorizationError);
             const t1 = this.markTime(attr);
@@ -621,11 +624,12 @@ export default class SocketIOManager implements ISocketIOManager {
                 ready4Use: createResolvePromiseExtended(false), // unresolved promise
                 lastWriteTs: 0,
                 idleCounts: 0,
+                timeout: extraOpt.timeout,
                 aux: null
             }
         };
         const item: List<SocketAttributes> = { value: attributes };
-        this.decorate(item, extraOpt);
+        this.decorate(item);
         this.residencies.created = insertBefore(this.residencies.created, item);
     }
 }

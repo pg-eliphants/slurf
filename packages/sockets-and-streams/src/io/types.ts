@@ -73,6 +73,7 @@ export type MetaSocketAttr<T> = {
     backPressure: PromiseExtended;
     ready4Use: PromiseExtended;
     lastWriteTs: number;
+    timeout: number;
     aux: T;
 };
 

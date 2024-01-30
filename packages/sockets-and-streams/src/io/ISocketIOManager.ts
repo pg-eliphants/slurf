@@ -32,4 +32,5 @@ export default interface ISocketIOManager<T = any> {
           }
         | { errors: Error[] };
     upgradeToSSL(item: Exclude<List<SocketAttributes>, null>);
+    setEnableTimeout(item: SocketAttributes): void;
 }
