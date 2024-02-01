@@ -38,3 +38,4 @@ export class PromiseExtended extends Promise<undefined> {
 export function createResolvePromiseExtended(resolveNow: boolean): PromiseExtended {
     return new PromiseExtended(resolveNow);
 }
+

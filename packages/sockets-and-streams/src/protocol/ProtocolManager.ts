@@ -7,6 +7,7 @@ import { JournalFactory, Journal } from '../journal';
 import dump from 'buffer-hexdump';
 
 export function ProtocolManagerFactory(getClientConfig: GetClientConfig) {
+    // https://www.measurethat.net/Benchmarks/Show/18003/0/array-vs-object-vs-map-vs-weakmap-access-3
     return function newProtocolManager(
         socketIoManager: SocketIOManager,
         journalFactory: ReturnType<typeof JournalFactory>

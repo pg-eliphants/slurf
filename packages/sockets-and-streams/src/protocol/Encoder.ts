@@ -1,4 +1,3 @@
-import { TextEncoder } from 'util';
 import MemoryManager, { MAX_MEM_BLOCK_SIZE } from '../utils/MemoryManager';
 import type { MemoryCategories } from '../utils/MemoryManager';
 import type { List } from '../utils/list';

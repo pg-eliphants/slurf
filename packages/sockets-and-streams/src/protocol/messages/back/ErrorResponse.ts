@@ -12,7 +12,8 @@ import { noticationsTemplate } from './constants';
          Int32
         Length of message contents in bytes, including self.
 
-        The message body consists of one or more identified fields, followed by a zero byte as a terminator. Fields can appear in any order. For each field there is the following:
+        The message body consists of one or more identified fields,
+         followed by a zero byte as a terminator. Fields can appear in any order. For each field there is the following:
 
 (repeat)
         Byte1

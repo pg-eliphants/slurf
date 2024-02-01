@@ -30,8 +30,9 @@ export function optionallyHandleUnprocessedBinary(ctx: ParseContext): Uint8Array
     return ctx.buffer.slice(ctx.cursor);
 }
 
-export function optionallyHandleErrorAndNoticeResponse(ctx: ParseContext): null | undefined | false | Notifications[] {
-    const collect: Notifications[] = [];
+export function optionallyHandleErrorAndNoticeResponse(ctx: ParseContext): null | undefined | false | { notices: Notifications[], errors: Notifications[] } {
+    const errors: Notifications[] = [];
+    const notices: Notifications[] = [];
     for (;;) {
         const rcErr = parseErrorResponse(ctx);
         if (rcErr === undefined) {
@@ -41,7 +42,7 @@ export function optionallyHandleErrorAndNoticeResponse(ctx: ParseContext): null 
             return null;
         }
         if (rcErr !== false) {
-            collect.push(rcErr);
+            errors.push(rcErr);
             continue;
         }
         // here rcErr === false
@@ -53,13 +54,13 @@ export function optionallyHandleErrorAndNoticeResponse(ctx: ParseContext): null 
             return null;
         }
         if (rcNotice !== false) {
-            collect.push(rcNotice);
+            notices.push(rcNotice);
             continue;
         }
         break;
     }
-    if (collect.length === 0) {
+    if (notices.length === 0 && errors.length === 0) {
         return false;
     }
-    return collect;
+    return { notices, errors };
 }

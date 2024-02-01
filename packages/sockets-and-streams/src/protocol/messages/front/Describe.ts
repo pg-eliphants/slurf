@@ -24,7 +24,7 @@ export default function createDescribeMessage(
     //www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS
     // P = 80 (portal)
     // S = 83 (prepared statement)
-    https: encoder
+    encoder
         .init('128')
         .nextMessage(DESCRIBE)
         ?.ui8(isPreparedSt ? 83 : 80)

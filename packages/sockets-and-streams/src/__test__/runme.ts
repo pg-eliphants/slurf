@@ -70,9 +70,9 @@ function test() {
     };
     //
     const memoryManager = new MemoryManager();
-    const textEncoder = new TextEncoder();
+    const txtEncoder = new TextEncoder();
     const txtDecoder = new TextDecoder();
-    const encoder = new Encoder(memoryManager, textEncoder);
+    const encoder = new Encoder(memoryManager, txtEncoder);
     const getSSLFallback: GetSLLFallbackSpec = (setConfig) => {
         setConfig((config: PGConfig) => {
             return false;

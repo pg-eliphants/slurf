@@ -36,9 +36,7 @@ import {
 
 import { NOTIFY } from './constants';
 
-import { parse as optionallyHandleErrorAndNoticeResponse } from '../protocol/messages/back/NoticeResponse';
-
-import { addBufferToParseContext, bytesLeft, createParseContext, optionallyHandleUnprocessedBinary } from './helper';
+import { addBufferToParseContext, bytesLeft, createParseContext, optionallyHandleUnprocessedBinary, optionallyHandleErrorAndNoticeResponse } from './helper';
 
 import { IBaseInitializer, SocketAttributeAuxMetadata } from './types';
 import { JournalFactory, Journal } from '../journal';
@@ -339,12 +337,13 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
                 // https://www.postgresql.org/support/security/CVE-2021-23222
                 return false;
             }
-            const errors = optionallyHandleErrorAndNoticeResponse(pc!);
-            if (errors === undefined) {
+            const en = optionallyHandleErrorAndNoticeResponse(pc!);
+            if (en === undefined) {
                 return true; // wait for more data;
             }
-            if (!(errors === null || errors === false)) {
-                aux.errors.push(errors);
+            if (!(en === null || en === false)) {
+                en.errors && aux.errors.push(...en.errors);
+                en.notices && aux.notices.push(...en.notices);
             }
             this.journal.add(id, NOTIFY.AUTH_PROTOCOL_VIOLATION, optionallyHandleUnprocessedBinary(pc!));
             return false;
@@ -456,15 +455,15 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
             }
             if (idx === 3 || idx === 4) {
                 // we have error and notice, or protocolversion error
-                const response = optionallyHandleErrorAndNoticeResponse(pc!) as Exclude<
+                const en = optionallyHandleErrorAndNoticeResponse(pc!) as Exclude<
                     ReturnType<typeof optionallyHandleErrorAndNoticeResponse>,
                     false
                 >;
                 // partial message received
-                if (response === undefined) {
+                if (en === undefined) {
                     return true;
                 }
-                if (response === null) {
+                if (en === null) {
                     this.journal.add(
                         id,
                         NOTIFY.AFTER_AUTH_OK_BROKEN_ERROR__NOTICE_MSG,
@@ -472,7 +471,8 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
                     );
                     return false;
                 }
-                aux.errors.push(response);
+                en.errors && aux.errors.push(...en.errors);
+                en.notices && aux.notices.push(...en.notices);
             }
             if (idx === 5) {
                 const response = parseNegotiateProtocolVersion(pc!) as Exclude<
@@ -504,17 +504,19 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
         //      "parameter status(es)", "backend key" data, and "ready for query",
         // if there is data left, error
         if (bytesLeft(aux.parsingContext!)) {
-            const response = optionallyHandleErrorAndNoticeResponse(pc!);
+            const en = optionallyHandleErrorAndNoticeResponse(pc!);
             // partial message received
-            if (response === undefined) {
+            if (en === undefined) {
                 return true; // need more data
             }
-            if (response === null || response === false) {
+            if (en === null || en === false) {
                 const bin = optionallyHandleUnprocessedBinary(pc!) as Uint8Array;
-                const code = response === null ? NOTIFY.AFTER_R4Q_BROKEN_ERROR_NOTICE_MSG : NOTIFY.UNKNOWN_DATA_FORMAT;
+                const code = en === null ? NOTIFY.AFTER_R4Q_BROKEN_ERROR_NOTICE_MSG : NOTIFY.UNKNOWN_DATA_FORMAT;
                 this.journal.add(id, code, optionallyHandleUnprocessedBinary(pc!));
                 return false;
             }
+            en.errors && aux.errors.push(...en.errors);
+            en.notices && aux.notices.push(...en.notices);
             // still bytes remain
             if (bytesLeft(aux.parsingContext!)) {
                 const bin = optionallyHandleUnprocessedBinary(pc!) as Uint8Array;
