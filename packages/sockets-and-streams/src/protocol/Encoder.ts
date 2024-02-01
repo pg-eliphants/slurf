@@ -28,11 +28,11 @@ export default class Encoder {
         const buf = this.slab!.value;
         const remaining = buf.byteLength - this.cursor;
         if (remaining < size) {
-            if ((size + this.cursor) > MAX_MEM_BLOCK_SIZE) {
-                return false
+            if (size + this.cursor > MAX_MEM_BLOCK_SIZE) {
+                return false;
             }
             // make assessment of the block you need + extra power
-            const power = ceil(log2(size + this.cursor))+1;
+            const power = ceil(log2(size + this.cursor)) + 1;
             if (power > 16) {
                 return false;
             }
@@ -69,9 +69,9 @@ export default class Encoder {
         }
         this.messageOffset = this.cursor;
         if (type !== undefined) {
-            if (this.ui8(type) === undefined){
+            if (this.ui8(type) === undefined) {
                 return undefined;
-            };
+            }
         }
         this.messageLengthOffset = this.cursor; // has been advanced if type !== undefined
         this.messagContentOffset = this.cursor + 4;
@@ -151,16 +151,7 @@ export default class Encoder {
         return this;
     }
 
-    /*private join(code?: number): ArrayBuffer {
-        if (code) {
-            this.currentView.setUint8(code, this.headerPosition);
-            const length = this.offset - this.headerPosition;
-            this.currentView.setInt32(this.headerPosition + 1, length);
-        }
-        return this.currentView.buffer.slice(code ? 0 : 5, this.offset);
-    }*/
-
-    public setLength(): Encoder  {
+    public setLength(): Encoder {
         const length = this.cursor - this.messageLengthOffset;
         this.currentView.setInt32(this.messageLengthOffset, length);
         return this;

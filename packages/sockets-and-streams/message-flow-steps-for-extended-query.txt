@@ -1,0 +1,36 @@
+frontend <-> backend
+Parse Message ->
+   <- ParseComplete
+   <- ErrorResponse
+
+(optional) Describe (statement variant) -> request description of what will be return (columns and types)
+                  <- ParameterDescription (parameters needed by the sattement)
+                  <- RowDescription | NoData | ErrorResponse
+
+		Note for Describe (statement varian) Note that since Bind has not yet been issued, the formats to be used for returned columns are not yet known to the backend; the format code fields in the RowDescription message will be zeroes in this case.
+
+   
+
+Bind Message -> (select here text or binary mode), creates a portal
+  <-BindComplete
+  <-ErrorResponse
+
+(optional) Describe (portal variant) -> request description of what will be return (columns and types)
+                  <- RowDescription | NoData | ErrorResponse
+
+Execute (Portal) ->
+   <- PortalSuspend
+   <- CommandComplete
+   <- EmptyQueryResponse
+   <- ErrorResponse
+(repeat again above series in total or partial
+)
+Sync -> (close current transaction)
+  if there was an error (rollback)
+  if there was no error (commit)
+  <- ReadyForQUery (gives transaction status information if it was closed or not)
+
+Close -> (closes an existing prepared statement or portal)
+   <- CloseComplete | ErrorResponse
+
+Flush -> can be sent after any extended query command (except after Sync)
