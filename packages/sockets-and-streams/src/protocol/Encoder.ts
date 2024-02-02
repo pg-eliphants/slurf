@@ -151,7 +151,7 @@ export default class Encoder {
         return this;
     }
 
-    public setLength(): Encoder {
+    public setLength(): Encoder  {
         const length = this.cursor - this.messageLengthOffset;
         this.currentView.setInt32(this.messageLengthOffset, length);
         return this;
