@@ -1,41 +1,38 @@
-import type { Pool, PGSSLConfig, AggregateError, SocketAttributes } from './types';
-import type { List } from '../utils/list';
+import type { AggregateError } from './types';
+
 export function isAggregateError(err: unknown): err is AggregateError {
     return (err as AggregateError)?.errors !== undefined;
 }
-export function validatePGSSLConfig(config?: PGSSLConfig): { errors: Error[] } | boolean {
-    const errors: Error[] = [];
-    if (config === undefined) {
-        return false;
-    }
-    if (!config?.ca) {
-        errors.push(new Error('no ssl.ca set'));
-        return { errors };
-    }
 
-    if (typeof config.ca !== 'string' || config.ca.length === 0) {
-        errors.push(new Error('ssl.ca must be a non-empty string'));
-    }
-    return errors.length ? { errors } : true;
-}
+export class PromiseExtended<T = undefined> {
+    private _isResolved: boolean;
+    public promise: Promise<T>;
+    private _reject: (value: T | PromiseLike<T>) => void;
+    private _resolve: (value: T | PromiseLike<T>) => void;
 
-export class PromiseExtended extends Promise<undefined> {
-    public resolve: (value: undefined | PromiseLike<undefined>) => void;
-    public reject: (value: undefined | PromiseLike<undefined>) => void;
-    constructor(resolveNow: boolean, p: ((value: PromiseLike<undefined> | undefined) => void)[] = []) {
-        super((resolve, reject) => {
-            p.push(resolve);
-            p.push(reject);
+    public forceResolve(value: T | PromiseLike<T>) {
+        this._isResolved = true;
+        this._resolve(value);
+    }
+    public forceReject(value: T | PromiseLike<T>) {
+        this._isResolved = true;
+        this._reject(value);
+    }
+    public get isResolved() {
+        return this._isResolved;
+    }
+    constructor(resolveNow: boolean) {
+        this.promise = new Promise((resolve, reject) => {
+            this._resolve = resolve;
+            this._reject = reject;
         });
-        this.reject = p[1];
-        this.resolve = p[0];
+        this._isResolved = !!resolveNow;
         if (resolveNow) {
-            this.resolve(undefined);
+            this.forceResolve(undefined as T);
         }
     }
 }
 
-export function createResolvePromiseExtended(resolveNow: boolean): PromiseExtended {
-    return new PromiseExtended(resolveNow);
+export function createResolvePromiseExtended(resolveNow: boolean): PromiseExtended<void> {
+    return new PromiseExtended<void>(resolveNow);
 }
-

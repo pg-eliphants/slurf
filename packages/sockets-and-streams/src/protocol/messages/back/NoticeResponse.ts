@@ -10,28 +10,27 @@ The message body consists of one or more identified fields, followed by a zero b
  Fields can appear in any order. For each field there is the following:
 
 Byte1
-A code identifying the field type; if zero, this is the message terminator and no string follows. The presently defined field types are listed in Section 55.8. Since more field types might be added in future, frontends should silently ignore fields of unrecognized type.
+A code identifying the field type; if zero, this is the message terminator and no string follows.
+The presently defined field types are listed in Section 55.8. Since more field types might be added in future,
+ frontends should silently ignore fields of unrecognized type.
 
 String
 The field value.
 */
-import { MSG_NOT, MSG_UNDECIDED, NOTICE_RESPONSE, noticationsTemplate } from './constants';
-import { ParseContext, Notifications } from './types';
-import { createMatcher, messageLength } from './helper';
+import { MSG_UNDECIDED, noticeAndErrorTemplate } from './constants';
+import { ErrorAndNotices } from './types';
+import { match, messageLength } from './helper';
+import ReadableStream from '../../../io/ReadableByteStream';
 
-export const match = createMatcher(NOTICE_RESPONSE);
-
-export function parse(ctx: ParseContext): null | undefined | false | Notifications {
-    const { buffer, cursor, txtDecoder } = ctx;
+export function parse(ctx: ReadableStream, txtDecoder: TextDecoder): null | undefined | ErrorAndNotices {
+    const { buffer, cursor } = ctx;
     const matched = match(buffer, cursor);
-    if (matched === MSG_NOT) {
-        return false;
-    }
     if (matched === MSG_UNDECIDED) {
         return undefined;
     }
-    const endPosition = cursor + messageLength(buffer, cursor);
-    const result = { ...noticationsTemplate };
+    const len = messageLength(buffer, cursor);
+    const endPosition = cursor + len;
+    const result = { ...noticeAndErrorTemplate };
     let pos = cursor + 5;
     while (pos < endPosition) {
         const code = String.fromCharCode(buffer[pos]);
@@ -49,7 +48,7 @@ export function parse(ctx: ParseContext): null | undefined | false | Notificatio
         pos = idx + 1;
     }
     if (pos === endPosition - 1) {
-        ctx.cursor = endPosition;
+        ctx.advanceCursor(len);
         return result;
     }
     return null;

@@ -8,12 +8,12 @@
 */
 
 import { MSG_NOT, MSG_UNDECIDED, BIND_COMPLETE } from './constants';
-import { ParseContext } from './types';
 import { messageLength, createMatcher } from './helper';
+import ReadableStream from '../../../io/ReadableByteStream';
 
 export const match = createMatcher(BIND_COMPLETE);
 
-export function parse(ctx: ParseContext): null | undefined | boolean {
+export function parse(ctx: ReadableStream): null | undefined | boolean {
     const { buffer, cursor } = ctx;
     const matched = match(buffer, cursor);
     if (matched === MSG_NOT) {
@@ -22,8 +22,9 @@ export function parse(ctx: ParseContext): null | undefined | boolean {
     if (matched === MSG_UNDECIDED) {
         return undefined;
     }
-    const endPosition = messageLength(buffer, cursor) + cursor;
-    if (endPosition === cursor + 5) {
+    const endPosition = messageLength(buffer, cursor);
+    if (endPosition === 5) {
+        ctx.advanceCursor(endPosition);
         return true;
     }
     return null;

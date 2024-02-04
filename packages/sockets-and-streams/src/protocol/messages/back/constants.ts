@@ -1,4 +1,13 @@
-import type { MessageState, Notifications } from '../types';
+import type { MessageState, ErrorAndNotices } from './types';
+
+import { parse as parseAuthentication } from './Authentication';
+import { parse as parseBackendKeyData } from './BackendKeyData';
+import { parse as parseErrorResponse } from './ErrorResponse';
+import { parse as parseNegotiateProtocolVersion } from './NegotiateProtocolVersion';
+import { parse as parseNoticeResponse } from './NoticeResponse';
+import { parse as parseNotificationResponse } from './NotificationResponse';
+import { parse as parseParameterStatus } from './ParameterStatus';
+import { parse as parseR4Q } from './ReadyForQuery';
 
 export const AUTH_CLASS = 82; // 'R' Authentication message
 export const PARAM_STATUS = 83; // 'S' connection parameter
@@ -20,16 +29,15 @@ export const COPY_OUT_RESPONSE = 72; // 'H' Copy out Response
 export const COPY_BOTH_RESPONSE = 87; // 'W' Copy Both Response
 export const DATA_ROW = 68; // 'D'
 export const EMPTY_QUERY_RESPONSE = 73; // 'I'
-export const NOTIFICATION_RESPONSE = 65; // 'A' 
-export const PARAMETER_DESCRIPTION = 116; // 't' 
-export const ROW_DESCRIPTION = 83; // 'T' 
+export const NOTIFICATION_RESPONSE = 65; // 'A'
+export const PARAMETER_DESCRIPTION = 116; // 't'
+export const ROW_DESCRIPTION = 83; // 'T'
 
 export const MSG_UNDECIDED: MessageState = 'undec';
-export const MSG_NOT: MessageState = 'not';
 export const MSG_IS: MessageState = 'is';
 export const MSG_ERROR: MessageState = 'error';
 
-export const noticationsTemplate: Notifications = {
+export const noticeAndErrorTemplate: ErrorAndNotices = {
     S: '',
     V: '',
     C: '',
@@ -49,6 +57,18 @@ export const noticationsTemplate: Notifications = {
     L: '',
     R: ''
 };
+
+export const mapKey2Parser = {
+    [AUTH_CLASS]: parseAuthentication,
+    [BACKEND_KEY_DATA]: parseBackendKeyData,
+    [ERROR]: parseErrorResponse,
+    [NEGOTIATE_PROTOCOL]: parseNegotiateProtocolVersion,
+    [NOTICE_RESPONSE]: parseNoticeResponse,
+    [NOTIFICATION_RESPONSE]: parseNotificationResponse,
+    [PARAM_STATUS]: parseParameterStatus,
+    [READY_4_QUERY]: parseR4Q
+};
+
 /*
 
 todo: finish this template

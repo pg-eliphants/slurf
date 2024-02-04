@@ -4,6 +4,8 @@ export type List<T> = null | {
     value: T;
 };
 
+export type Item<T> = Exclude<List<T>, null>;
+
 export function first<T>(l: List<T>): List<T> {
     return !l?.prev ? l : first(l.prev);
 }
@@ -56,4 +58,19 @@ export function count<T>(list: List<T>): number {
         list = list.next ?? null;
     }
     return cnt;
+}
+
+export function toArr<T>(list: List<T>): T[] {
+    // get length;
+    let cnt = 0;
+    for (let cursor: List<T> = list, cnt = 0; cursor; cursor = cursor!.next ?? null, cnt++) {
+        cnt += 1;
+    }
+    const rc = Array.from<T>({ length: cnt });
+    // 2nd pass copy
+    cnt = 0;
+    for (let cursor: List<T> = list, cnt = 0; cursor; cursor = cursor!.next ?? null, cnt++) {
+        rc[cnt] = cursor!.value;
+    }
+    return rc;
 }

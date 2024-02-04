@@ -1,9 +1,4 @@
 import type { SocketAttributes } from '../io/types';
-export type PGConfig = {
-    user: string;
-    database?: string;
-    replication?: boolean;
-};
 
 export type ProtocolAttributes = {
     tag: string;
@@ -15,12 +10,6 @@ export type ProtocolAttributes = {
     };
     connection: SocketAttributes;
 };
-
-export type SetClientConfig = (config: PGConfig) => void;
-export type GetClientConfig = (setConfig: SetClientConfig) => void;
-
-export type SetSSLFallback = (config: Required<PGConfig>) => boolean;
-export type GetSLLFallbackSpec = (setFallbackFn: (fallback: SetSSLFallback) => void) => void;
 
 export type Fields =
     | 'S'

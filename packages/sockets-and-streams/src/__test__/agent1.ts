@@ -45,6 +45,12 @@ writableFinished true
 /close: hadError: [false]
  */
 
+function delay(ms: number) {
+    return new Promise((resolve) => {
+        setTimeout(resolve, ms);
+    });
+}
+
 import { Socket } from 'net';
 import type { TcpNetConnectOpts } from 'net';
 import testServer from './server-partial';
@@ -158,12 +164,16 @@ async function connectToCounterParty(options: TcpNetConnectOpts) {
     socket.on('drain', () => {
         console.log('/drain');
     });
-    socket.on('data', (thunk: string) => {
-        console.log('/data/0/, socket timeout is:', socket.timeout);
-        console.log('/data/readableEnded:', socket.readableEnded);
-        console.log('/data/writableEnded:', socket.writableEnded);
-        console.log('/data/writableFinished:', socket.writableFinished);
-        console.log('/data/received type [%s], data:[%o]', typeof thunk, thunk);
+    socket.on('data', async (thunk: string) => {
+        console.log(thunk);
+        await delay(3000);
+        console.log(`-${thunk}`);
+        return;
+        // console.log('/data/0/, socket timeout is:', socket.timeout);
+        //console.log('/data/readableEnded:', socket.readableEnded);
+        //console.log('/data/writableEnded:', socket.writableEnded);
+        //console.log('/data/writableFinished:', socket.writableFinished);
+        //console.log('/data/received type [%s], data:[%o]', typeof thunk, thunk);
     });
     socket.on('error', (err: Error & NodeJS.ErrnoException) => {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
@@ -202,6 +212,7 @@ async function connectToCounterParty(options: TcpNetConnectOpts) {
     socket.connect(options, () => {
         socket.setTimeout(3000);
         console.log('callback/socket.connect()');
+        /*
         setTimeout(() => {
             console.log('/setTimeout');
             console.log('/setTimeout/socket.writableEnded', socket.writableEnded); // this can be false when ECONNRESET
@@ -227,6 +238,7 @@ async function connectToCounterParty(options: TcpNetConnectOpts) {
             console.log('/setTimeout/closed', socket.closed);
             //
         }, 5e3);
+        */
     });
 }
 

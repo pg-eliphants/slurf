@@ -1,7 +1,7 @@
-import MemoryManager, { MAX_MEM_BLOCK_SIZE } from '../utils/MemoryManager';
-import type { MemoryCategories } from '../utils/MemoryManager';
-import type { List } from '../utils/list';
-import { log2, ceil } from '../utils/math';
+import MemoryManager, { MAX_MEM_BLOCK_SIZE } from './MemoryManager';
+import type { MemoryCategories } from './MemoryManager';
+import type { List } from './list';
+import { log2, ceil } from './math';
 
 export default class Encoder {
     private cursor: number;
@@ -151,7 +151,7 @@ export default class Encoder {
         return this;
     }
 
-    public setLength(): Encoder  {
+    public setLength(): Encoder {
         const length = this.cursor - this.messageLengthOffset;
         this.currentView.setInt32(this.messageLengthOffset, length);
         return this;

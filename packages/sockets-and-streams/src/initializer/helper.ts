@@ -1,6 +1,9 @@
+import type { ConnectOpts, IpcSocketConnectOpts, TcpSocketConnectOpts } from 'net';
+
 import type { ParseContext, Notifications } from '../protocol/messages/back/types';
 import { parse as parseErrorResponse } from '../protocol/messages/back/ErrorResponse';
 import { parse as parseNoticeResponse } from '../protocol/messages/back/NoticeResponse';
+import { PGSSLConfig, SocketOtherOptions } from './types';
 
 export function bytesLeft(pc: ParseContext): number {
     return pc.buffer.byteLength - pc.cursor;
@@ -15,11 +18,10 @@ export function addBufferToParseContext(ctx: ParseContext, newData: Uint8Array):
     return ctx;
 }
 
-export function createParseContext(newData: Uint8Array, txtDecoder): ParseContext {
+export function normalizeExtraOptions(extraOpt?: SocketOtherOptions): SocketOtherOptions {
+    const { timeout = 0 } = extraOpt ?? {};
     return {
-        buffer: newData,
-        cursor: 0,
-        txtDecoder
+        timeout
     };
 }
 
@@ -30,7 +32,69 @@ export function optionallyHandleUnprocessedBinary(ctx: ParseContext): Uint8Array
     return ctx.buffer.slice(ctx.cursor);
 }
 
-export function optionallyHandleErrorAndNoticeResponse(ctx: ParseContext): null | undefined | false | { notices: Notifications[], errors: Notifications[] } {
+export function normalizeConnectOptions(
+    conOpt: (TcpSocketConnectOpts & ConnectOpts) | (IpcSocketConnectOpts & ConnectOpts)
+): (TcpSocketConnectOpts & ConnectOpts) | (IpcSocketConnectOpts & ConnectOpts) | { errors: Error[] } {
+    const errors: Error[] = [];
+    if ((conOpt as IpcSocketConnectOpts & ConnectOpts).path) {
+        return {
+            path: (conOpt as IpcSocketConnectOpts & ConnectOpts).path
+        };
+    }
+    const {
+        port,
+        host,
+        localAddress,
+        localPort,
+        hints,
+        family,
+        lookup,
+        noDelay,
+        keepAlive,
+        keepAliveInitialDelay,
+        autoSelectFamily,
+        autoSelectFamilyAttemptTimeout
+    } = (conOpt || {}) as TcpSocketConnectOpts & ConnectOpts;
+    // tcp connection
+    if (!port) {
+        errors.push(new Error(`no port or path specified in connect options, [${JSON.stringify(conOpt)}]`));
+        return { errors };
+    }
+    return {
+        port,
+        ...(host && { host }),
+        ...(localAddress && { localAddress }),
+        ...(localPort && { localPort }),
+        ...(hints && { hints }),
+        ...(family && { family }),
+        ...(noDelay && { noDelay }),
+        ...(lookup && { lookup }),
+        ...(keepAlive && { keepAlive }),
+        ...(keepAliveInitialDelay && { keepAliveInitialDelay }),
+        ...(autoSelectFamily && { autoSelectFamily }),
+        ...(autoSelectFamilyAttemptTimeout && { autoSelectFamilyAttemptTimeout })
+    };
+}
+
+export function validatePGSSLConfig(config?: PGSSLConfig): { errors: Error[] } | boolean {
+    const errors: Error[] = [];
+    if (config === undefined) {
+        return false;
+    }
+    if (!config?.ca) {
+        errors.push(new Error('no ssl.ca set'));
+        return { errors };
+    }
+
+    if (typeof config.ca !== 'string' || config.ca.length === 0) {
+        errors.push(new Error('ssl.ca must be a non-empty string'));
+    }
+    return errors.length ? { errors } : true;
+}
+
+export function optionallyHandleErrorAndNoticeResponse(
+    ctx: ParseContext
+): null | undefined | false | { notices: Notifications[]; errors: Notifications[] } {
     const errors: Notifications[] = [];
     const notices: Notifications[] = [];
     for (;;) {

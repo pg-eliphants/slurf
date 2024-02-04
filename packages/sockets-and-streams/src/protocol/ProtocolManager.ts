@@ -46,23 +46,18 @@ export default class ProtocolManager {
         return;
     }
 
+    public handleInitialization(item: SocketAttributes<SocketAttributeAuxMetadata>, data: Uint8Array) {}
+
     public binDump(item: SocketAttributes<SocketAttributeAuxMetadata>, data: Uint8Array): boolean {
         console.log(dump(data));
         return true;
     }
 
-    public requestConnectionParams(): { errors: Error[] } | { config: Required<PGConfig> } {
-        let config: PGConfig | undefined;
-        const setClientConfig: SetClientConfig = ($config: PGConfig) => {
-            config = $config;
-        };
-        this.getClientConfig(setClientConfig);
-        const result = validatePGConnectionParams(config);
-        if (result === true) {
-            const configFinal = normalizePGConfig(config!);
-            return { config: configFinal };
-        }
-        return { errors: result.errors };
+    // return false -> some error occurred, close connection
+    // return 'done' ->
+    public initializeConnection(item: SocketAttributes<SocketAttributeAuxMetadata>): 'done' | false | undefined {
+        // right now we dont do anything just return 'done'
+        return 'done';
     }
 
     public parseSQL(text: string) {}

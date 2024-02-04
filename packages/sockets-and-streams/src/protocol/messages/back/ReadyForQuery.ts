@@ -10,26 +10,21 @@ done
     Byte1
     Current backend transaction status indicator. Possible values are 'I' if idle (not in a transaction block); 'T' if in a transaction block; or 'E' if in a failed transaction block (queries will be rejected until block is ended).
 */
-import { READY_4_QUERY, MSG_IS, MSG_NOT, MSG_UNDECIDED } from './constants';
-import { ParseContext, MessageState } from './types';
-import { createMatcher, messageLength } from './helper';
+import { READY_4_QUERY, MSG_UNDECIDED } from './constants';
+import { match, messageLength } from './helper';
+import ReadableStream from '../../../io/ReadableByteStream';
 
-export const match = createMatcher(READY_4_QUERY);
-
-export function parse(ctx: ParseContext): undefined | false | null | number {
+export function parse(ctx: ReadableStream, txt: TextDecoder): undefined | null | number {
     const { buffer, cursor } = ctx;
     const matched = match(buffer, cursor);
-    if (matched === MSG_NOT) {
-        return false;
-    }
     if (matched === MSG_UNDECIDED) {
         return undefined;
     }
-    const endPosition = cursor + messageLength(buffer, cursor);
+    const len = messageLength(buffer, cursor);
     const idx = cursor + 5;
     const result = buffer[idx];
-    if (idx === endPosition - 1) {
-        ctx.cursor = endPosition;
+    if (len === 6) {
+        ctx.advanceCursor(len);
         return result;
     }
     return null;

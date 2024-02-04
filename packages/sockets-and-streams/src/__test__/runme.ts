@@ -14,6 +14,8 @@ import type { GetClientConfig, GetSLLFallbackSpec, PGConfig, SetClientConfig } f
 import Encoder from '../protocol/Encoder';
 import { InitializerFactory } from '../initializer/Initializer';
 
+import { CreateTransformerFactory, createBytes2MessageTransformerCreator } from '../protocol/Bytes2MessageTransformer';
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 import { JournalFactory, JournalReducer } from '../journal';
@@ -73,11 +75,13 @@ function test() {
     const txtEncoder = new TextEncoder();
     const txtDecoder = new TextDecoder();
     const encoder = new Encoder(memoryManager, txtEncoder);
+
     const getSSLFallback: GetSLLFallbackSpec = (setConfig) => {
         setConfig((config: PGConfig) => {
             return false;
         });
     };
+
     const getClientConfig: GetClientConfig = (setClientConfig: SetClientConfig) => {
         setClientConfig({
             user: 'role_ssl_nopasswd',
@@ -86,7 +90,13 @@ function test() {
     };
     //
     //  const initializer = new Initializer(encoder, txtDecoder, ioManager, protocolManager, getSSLFallback);
-    const initialFactory = InitializerFactory(encoder, txtDecoder, getSSLFallback, now);
+    const initialFactory = InitializerFactory(
+        encoder,
+        txtDecoder,
+        getSSLFallback,
+        now,
+        createBytes2MessageTransformerCreator
+    );
     const protocolManagerFactory = ProtocolManagerFactory(getClientConfig);
 
     const ioManager = new SocketIOManager(

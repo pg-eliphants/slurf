@@ -1,7 +1,7 @@
 //done
-import { PARAM_STATUS, MSG_IS, MSG_NOT, MSG_UNDECIDED } from './constants';
-import { ParseContext, MessageState } from './types';
-import { createMatcher, i32, messageLength } from './helper';
+import { PARAM_STATUS, MSG_UNDECIDED } from './constants';
+import ReadableStream from '../../../io/ReadableByteStream';
+import { match, i32, messageLength } from './helper';
 
 export type ParameterStatus = {
     name: string;
@@ -38,19 +38,15 @@ come configurable. Accordingly, a frontend should simply ignore ParameterStatus 
 it does not understand or care about.
 */
 
-const match = createMatcher(PARAM_STATUS);
-
-export function parse(ctx: ParseContext): false | null | ParameterStatus | undefined {
-    const { buffer, cursor, txtDecoder } = ctx;
+export function parse(ctx: ReadableStream, txtDecoder: TextDecoder): null | ParameterStatus | undefined {
+    const { buffer, cursor } = ctx;
     const matched = match(buffer, cursor);
-    if (matched === MSG_NOT) {
-        return false;
-    }
     if (matched === MSG_UNDECIDED) {
         return undefined;
     }
 
-    const endPosition = cursor + messageLength(buffer, cursor);
+    const len = messageLength(buffer, cursor);
+    const endPosition = cursor + len;
     let pos = cursor + 5;
     const split = buffer.indexOf(0, pos);
     if (split < 0 || split > endPosition) {
@@ -62,6 +58,6 @@ export function parse(ctx: ParseContext): false | null | ParameterStatus | undef
         return null;
     }
     const value = txtDecoder.decode(buffer.slice(split + 1, endPosition - 1));
-    ctx.cursor = endPosition;
+    ctx.advanceCursor(len);
     return { name, value };
 }

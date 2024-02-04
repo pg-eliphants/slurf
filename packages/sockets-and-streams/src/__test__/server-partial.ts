@@ -12,17 +12,18 @@ export default function createTestServer(port = 0): Promise<Server | Error> {
     server.on('connection', (socket: Socket) => {
         console.log('/server/connection: new connected to from:', socket.address());
         socket.setEncoding('utf8');
+        let i = 0;
         const interval = setInterval(() => {
             console.log('writing data/');
-            const rc = socket.write(new Uint8Array(64), (err) => {
+            const rc = socket.write(`${i++},`, (err) => {
                 if (err) {
                     console.log('writing data/Error writing data  %o', err);
                     return;
                 }
                 console.log('writing data/data written');
             });
-            console.log('writing data/backpressure: %s', rc);
-        }, 12e3);
+            console.log('writing data/backpressure?: %s', !rc);
+        }, 500);
         //clearInterval(interval);
         socket.on('drain', () => {
             console.log('/drain');

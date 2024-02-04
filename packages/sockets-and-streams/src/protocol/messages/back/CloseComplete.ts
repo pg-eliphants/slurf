@@ -7,7 +7,6 @@ Int32(4)
 Length of message contents in bytes, including self.
 */
 import { MSG_NOT, MSG_UNDECIDED, CLOSE_COMPLETE } from './constants';
-import { ParseContext } from './types';
 import { messageLength, createMatcher } from './helper';
 
 export const match = createMatcher(CLOSE_COMPLETE);

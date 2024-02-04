@@ -1,8 +1,8 @@
 // done
-import { ERROR, MSG_NOT, MSG_UNDECIDED } from './constants';
-import { ParseContext, Notifications, NotificationAndErrorFields } from './types';
-import { messageLength, createMatcher } from './helper';
-import { noticationsTemplate } from './constants';
+import { MSG_UNDECIDED, noticeAndErrorTemplate } from './constants';
+import { NoticeAndErrorFields, ErrorAndNotices } from './types';
+import { messageLength, match } from './helper';
+import ReadableStream from '../../../io/ReadableByteStream';
 
 /*
     ErrorResponse (B) 
@@ -17,31 +17,29 @@ import { noticationsTemplate } from './constants';
 
 (repeat)
         Byte1
-        A code identifying the field type; if zero, this is the message terminator and no string follows. The presently defined field types are listed in Section 55.8. Since more field types might be added in future, frontends should silently ignore fields of unrecognized type.
+        A code identifying the field type; if zero, this is the message terminator and no string follows.
+         The presently defined field types are listed in Section 55.8. Since more field types might be added in future, 
+         frontends should silently ignore fields of unrecognized type.
 
         String
         The field value.
 */
 
-export const match = createMatcher(ERROR);
-
-export function parse(ctx: ParseContext): null | undefined | false | Notifications {
-    const { buffer, cursor, txtDecoder } = ctx;
+export function parse(ctx: ReadableStream, txtDecoder: TextDecoder): null | undefined | ErrorAndNotices {
+    const { buffer, cursor } = ctx;
     const matched = match(buffer, cursor);
-    if (matched === MSG_NOT) {
-        return false;
-    }
     if (matched === MSG_UNDECIDED) {
         return undefined;
     }
-    const endPosition = messageLength(buffer, cursor) + cursor;
-    const fields = { ...noticationsTemplate };
+    const len = messageLength(buffer, cursor);
+    const endPosition = len + cursor;
+    const fields = { ...noticeAndErrorTemplate };
     for (let pos = cursor + 5; pos < endPosition; ) {
-        const type = String.fromCharCode(buffer[pos]) as NotificationAndErrorFields | '\x00';
+        const type = String.fromCharCode(buffer[pos]) as NoticeAndErrorFields | '\x00';
         if (type === '\x00') {
             // termination
             if (pos === endPosition - 1) {
-                ctx.cursor = pos + 1; // advance cursor
+                ctx.advanceCursor(len); // advance cursor
                 return fields;
             }
             break; // go and return null

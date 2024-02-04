@@ -1,7 +1,7 @@
 //done
-import { BACKEND_KEY_DATA, MSG_IS, MSG_NOT, MSG_UNDECIDED } from './constants';
-import { ParseContext, MessageState } from './types';
-import { i32, createMatcher, matcherLength, messageLength } from './helper';
+import { MSG_UNDECIDED } from './constants';
+import { i32, match, messageLength } from './helper';
+import ReadableStream from '../../../io/ReadableByteStream';
 
 /*
     BackendKeyData (B) #
@@ -23,14 +23,9 @@ export type BackendKeyData = {
     secret: number;
 };
 
-export const match = createMatcher(BACKEND_KEY_DATA);
-
-export function parse(ctx: ParseContext): undefined | false | BackendKeyData {
+export function parse(ctx: ReadableStream, _txtDecoder: TextDecoder): undefined | BackendKeyData {
     const { buffer, cursor } = ctx;
     const matched = match(buffer, cursor);
-    if (matched === MSG_NOT) {
-        return false;
-    }
     if (matched === MSG_UNDECIDED) {
         return undefined;
     }
@@ -38,6 +33,6 @@ export function parse(ctx: ParseContext): undefined | false | BackendKeyData {
         pid: i32(buffer, cursor + 5),
         secret: i32(buffer, 9)
     };
-    ctx.cursor += messageLength(buffer, cursor);
+    ctx.advanceCursor(messageLength(buffer, cursor));
     return bkd;
 }

@@ -17,23 +17,18 @@ Then, for protocol option not recognized by the server, there is the following:
 String
 The option name.
 */
-import { MSG_NOT, MSG_UNDECIDED, NEGOTIATE_PROTOCOL } from './constants';
-import { ParseContext } from './types';
-import { createMatcher, i32, messageLength } from './helper';
-
-export const match = createMatcher(NEGOTIATE_PROTOCOL);
+import { MSG_UNDECIDED, NEGOTIATE_PROTOCOL } from './constants';
+import { i32, messageLength, match } from './helper';
+import ReadableStream from '../../../io/ReadableByteStream';
 
 export type NegotiateProtocolResult = {
     minor: number;
     options: string[];
 };
 
-export function parse(ctx: ParseContext): null | undefined | false | NegotiateProtocolResult {
-    const { buffer, cursor, txtDecoder } = ctx;
+export function parse(ctx: ReadableStream, txtDecoder: TextDecoder): null | undefined | NegotiateProtocolResult {
+    const { buffer, cursor } = ctx;
     const matched = match(buffer, cursor);
-    if (matched === MSG_NOT) {
-        return false;
-    }
     if (matched === MSG_UNDECIDED) {
         return undefined;
     }
@@ -52,7 +47,7 @@ export function parse(ctx: ParseContext): null | undefined | false | NegotiatePr
         numOptionsNotRecognized--;
     }
     if (numOptionsNotRecognized === 0) {
-        ctx.cursor += len;
+        ctx.advanceCursor(len);
         return { minor, options };
     }
     return null;

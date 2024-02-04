@@ -7,8 +7,8 @@
   "type": "module",
   "scripts": {
     "devserver": "tsx ./src/__test__/agent2.ts",
-    "devclient": "tsx ./src/__test__/agent1.ts --connect-port=",
-    "start": "tsx src/__test__/runme.ts",
+    "devclient": "tsx ./src/__test__/agent1.ts --connect-port=9999",
+    "start": "tsx src2/runme.ts",
     "test": "vitest run"
   },
   "keywords": [],

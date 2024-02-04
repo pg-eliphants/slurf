@@ -1,20 +1,20 @@
-import { ParseContext, MessageState } from '../types';
-import { MSG_IS, MSG_NOT, MSG_UNDECIDED, MSG_ERROR } from '../constants';
-import { AUTH_CLASS } from '../constants/index';
+import { MessageState } from '../types';
+import { MSG_NOT, MSG_IS, MSG_UNDECIDED, MSG_ERROR } from '../constants';
 import { i32 } from '../helper';
+import type ReadableByteStream from '../../../utils/ReadableByteStream';
 
-export type Ok = 'O';
-export type KerberosV5 = 'K';
-export type ClearTextPassword = 'Clr';
-export type MD5Password = 'MD5';
-export type GSSType = 'G';
-export type GSSContinue = 'GC';
-export type SSPIType = 'SSPI';
-export type SASLType = 'S';
-export type SASLContinue = 'SC';
-export type SASLFinal = 'SF';
+type Ok = 'O';
+type KerberosV5 = 'K';
+type ClearTextPassword = 'Clr';
+type MD5Password = 'MD5';
+type GSSType = 'G';
+type GSSContinue = 'GC';
+type SSPIType = 'SSPI';
+type SASLType = 'S';
+type SASLContinue = 'SC';
+type SASLFinal = 'SF';
 
-export type AuthenticationType =
+type AuthenticationType =
     | Ok
     | KerberosV5
     | ClearTextPassword
@@ -26,93 +26,17 @@ export type AuthenticationType =
     | SASLContinue
     | SASLFinal;
 
-export const OK: Ok = 'O';
-export const KERBEROSV5: KerberosV5 = 'K';
-export const CLEARTEXTPASSWORD: ClearTextPassword = 'Clr';
-export const MD5PASSWORD: MD5Password = 'MD5';
-export const GSS: GSSType = 'G';
-export const GSSCONTINUE: GSSContinue = 'GC';
-export const SSPI: SSPIType = 'SSPI';
-export const SASL: SASLType = 'S';
-export const SASLCONTINUE: SASLContinue = 'SC';
-export const SASLFINAL: SASLFinal = 'SF';
-//      0             4   5   6 7  8    9
-// || [ R] [00 00 00 ..] [00 00 00 ff] byteN
-export function matcherLength() {
-    return 9; // number of bytes
-}
+const OK: Ok = 'O';
+const KERBEROSV5: KerberosV5 = 'K';
+const CLEARTEXTPASSWORD: ClearTextPassword = 'Clr';
+const MD5PASSWORD: MD5Password = 'MD5';
+const GSS: GSSType = 'G';
+const GSSCONTINUE: GSSContinue = 'GC';
+const SSPI: SSPIType = 'SSPI';
+const SASL: SASLType = 'S';
+const SASLCONTINUE: SASLContinue = 'SC';
+const SASLFINAL: SASLFinal = 'SF';
 
-export function messageLength(bin: Uint8Array, start: number): null | number {
-    const field = bin[start + 8];
-    switch (field) {
-        case 0:
-        // no 1
-        case 2:
-        case 3:
-        // no 4
-        // no 6
-        case 7:
-        case 9:
-            return 9;
-        case 5:
-            return 10;
-        case 8:
-        case 10:
-        case 11:
-        case 12:
-            // calculate
-            const len = i32(bin, start + 1);
-            return len + 1;
-    }
-    return null;
-}
-
-export function match(bin: Uint8Array, start: number): MessageState {
-    if (bin[start] !== AUTH_CLASS) {
-        return MSG_NOT;
-    }
-    const len = bin.length - start;
-    if (len < 9) {
-        return MSG_UNDECIDED;
-    }
-    const msgLen = messageLength(bin, start);
-    if (msgLen === null) {
-        return MSG_ERROR;
-    }
-    if (len < msgLen) {
-        return MSG_UNDECIDED;
-    }
-    if (msgLen === 9) {
-        if (!(bin[start + 1] === 0 && bin[start + 2] === 0 && bin[start + 3] === 0 && bin[start + 4] === 8)) {
-            return MSG_ERROR;
-        }
-    }
-    return MSG_IS;
-}
-
-const mapFieldToType = [
-    OK, // 0
-    undefined, //1
-    KERBEROSV5,
-    CLEARTEXTPASSWORD,
-    undefined, // 4
-    MD5PASSWORD,
-    undefined, // 6
-    GSS,
-    GSSCONTINUE,
-    SSPI,
-    SASL, //10
-    SASLCONTINUE,
-    SASLFINAL //12
-];
-
-export function isType(bin: Uint8Array, start: number): null | AuthenticationType {
-    const field = bin[start + 8];
-    const type = mapFieldToType[field];
-    return type ?? null;
-}
-
-// js objects
 export type AuthenticationOk = { type: Ok };
 export type AuthenticationMD5Password = { type: MD5Password; salt: number };
 export type AuthenticationGSSContinue = { type: GSSContinue; authData: Uint8Array };
@@ -136,33 +60,96 @@ export type Authentication =
     | AuthenticationSASLContinue
     | AuthenticationSASLFinal;
 
-export function parse(ctx: ParseContext): null | false | undefined | Authentication {
-    const { buffer, cursor, txtDecoder } = ctx;
-    const matched = match(buffer, cursor);
-    const len = buffer.byteLength - cursor;
-    if (matched === MSG_NOT) {
-        return false;
+// type guards
+export function isAuthOkMsg(u: Authentication): u is AuthenticationOk {
+    return u.type === OK;
+}
+
+export function isAuthClearTextPassword(u: Authentication): u is AuthenticationClearText {
+    return u.type === CLEARTEXTPASSWORD;
+}
+
+const dynLen = (bin: Uint8Array, start: number) => i32(bin, start + 1) + 1;
+
+const mapFieldToAuthLen = {
+    0: { t: OK, l: 9 }, // 0
+    // no 1
+    2: { t: KERBEROSV5, l: 9 },
+    3: { t: CLEARTEXTPASSWORD, l: 9 },
+    // no 4
+    5: { t: MD5PASSWORD, l: 13 },
+    // no 6
+    7: { t: GSS, l: 9 },
+    // 8 exist but in dyn len other list
+    9: { t: SSPI, l: 9 }
+};
+
+const mapFieldToAuthDynLen = {
+    8: { t: GSSCONTINUE, l: dynLen },
+    10: { t: SASL, l: dynLen },
+    11: { t: SASLCONTINUE, l: dynLen },
+    12: { t: SASLFINAL, l: dynLen } //12
+};
+
+function match(bin: Uint8Array, start: number): MessageState {
+    const len = bin.length - start;
+    // 'R' = 82 ascii
+    if (bin[start] !== 82) {
+        return MSG_NOT;
     }
+    if (len < 9) {
+        return MSG_UNDECIDED;
+    }
+    const field = i32(bin, start + 5);
+
+    const msgLen: number | undefined = mapFieldToAuthDynLen[field]?.l(bin, start) || mapFieldToAuthLen[field]?.l;
+
+    if (msgLen === undefined) {
+        return MSG_ERROR;
+    }
+
+    if (len < msgLen) {
+        return MSG_UNDECIDED;
+    }
+
+    if (msgLen === 9) {
+        if (!(bin[start + 1] === 0 && bin[start + 2] === 0 && bin[start + 3] === 0 && bin[start + 4] === 8)) {
+            return MSG_ERROR;
+        }
+    } else if (msgLen === 13) {
+        if (!(bin[start + 1] === 0 && bin[start + 2] === 0 && bin[start + 3] === 0 && bin[start + 4] === 12)) {
+            return MSG_ERROR;
+        }
+    }
+    return MSG_IS;
+}
+
+// js objects
+
+export function parse(ctx: ReadableByteStream, txtDecoder: TextDecoder): false | null | undefined | Authentication {
+    const { buffer, cursor } = ctx;
+    const matched = match(buffer, cursor);
     if (matched === MSG_UNDECIDED) {
         return undefined;
     }
     if (matched === MSG_ERROR) {
         return null;
     }
-    // if isType() is not null then messageLength() must return not null either
-    // the int8 value at bin[cursor + 8] (i32 value at bin[cursor + 5]) and int8 at bin[cursor + 0] deteremine
-    const type = isType(buffer, cursor);
-    if (type === null) {
-        //
-        return null;
+    if (matched === MSG_NOT) {
+        return false;
     }
-    const msgLen = messageLength(buffer, cursor);
-    if (msgLen === null) {
-        return null;
-    }
-    ctx.cursor += msgLen;
-    // IS_MSG
+
+    const len = buffer.byteLength - cursor;
+    const field = i32(buffer, cursor + 5);
+    const type: AuthenticationType = mapFieldToAuthLen[field]?.t || mapFieldToAuthDynLen[field]?.t;
+    const msgLen: number = mapFieldToAuthDynLen[field]?.l(buffer, cursor) || mapFieldToAuthLen[field]?.l;
+
+    // we can do this safely here since we have a copy of "cursor"
+    // at the top of the function
+    ctx.advanceCursor(msgLen);
+    // IS_MSG ?
     /*
+    9 bytes
     AuthenticationOk (B) 
         Byte1('R')
         Identifies the message as an authentication request.
@@ -174,9 +161,10 @@ export function parse(ctx: ParseContext): null | false | undefined | Authenticat
         Specifies that the authentication was successful.
     */
     if (type === OK) {
-        return { type: OK }; // authentication ok
+        return { type: OK } as AuthenticationOk; // AuthenticationOk
     }
     /*
+    9 bytes
     AuthenticationKerberosV5 (B) 
         Byte1('R')
         Identifies the message as an authentication request.
@@ -188,9 +176,10 @@ export function parse(ctx: ParseContext): null | false | undefined | Authenticat
         Specifies that Kerberos V5 authentication is required.
     */
     if (type === KERBEROSV5) {
-        return { type: KERBEROSV5 }; // authentication ok
+        return { type: KERBEROSV5 }; // AuthenticationKerberosV5
     }
     /*
+    9 bytes
     AuthenticationCleartextPassword (B) 
         Byte1('R')
         Identifies the message as an authentication request.
@@ -202,9 +191,10 @@ export function parse(ctx: ParseContext): null | false | undefined | Authenticat
         Specifies that a clear-text password is required.
     */
     if (type === CLEARTEXTPASSWORD) {
-        return { type: CLEARTEXTPASSWORD }; // authentication ok
+        return { type: CLEARTEXTPASSWORD }; // AuthenticationCleartextPassword
     }
     /*
+    13 bytes
     AuthenticationMD5Password (B) 
         Byte1('R')
         Identifies the message as an authentication request.
@@ -220,9 +210,10 @@ export function parse(ctx: ParseContext): null | false | undefined | Authenticat
     */
     if (type === MD5PASSWORD) {
         const salt = i32(buffer, cursor + 9);
-        return { type: MD5PASSWORD, salt };
+        return { type: MD5PASSWORD, salt }; // AuthenticationMD5Password
     }
     /*
+    9 bytes
     AuthenticationGSS (B) 
         Byte1('R')
         Identifies the message as an authentication request.
@@ -234,9 +225,10 @@ export function parse(ctx: ParseContext): null | false | undefined | Authenticat
         Specifies that GSSAPI authentication is required.
     */
     if (type === GSS) {
-        return { type: GSS };
+        return { type: GSS }; // AuthenticationGSS
     }
     /*
+    9 bytes + n bytes
     AuthenticationGSSContinue (B) 
         Byte1('R')
         Identifies the message as an authentication request.
@@ -258,6 +250,7 @@ export function parse(ctx: ParseContext): null | false | undefined | Authenticat
         return { type: GSSCONTINUE, authData };
     }
     /*
+    9 bytes
     AuthenticationSSPI (B) 
         Byte1('R')
         Identifies the message as an authentication request.
@@ -272,6 +265,7 @@ export function parse(ctx: ParseContext): null | false | undefined | Authenticat
         return { type: SSPI };
     }
     /*
+    9 bytes + n
     AuthenticationSASL (B) 
         Byte1('R')
         Identifies the message as an authentication request.
@@ -282,7 +276,10 @@ export function parse(ctx: ParseContext): null | false | undefined | Authenticat
         Int32(10)
         Specifies that SASL authentication is required.
 
-        The message body is a list of SASL authentication mechanisms, in the server's order of preference. A zero byte is required as terminator after the last authentication mechanism name. For each mechanism, there is the following:
+        The message body is a list of SASL authentication mechanisms,
+            in the server's order of preference. 
+        A zero byte is required as terminator after the last authentication
+            mechanism name. For each mechanism, there is the following:
 
         String
         Name of a SASL authentication mechanism.
@@ -294,7 +291,8 @@ export function parse(ctx: ParseContext): null | false | undefined | Authenticat
         const mechanisms: string[] = [];
         for (let pos = cursor + 9; pos < len; ) {
             if (buffer[pos] === 0) {
-                ctx.cursor = pos + 1;
+                // dont need to advance cursor
+                // that has alraedy been done
                 return { type: SASL, mechanisms };
             }
             const idx = buffer.indexOf(0, pos);
@@ -305,6 +303,7 @@ export function parse(ctx: ParseContext): null | false | undefined | Authenticat
         return null; // error happened!
     }
     /*
+    9 bytes + n bytes
     AuthenticationSASLContinue (B) 
         Byte1('R')
         Identifies the message as an authentication request.
@@ -323,10 +322,11 @@ export function parse(ctx: ParseContext): null | false | undefined | Authenticat
             return undefined;
         }
         const saslData = buffer.slice(cursor + 9, msgLen);
-        ctx.cursor += msgLen;
+        // no need to advance cursor, that has already been done
         return { type: SASLCONTINUE, saslData };
     }
     /*
+    9 bytes + n bytes
     AuthenticationSASLFinal (B) #
         Byte1('R')
         Identifies the message as an authentication request.

@@ -1,16 +1,14 @@
-import { List } from '../utils/list';
-import Encoder from '../protocol/Encoder';
-import { SocketAttributes } from '../io/types';
-import { PGConfig, SetSSLFallback } from '../protocol/types';
+import { List, insertBefore } from '../../src2/utils/list';
+import Encoder from '../../src2/utils/Encoder';
+import { PoolFirstResidence, SocketAttributes } from '../io/types';
 import SocketIOManager from '../io/SocketIOManager';
-import ProtocolManager from '../protocol/ProtocolManager';
 import { SEND_STATUS_OK, SEND_STATUS_OK_WITH_BACKPRESSURE } from '../io/constants';
-import type { GetSLLFallbackSpec } from './types';
 import { parse as parseParameterStatus } from '../protocol/messages/back/ParameterStatus';
 import { parse as parseBackendKeyData } from '../protocol/messages/back/BackendKeyData';
 import { parse as parseReady4Query } from '../protocol/messages/back/ReadyForQuery';
 import { parse as parseNegotiateProtocolVersion } from '../protocol/messages/back/NegotiateProtocolVersion';
-
+import createStartupMessage from '../protocol/messages/front/Startup';
+import createSSLRequest from '../protocol/messages/front/SSLRequest';
 import {
     PARAM_STATUS,
     READY_4_QUERY,
@@ -31,63 +29,76 @@ import {
     SASLCONTINUE,
     SASLFINAL,
     parse as parseAuthenticationMsg
-} from '../protocol/messages/back/authentication';
+} from '../protocol/messages/back/Authentication';
 
 import { NOTIFY } from './constants';
 
-import { addBufferToParseContext, bytesLeft, createParseContext, optionallyHandleUnprocessedBinary, optionallyHandleErrorAndNoticeResponse } from './helper';
-
-import { IBaseInitializer, SocketAttributeAuxMetadata } from './types';
+import {
+    ClientConfig,
+    CreateSLLConnection,
+    CreateSSLSocketSpec,
+    CreateSocketConnection,
+    CreateSocketSpec,
+    PGConfig,
+    PGSSLConfig,
+    SSLFallback,
+    SocketConnectOpts,
+    SocketOtherOptions
+} from './types';
 import { JournalFactory, Journal } from '../journal';
+import { createResolvePromiseExtended } from '../io/helpers';
+import delayMillis from '../../src2/utils/delay';
+import { normalizeConnectOptions, normalizeExtraOptions, validatePGSSLConfig } from './helper';
+import { createConnection } from 'net';
 
 export function InitializerFactory(
-    encode: Encoder,
-    txtDecoder: TextDecoder,
-    getSSLFallback: GetSLLFallbackSpec,
-    now: () => number
+    // configs
+    getSSLFallback: SSLFallback,
+    getClientConfig: ClientConfig,
+    createSocketSpec: CreateSocketSpec,
+    createSSLSocketSpec: CreateSSLSocketSpec
 ) {
     return function newInitialize(
+        attr: SocketAttributes,
+        now: () => number,
         socketIoManager: SocketIOManager,
-        protocolManager: ProtocolManager,
         journalFactory: ReturnType<typeof JournalFactory>
     ) {
         return new Initializer(
-            encode,
-            txtDecoder,
+            attr,
+            now,
             socketIoManager,
-            protocolManager,
             getSSLFallback,
-            journalFactory,
-            now
+            getClientConfig,
+            createSocketSpec,
+            createSSLSocketSpec,
+            journalFactory
         );
     };
 }
-export default class Initializer /*implements IBaseInitializer<SocketAttributeAuxMetadata>*/ {
+export class Initializer /*implements IBaseInitializer<SocketAttributeAuxMetadata>*/ {
     private readonly journal: Journal<Initializer>;
     constructor(
-        private readonly encoder: Encoder,
-        private readonly txtDecoder: TextDecoder,
+        // bound to
+        private readonly attr: SocketAttributes,
+        // general utils
+        private readonly now: () => number,
+        // counterparty
         private readonly socketIoManager: SocketIOManager,
-        private readonly protocol: ProtocolManager,
-        private readonly getSSLFallback: GetSLLFallbackSpec,
-        private readonly journalFactory: ReturnType<typeof JournalFactory>,
-        private readonly now: () => number
+        // configs
+        private readonly getSSLFallback: SSLFallback,
+        private readonly getClientConfig: ClientConfig,
+        private readonly createSocketSpec: CreateSocketSpec,
+        private readonly createSSLSocketSpec: CreateSSLSocketSpec,
+        // journals
+        private readonly journalFactory: ReturnType<typeof JournalFactory>
     ) {
         this.journal = journalFactory(this);
     }
-    public handleEnd(item: SocketAttributes<SocketAttributeAuxMetadata>) {
-        return true;
-    }
-    public handleTimeout(item: SocketAttributes<SocketAttributeAuxMetadata>) {
-        return true;
-    }
-    public handleError(item: SocketAttributes<SocketAttributeAuxMetadata>, err: Error & NodeJS.ErrnoException) {
-        return true;
-    }
-    public handleClose(item: SocketAttributes<SocketAttributeAuxMetadata>) {}
     // handle SSLRespone to SSLRequest Sent
     // ctx.buffer[cursor] is pre-checked to be 78 or 83
     // ctx.buffer.byteLength - ctx.cursor - ctx pre-checked to be 1
+    /*
     private async handleSSLResponse(attr: SocketAttributes<SocketAttributeAuxMetadata>) {
         const {
             ioMeta: {
@@ -122,11 +133,13 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
         pc!.cursor += 1;
         return true;
     }
+    */
 
     // return undefined -> incomplete authentication message received wait for more data from socket
     // return true -> authentication message was processds (does not mean handshake complete)
     // return null -> error orccured, malformed authentication message
     // true added means it is the actual value of the AuthenticationOk (and some others)
+    /*
     private handleAuthentication(
         item: SocketAttributes<SocketAttributeAuxMetadata>
     ): undefined | null | 'done' | false {
@@ -168,24 +181,8 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
             return null;
         }
     }
+    */
 
-    private createStartupMessage(config: Required<PGConfig>): Uint8Array | undefined {
-        const bin = this.encoder
-            .init('128')
-            .nextMessage()
-            ?.i32(196608)
-            ?.cstr('user')
-            ?.cstr(config.user)
-            ?.cstr('database')
-            ?.cstr(config.database)
-            //?.cstr('replication')
-            //?.cstr(String(config.replication))
-            // todo: you can add more options here, check out "client connect options" we need to loop over all posibilities
-            ?.cstr('')
-            ?.setLength()
-            ?.getMessage();
-        return bin;
-    }
     // popstgres has specified not handle ssl connection
     // so this request developer if we can continue with an non-ssl connection
     private approveNonSSLConnection(): boolean | { errors: Error[] } | { config: Required<PGConfig> } {
@@ -204,21 +201,35 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
         return setFallbackFn(r.config);
     }
 
+    private requestConnectionParams(): { errors: Error[] } | { config: Required<PGConfig> } {
+        let config: PGConfig | undefined;
+        const setClientConfig: SetClientConfig = ($config: PGConfig) => {
+            config = $config;
+        };
+        this.getClientConfig(setClientConfig);
+        const result = validatePGConnectionParams(config);
+        if (result === true) {
+            const configFinal = normalizePGConfig(config!);
+            return { config: configFinal };
+        }
+        return { errors: result.errors };
+    }
+
     private async sendStartupMessage(attr: SocketAttributes<SocketAttributeAuxMetadata>): Promise<boolean> {
         const ioMeta = attr.ioMeta;
-        const r = this.protocol.requestConnectionParams();
+        const r = this.requestConnectionParams();
         if ('errors' in r) {
             this.journal.add(ioMeta.id, NOTIFY.ERROR_REQUEST_PG_CONNECT_PARAMS, r.errors);
             return false;
         }
-        const bin = this.createStartupMessage(r.config);
+        const bin = createStartupMessage(r.config);
         if (!bin) {
             this.journal.add(ioMeta.id, NOTIFY.CREATE_STARTUPMSG_FAILURE);
             return false;
         }
+        await this.socketIoManager.handleBackPressure(attr);
         const rc = this.socketIoManager.send(attr, bin);
         if (rc === SEND_STATUS_OK_WITH_BACKPRESSURE) {
-            await this.socketIoManager.handleBackPressure(attr);
             this.journal.add(ioMeta.id, NOTIFY.BCK_PRESSURE_AFTER_STARTUPMSG);
         } else if (rc === SEND_STATUS_OK) {
             ioMeta.aux.startupSent = true;
@@ -229,7 +240,7 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
     }
 
     // this is called on a "connect" event
-    public async startupAfterConnect(attr: SocketAttributes<SocketAttributeAuxMetadata>): Promise<boolean> {
+    public async onConnect(attr: SocketAttributes<SocketAttributeAuxMetadata>): Promise<boolean> {
         // request ssl params from ioManager
         const id = attr.ioMeta.id;
         attr.ioMeta.aux = {
@@ -240,6 +251,8 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
             authenticationOk: false,
             authenticationMD5Sent: false,
             authenticationClearTextSent: false,
+            postLoginDataCheck: false,
+            postLoginInitialization: false,
             errors: [],
             runtimeParameters: {},
             notices: []
@@ -248,14 +261,14 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
         const r = this.socketIoManager.getSLLSocketClassAndOptions(attr.ioMeta.pool.createdFor);
         // no ssl, use normal connection
         if (r === false) {
-            return this.sendStartupMessage(attr);
+            return await this.sendStartupMessage(attr);
         }
         if ('errors' in r) {
             this.journal.add(id, NOTIFY.ERROR_SSL_WRONGLY_CONFIGURED, r.errors);
             return false;
         }
         // we configed for ssl, use it
-        const bin = this.encoder.init('64')?.nextMessage()?.i32(80877103)?.setLength().getMessage();
+        const bin = createSSLRequest(this.encoder);
         if (!bin) {
             this.journal.add(id, NOTIFY.CREATE_SSLREQUEST_MSG_FAILURE);
             return false;
@@ -263,7 +276,6 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
         const rc = this.socketIoManager.send(attr, bin);
         if (rc === SEND_STATUS_OK_WITH_BACKPRESSURE) {
             this.journal.add(id, NOTIFY.BCK_PRESSURE_AFTER_SSLREQUESTMSG);
-            await this.socketIoManager.handleBackPressure(attr);
         }
         if (rc === SEND_STATUS_OK) {
             attr.ioMeta.aux.sslRequestSent = true;
@@ -282,10 +294,8 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
     // initially server reacts to:
     //  sslRequest
     //  startupMessage
-    public async handleData(
-        item: Exclude<List<SocketAttributes<SocketAttributeAuxMetadata>>, null>,
-        data: Uint8Array
-    ): Promise<boolean | 'done'> {
+    /*
+    public async handleData(item: Exclude<List<SocketAttributes<SocketAttributeAuxMetadata>>, null>): Promise<boolean | 'done'> {
         const {
             value: attr,
             value: {
@@ -297,29 +307,22 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
                 }
             }
         } = item;
-        let pc = parsingContext;
-        if (!pc) {
-            pc = aux.parsingContext = createParseContext(data, this.txtDecoder);
-        } else {
-            addBufferToParseContext(pc!, data);
-        }
+        const pc = !parsingContext
+            ? (aux.parsingContext = createParseContext(data, this.txtDecoder))
+            : addBufferToParseContext(parsingContext, data);
+        //
         // can happen (bug in nodejs?)
+        //s
         const len = bytesLeft(pc!);
-        if (len === 0) {
-            this.journal.add(id, NOTIFY.SOCKET_EMITED_ZERO_LENGTH_DATA);
-            return true;
-        }
-
-        const { startupSent, sslRequestSent, upgradedToSll, authenticationOk, sslReplyReceived } = aux;
 
         // no handshake was ever initiated but pg-server sent us data
-        if (!startupSent && !sslRequestSent) {
+        if (!aux.startupSent && !aux.sslRequestSent) {
             this.journal.add(id, NOTIFY.GOT_DATA_BEFORE_INIT_HANDSHAKE, optionallyHandleUnprocessedBinary(pc!));
             return false;
         }
         const buffer = pc!.buffer;
         // sslRequest Sent but no answer received yes,
-        if (sslRequestSent && !sslReplyReceived) {
+        if (aux.sslRequestSent && !aux.sslReplyReceived) {
             const firstByte = buffer[pc!.cursor];
             if (firstByte === 78 || firstByte === 83) {
                 if (len === 1) {
@@ -353,7 +356,7 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
         //  sslRequestSent: true (must)
         //  sslReplyReceived: true (must)
         //
-        if (startupSent === false) {
+        if (aux.startupSent === false) {
             this.journal.add(id, NOTIFY.RECEIVED_LATENT_DATA, optionallyHandleUnprocessedBinary(pc!));
             return false;
         }
@@ -363,7 +366,7 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
         //  sslRequestSent: dont care
         //  sslReplyReceived: dont care, but must be equal to sslRequestSent
         //  authenticationOk: false (authentication not completed)
-        if (authenticationOk === false) {
+        if (aux.authenticationOk === false) {
             const rc = this.handleAuthentication(attr);
             if (rc === undefined) {
                 return true; // wait for more auth data to arrive
@@ -465,7 +468,7 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
                 if (en === null) {
                     this.journal.add(
                         id,
-                        NOTIFY.AFTER_AUTH_OK_BROKEN_ERROR__NOTICE_MSG,
+                        NOTIFY.AFTER_AUTH_OK_BROKEN_ERROR_NOTICE_MSG,
                         optionallyHandleUnprocessedBinary(pc!)
                     );
                     return false;
@@ -489,10 +492,11 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
                     );
                     return false;
                 }
+                aux.negotiateVersion = response;
             }
-            continue;
         } // while
         // state:
+        //  postLoginDataCheck: false
         //  ready4Query: true
         //  startupSent: true
         //  sslRequestSent: dont care
@@ -502,28 +506,111 @@ export default class Initializer /*implements IBaseInitializer<SocketAttributeAu
         //  at this point we consume:
         //      "parameter status(es)", "backend key" data, and "ready for query",
         // if there is data left, error
-        if (bytesLeft(aux.parsingContext!)) {
-            const en = optionallyHandleErrorAndNoticeResponse(pc!);
-            // partial message received
-            if (en === undefined) {
+        if (aux.postLoginDataCheck === false) {
+            if (bytesLeft(aux.parsingContext!)) {
+                const en = optionallyHandleErrorAndNoticeResponse(pc!);
+                // partial message received
+                if (en === undefined) {
+                    return true; // need more data
+                }
+                if (en === null || en === false) {
+                    const code = en === null ? NOTIFY.AFTER_R4Q_BROKEN_ERROR_NOTICE_MSG : NOTIFY.UNKNOWN_DATA_FORMAT;
+                    this.journal.add(id, code, optionallyHandleUnprocessedBinary(pc!));
+                    return false;
+                }
+                en.errors && aux.errors.push(...en.errors);
+                en.notices && aux.notices.push(...en.notices);
+                // still bytes remain
+                if (bytesLeft(aux.parsingContext!)) {
+                    const code = NOTIFY.UNKNOWN_DATA_FORMAT;
+                    this.journal.add(id, code, optionallyHandleUnprocessedBinary(pc!));
+                    return false;
+                }
+            }
+            aux.postLoginDataCheck = true;
+        }
+        // aux
+        if (aux.postLoginInitialization === false) {
+            const rc = this.protocol.handleInitialization(pc);
+            if (rc === undefined) {
                 return true; // need more data
             }
-            if (en === null || en === false) {
-                const bin = optionallyHandleUnprocessedBinary(pc!) as Uint8Array;
-                const code = en === null ? NOTIFY.AFTER_R4Q_BROKEN_ERROR_NOTICE_MSG : NOTIFY.UNKNOWN_DATA_FORMAT;
-                this.journal.add(id, code, optionallyHandleUnprocessedBinary(pc!));
-                return false;
+                aux.postLoginInitialization = true;
+                return 'done';
             }
-            en.errors && aux.errors.push(...en.errors);
-            en.notices && aux.notices.push(...en.notices);
-            // still bytes remain
-            if (bytesLeft(aux.parsingContext!)) {
-                const bin = optionallyHandleUnprocessedBinary(pc!) as Uint8Array;
-                // todo: this.journal.protocolError(bin)
-                return false;
-            }
+            return rc;
         }
-        // todo: this.journal.handleNotices(response)
-        return 'done';
+        re
+        turn true;
+    }
+    */
+
+    public getSLLSocketClassAndOptions(forPool: PoolFirstResidence):
+        | {
+              socketSSLFactory: () => CreateSLLConnection;
+              sslOptions: PGSSLConfig;
+          }
+        | { errors: Error[] }
+        | false {
+        const errors: Error[] = [];
+        const socketSSLConfig = this.createSSLSocketSpec({ forPool });
+        let sslOptions = socketSSLConfig.sslOptions();
+        if (!sslOptions) {
+            return false;
+        }
+        if (!socketSSLConfig.socketSSLFactory) {
+            // error if specifiy createSSLConnection function not set when requested
+            return { errors: [new Error('SSL options specified, but createSSLConnection function not set')] };
+        }
+        const result = validatePGSSLConfig(sslOptions);
+        if (result === false) {
+            // ssl configuration absent
+            return false;
+        } else if (result === true) {
+            // ssl configuration exist
+            return { socketSSLFactory: socketSSLConfig.socketSSLFactory, sslOptions };
+        }
+        return { errors: result.errors };
+    }
+
+    private getSocketClassAndOptions(forPool: PoolFirstResidence):
+        | {
+              socketFactory: () => CreateSocketConnection;
+              socketOptions: SocketConnectOpts;
+              extraOptions: SocketOtherOptions;
+          }
+        | { errors: Error[] } {
+        const errors: Error[] = [];
+        const socketConfig = this.createSocketSpec({ forPool });
+        let extraOptions = socketConfig.extraOpt();
+        const socketOptions = socketConfig.socketConnectOptions();
+        //
+        if (!('socketFactory' in socketConfig)) {
+            errors.push(new Error('No "socketFactory()" not defined in config'));
+        }
+        if (!socketOptions) {
+            errors.push(new Error('No connect options given'));
+        }
+        const r = normalizeConnectOptions(socketOptions!);
+        if ('errors' in r) {
+            errors.push(...r.errors);
+            return { errors }; // I have to put a "return" here otherwise typescript nags below
+        }
+        if (errors.length) {
+            return { errors };
+        }
+        extraOptions = normalizeExtraOptions(extraOptions)!;
+        return { socketFactory: socketConfig.socketFactory, socketOptions: r, extraOptions };
+    }
+
+    // Socket creation and connection starts here
+    // here only the socket is created and wired up, the actial connect sequence happens somewhere else
+    public createSocketForPool(forPool: PoolFirstResidence): Promise<void> {
+        const r = this.getSocketClassAndOptions(forPool);
+        if ('errors' in r) {
+            return Promise.reject({ errors: r.errors });
+        }
+        const { socketFactory, socketOptions, extraOptions } = r;
+        return this.socketIoManager.createSocket(socketFactory, socketOptions, extraOptions, forPool);
     }
 }

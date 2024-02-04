@@ -1,16 +1,8 @@
-export type BackEndMessageTypes = 'AuthenticationOk';
-
-export type ParseContext = {
-    buffer: Uint8Array;
-    cursor: number;
-    txtDecoder: TextDecoder;
-};
-
 export type MatcherLength = () => number;
 export type MessageLength = (bin?: Uint8Array, cursor?: number) => number;
 export type IsMatch = (bin: Uint8Array, start: number) => MessageState;
-export type Parse<T> = (ctx: ParseContext) => null | false | undefined | T;
-export type MessageState = 'undec' | 'is' | 'not' | 'error';
+export type MessageState = 'undec' | 'is' | 'error';
+import { mapKey2Parser } from './constants';
 
 export type CopyResponse = {
     isText: boolean;
@@ -18,7 +10,7 @@ export type CopyResponse = {
     formatCodes: number[];
 };
 
-export type NotificationAndErrorFields =
+export type NoticeAndErrorFields =
     | 'S'
     | 'V'
     | 'C'
@@ -38,6 +30,10 @@ export type NotificationAndErrorFields =
     | 'L'
     | 'R';
 
-export type Notifications = {
-    [p in NotificationAndErrorFields]: string;
+export type ErrorAndNotices = {
+    [p in NoticeAndErrorFields]: string;
 };
+
+type Map2Parser = typeof mapKey2Parser;
+export type LookupKeyParser = keyof Map2Parser;
+export type parseType<T extends LookupKeyParser> = Map2Parser[T];
