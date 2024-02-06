@@ -10,7 +10,6 @@ import { parse as parseParameterStatus } from '../protocol/messages/back/Paramet
 import { parse as parseBackendKeyData } from '../protocol/messages/back/BackendKeyData';
 import { parse as parseReady4Query } from '../protocol/messages/back/ReadyForQuery';
 import { parse as parseNegotiateProtocolVersion } from '../protocol/messages/back/NegotiateProtocolVersion';
-import { Notifications } from '../protocol/messages/back/types';
 
 import {
     PARAM_STATUS,

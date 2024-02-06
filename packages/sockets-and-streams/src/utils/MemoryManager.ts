@@ -112,6 +112,9 @@ export default class MemoryManager {
             return { prev: null, next: null, value: new Uint8Array(Number(from)) };
         }
         const item = removeSelf(partition.list);
+        if (item === partition.list){
+            partition.list = item.next ?? null;
+        }
         partition.length--;
         return item;
     }
