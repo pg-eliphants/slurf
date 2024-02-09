@@ -26,7 +26,7 @@ export function insertBefore<T>(list: List<T>, item: List<T>): List<T> {
 
 export function insertAfter<T>(list: List<T>, item: List<T>): List<T> {
     item!.prev = list;
-    item!.next = list?.next;
+    item!.next = list?.next ?? null;
     if (item?.next) {
         item.next.prev = item;
     }

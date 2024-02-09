@@ -23,7 +23,7 @@ export function createDeferOnce() {
                     return fn();
                 })
                 .catch(() => {
-                    // sink errors
+                    // sink errors, errors should be handled in fn() call
                 });
             executing = false;
         } while (hitCountDuringExecution);
