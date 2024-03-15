@@ -1,8 +1,8 @@
 // done
-import { MSG_NOT, MSG_UNDECIDED } from '../constants';
+import { ERROR, MSG_NOT, MSG_UNDECIDED } from '../constants';
 import { noticeAndErrorTemplate } from './constants';
 
-import { NoticeAndErrorFields, ErrorAndNotices } from './types';
+import { ErrorAndNotices, NoticeAndErrorFields, PGErrorResponse, PGNoticeResponse } from './types';
 import { messageLength, match } from '../helper';
 import ReadableByteStream from '../../../utils/ReadableByteStream';
 
@@ -27,20 +27,7 @@ import ReadableByteStream from '../../../utils/ReadableByteStream';
         The field value.
 */
 
-export function parse(
-    tag: number,
-    readable: ReadableByteStream,
-    txtDecoder: TextDecoder
-): false | null | undefined | ErrorAndNotices {
-    const { buffer, cursor } = readable;
-    const matched = match(tag, buffer, cursor);
-    if (matched === MSG_UNDECIDED) {
-        return undefined;
-    }
-    if (matched === MSG_NOT) {
-        return false;
-    }
-    const len = messageLength(buffer, cursor);
+function parseFields(buffer: Uint8Array, cursor: number, decoder: TextDecoder, len: number): null | ErrorAndNotices {
     const endPosition = len + cursor;
     const fields = { ...noticeAndErrorTemplate };
     for (let pos = cursor + 5; pos < endPosition; ) {
@@ -48,16 +35,56 @@ export function parse(
         if (type === '\x00') {
             // termination
             if (pos === endPosition - 1) {
-                readable.advanceCursor(len); // advance cursor
                 return fields;
             }
             break; // go and return null
         }
         const idx = buffer.indexOf(0, pos + 1);
-        const str = txtDecoder.decode(buffer.slice(pos + 1, idx));
+        const str = decoder.decode(buffer.slice(pos + 1, idx));
         fields[type] = str;
         pos = idx + 1;
     }
     // this is not good
     return null;
+}
+export function parseError(
+    readable: ReadableByteStream,
+    txtDecoder: TextDecoder
+): false | null | undefined | PGErrorResponse {
+    const { buffer, cursor } = readable;
+    const matched = match(ERROR, buffer, cursor);
+    if (matched === MSG_UNDECIDED) {
+        return undefined;
+    }
+    if (matched === MSG_NOT) {
+        return false;
+    }
+    const len = messageLength(buffer, cursor);
+    const response = parseFields(buffer, cursor, txtDecoder, len);
+    if (response === null) {
+        return null;
+    }
+    readable.advanceCursor(len); // advance cursor
+    return { type: 'pg.E', pl: response };
+}
+
+export function parseNotice(
+    readable: ReadableByteStream,
+    txtDecoder: TextDecoder
+): false | null | undefined | PGNoticeResponse {
+    const { buffer, cursor } = readable;
+    const matched = match(ERROR, buffer, cursor);
+    if (matched === MSG_UNDECIDED) {
+        return undefined;
+    }
+    if (matched === MSG_NOT) {
+        return false;
+    }
+    const len = messageLength(buffer, cursor);
+    const response = parseFields(buffer, cursor, txtDecoder, len);
+    if (response === null) {
+        return null;
+    }
+    readable.advanceCursor(len); // advance cursor
+    return { type: 'pg.N', pl: response };
 }

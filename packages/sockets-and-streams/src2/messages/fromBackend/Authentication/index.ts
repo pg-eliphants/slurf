@@ -61,12 +61,12 @@ export type Authentication =
     | AuthenticationSASLFinal;
 
 // type guards
-export function isAuthOkMsg(u: Authentication): u is AuthenticationOk {
-    return u.type === OK;
+export function isAuthOkMsg(u: any): u is AuthenticationOk {
+    return u?.type === OK;
 }
 
-export function isAuthClearTextPassword(u: Authentication): u is AuthenticationClearText {
-    return u.type === CLEARTEXTPASSWORD;
+export function isAuthClearTextPassword(u: any): u is AuthenticationClearText {
+    return u?.type === CLEARTEXTPASSWORD;
 }
 
 const dynLen = (bin: Uint8Array, start: number) => i32(bin, start + 1) + 1;
