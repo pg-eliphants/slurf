@@ -1,15 +1,39 @@
 import { MessageState } from './types';
 
-export const AUTH_CLASS = 82; // 'R' Authentication message
-export const PARAM_STATUS = 83; // 'S' connection parameter
-export const READY_4_QUERY = 90; // 'Z' ready for query
-export const BACKEND_KEY_DATA = 75; // 'K' cancellation key data
-export const ERROR = 69; // 'E' Error Response
-export const NEGOTIATE = 118; // 'v' NegotiateProtocolVersion (B)
-export const NO_DATA = 110; // 'n' NoData(B)
-export const NOTICE = 78; // 'N' NoticeResponse
-export const PARSE_COMPLETE = 49; // '1' Parse complete
-export const PORTAL_SUSPEND = 115; // 's' Portal suspend
+export type AuthenticationTag = 82;
+export type ParameterStatusTag = 83;
+export type ReadyForQueryTag = 90;
+export type BackendKeyDataTag = 75;
+export type ErrorResponseTag = 69;
+export type NoticeResponseTag = 78;
+export type NegotiateProtocolVersionTag = 118;
+export type NoDataTag = 110;
+export type ParsecompleteTag = 49;
+export type PortalSuspendTag = 115;
+
+export type MsgFromBackend =
+    | PortalSuspendTag
+    | ParsecompleteTag
+    | NoDataTag
+    | NegotiateProtocolVersionTag
+    | NoticeResponseTag
+    | ErrorResponseTag
+    | AuthenticationTag
+    | ParameterStatusTag
+    | ReadyForQueryTag
+    | BackendKeyDataTag;
+
+//
+export const AUTH_CLASS: AuthenticationTag = 82; // 'R' Authentication message
+export const PARAM_STATUS: ParameterStatusTag = 83; // 'S' connection parameter
+export const READY_4_QUERY: ReadyForQueryTag = 90; // 'Z' ready for query
+export const BACKEND_KEY_DATA: BackendKeyDataTag = 75; // 'K' cancellation key data
+export const ERROR: ErrorResponseTag = 69; // 'E' Error Response
+export const NEGOTIATE: NegotiateProtocolVersionTag = 118; // 'v' NegotiateProtocolVersion (B)
+export const NO_DATA: NoDataTag = 110; // 'n' NoData(B)
+export const NOTICE: NoticeResponseTag = 78; // 'N' NoticeResponse
+export const PARSE_COMPLETE: ParsecompleteTag = 49; // '1' Parse complete
+export const PORTAL_SUSPEND: PortalSuspendTag = 115; // 's' Portal suspend
 export const BIND_COMPLETE = 50; // '2' Bind complete
 export const CLOSE_COMPLETE = 51; // '3' Close Complete
 export const COMMAND_COMPLETE = 67; // 'C'

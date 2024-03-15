@@ -1,3 +1,3 @@
 export default interface Enqueue<T> {
-    enqueue(data: T);
+    enqueue(data: T): void;
 }
