@@ -6,19 +6,15 @@ import { AuthenticationControlMsgs } from './messages';
 import { SocketControlMsgs } from '../socket/messages';
 import { WRITE } from '../socket/constants';
 import Encoder from '../../utils/Encoder';
-import { DATA, END_CONNECTION } from '../constants';
+import { DATA, END_CONNECTION, NETCLOSE } from '../constants';
 import { SuperVisorControlMsgs } from '../supervisor/messages';
-import { AUTH_END, AUTH_PW_MISSING, MANGELD_DATA, NON_AUTH_DATA } from '../supervisor/constants';
-import { parse as parseNegotiateVersion } from '../../messages/fromBackend/NegotiateProtocol';
-import {
-    isAuthClearTextPassword,
-    isAuthOkMsg,
-    parse as parseAuthentication
-} from '../../messages/fromBackend/Authentication';
+import { AUTH_END, AUTH_PW_MISSING, MANGELD_DATA, OOD_AUTH } from '../supervisor/constants';
+import { isAuthClearTextPassword, isAuthOkMsg } from '../../messages/fromBackend/Authentication';
 import createPasswordMessage from '../../messages/toBackend/PasswordMessage';
 import { createStartupMessage } from '../../messages/toBackend/StartupMessage';
 import Lexer from '../../Lexer';
-import { parseError, parseNotice } from '../../messages/fromBackend/ErrorAndNoticeResponse';
+import { sendToSuperVisor } from './helpers';
+import { CLOSE_COMPLETE } from '../../messages/fromBackend/constants';
 
 export default class AuthenticationActor implements Enqueue<AuthenticationControlMsgs> {
     private lexer: Lexer<82 | 69 | 118 | 78>;
@@ -32,30 +28,28 @@ export default class AuthenticationActor implements Enqueue<AuthenticationContro
     ) {
         this.lexer = new Lexer<82 | 69 | 118 | 78>(
             this.receivedBytes,
-            {
-                82: parseAuthentication,
-                69: parseError,
-                118: parseNegotiateVersion,
-                78: parseNotice
-            },
             // isEOL
             (msg) => {
                 return isAuthOkMsg(msg);
             },
+            [82, 69, 118, 78],
             // curruptedCB
             (readable, tokens) => {
+                sendToSuperVisor(this.supervisor, this.socketActor, tokens);
                 this.supervisor.enqueue({ type: MANGELD_DATA, pl: receivedBytes, socketActor });
             },
             // eolCB
             (eol, readable, tokens, last) => {
                 if (eol) {
                     // send tokens to supervisor
+                    sendToSuperVisor(this.supervisor, this.socketActor, tokens);
                     this.supervisor.enqueue({ type: AUTH_END, socketActor, pl: receivedBytes });
                     return;
                 }
                 if (isAuthClearTextPassword(tokens[last])) {
                     const pw = this.config.password();
                     if (!pw) {
+                        sendToSuperVisor(this.supervisor, this.socketActor, tokens);
                         this.supervisor.enqueue({ type: AUTH_PW_MISSING, socketActor });
                         this.socketActor.enqueue({ type: END_CONNECTION });
                     } else {
@@ -66,7 +60,8 @@ export default class AuthenticationActor implements Enqueue<AuthenticationContro
             },
             // outOfDomain
             (readable, tokens) => {
-                this.supervisor.enqueue({ type: NON_AUTH_DATA, pl: receivedBytes, socketActor });
+                sendToSuperVisor(this.supervisor, this.socketActor, tokens);
+                this.supervisor.enqueue({ type: OOD_AUTH, pl: receivedBytes, socketActor });
                 this.socketActor.enqueue({ type: END_CONNECTION });
             },
             this.decoder
@@ -81,6 +76,10 @@ export default class AuthenticationActor implements Enqueue<AuthenticationContro
         if (msg.type === DATA) {
             this.receivedBytes.enqueue(msg.pl);
             this.lexer.handleData();
+            return;
+        }
+        if (msg.type === NETCLOSE) {
+            sendToSuperVisor(this.supervisor, this.socketActor, this.lexer.getTokens());
             return;
         }
     }

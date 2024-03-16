@@ -14,7 +14,16 @@ import ReadableByteStream from '../../../utils/ReadableByteStream';
 import { match, messageLength } from '../helper';
 import { READY_4_QUERY, MSG_UNDECIDED, MSG_NOT } from '../constants';
 
-export type ReadyForQueryResponse = 73 | 84 | 69;
+export type ReadyForQueryResponse = {
+    type: 'r4q';
+    r4q: 73 | 84 | 69;
+};
+
+export const R4Q_TYPE: ReadyForQueryResponse['type'] = 'r4q';
+
+export function isR4Q(u: any): u is ReadyForQueryResponse {
+    return u?.type === R4Q_TYPE;
+}
 
 export function parse(ctx: ReadableByteStream): false | undefined | null | ReadyForQueryResponse {
     const { buffer, cursor } = ctx;
@@ -33,7 +42,7 @@ export function parse(ctx: ReadableByteStream): false | undefined | null | Ready
     }
     if (len === 6) {
         ctx.advanceCursor(len);
-        return result;
+        return { type: R4Q_TYPE, r4q: result };
     }
     return null;
 }

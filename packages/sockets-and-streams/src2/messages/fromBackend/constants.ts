@@ -1,4 +1,8 @@
-import { MessageState } from './types';
+import { MapTagToGeneratorOfMessage, MessageState } from './types';
+import { parse as parseAuthentication } from './Authentication';
+import { parseError, parseNotice } from './ErrorAndNoticeResponse';
+
+import { parse as parseNegotiateVersion } from './NegotiateProtocol';
 
 export type AuthenticationTag = 82;
 export type ParameterStatusTag = 83;
@@ -52,3 +56,10 @@ export const MSG_UNDECIDED: MessageState = 'undec';
 export const MSG_IS: MessageState = 'is';
 export const MSG_NOT: MessageState = 'not';
 export const MSG_ERROR: MessageState = 'error';
+
+export const mapMsgTagToParser: MapTagToGeneratorOfMessage<82 | 69 | 118 | 78> = {
+    82: parseAuthentication,
+    69: parseError,
+    118: parseNegotiateVersion,
+    78: parseNotice
+};

@@ -22,9 +22,16 @@ import { MSG_NOT, MSG_UNDECIDED } from '../constants';
 import ReadableByteStream from '../../../utils/ReadableByteStream';
 
 export type NegotiateProtocolResult = {
+    type: 'negotiate-result';
     minor: number;
     options: string[];
 };
+
+export const NEGOTIATE_TYPE: NegotiateProtocolResult['type'] = 'negotiate-result';
+
+export function isNegotiateProtocolVersion(u: any): u is NegotiateProtocolResult {
+    return u?.type === NEGOTIATE_TYPE;
+}
 
 export function parse(
     ctx: ReadableByteStream,
@@ -54,7 +61,7 @@ export function parse(
     }
     if (numOptionsNotRecognized === 0) {
         ctx.advanceCursor(len);
-        return { minor, options };
+        return { type: NEGOTIATE_TYPE, minor, options };
     }
     return null;
 }

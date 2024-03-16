@@ -12,10 +12,10 @@ export type MapTagToMessage = {
     69: PGErrorResponse;
     78: PGNoticeResponse;
     118: NegotiateProtocolResult;
+    // [index: number]: unknown;
 };
 
 export type TagType = keyof MapTagToMessage;
-export type ValueOf<T, K extends keyof T = keyof T> = T[K];
 
 export type SelectedMessages<T extends TagType = TagType> = MapTagToMessage[T];
 

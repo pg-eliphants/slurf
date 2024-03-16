@@ -1,6 +1,6 @@
 // done
-import { ERROR, MSG_NOT, MSG_UNDECIDED } from '../constants';
-import { noticeAndErrorTemplate } from './constants';
+import { ERROR, MSG_NOT, MSG_UNDECIDED, NOTICE } from '../constants';
+import { noticeAndErrorTemplate, PG_ERROR, PG_NOTICE } from './constants';
 
 import { ErrorAndNotices, NoticeAndErrorFields, PGErrorResponse, PGNoticeResponse } from './types';
 import { messageLength, match } from '../helper';
@@ -65,7 +65,7 @@ export function parseError(
         return null;
     }
     readable.advanceCursor(len); // advance cursor
-    return { type: 'pg.E', pl: response };
+    return { type: PG_ERROR, pl: response };
 }
 
 export function parseNotice(
@@ -73,7 +73,7 @@ export function parseNotice(
     txtDecoder: TextDecoder
 ): false | null | undefined | PGNoticeResponse {
     const { buffer, cursor } = readable;
-    const matched = match(ERROR, buffer, cursor);
+    const matched = match(NOTICE, buffer, cursor);
     if (matched === MSG_UNDECIDED) {
         return undefined;
     }
@@ -86,5 +86,13 @@ export function parseNotice(
         return null;
     }
     readable.advanceCursor(len); // advance cursor
-    return { type: 'pg.N', pl: response };
+    return { type: PG_NOTICE, pl: response };
+}
+
+export function isErrorResponse(u: any): u is PGErrorResponse {
+    return u?.type == PG_ERROR;
+}
+
+export function isNoticeResponse(u: any): u is PGNoticeResponse {
+    return u?.type == PG_NOTICE;
 }

@@ -16,9 +16,16 @@ import ReadableByteStream from '../../../utils/ReadableByteStream';
 import { BACKEND_KEY_DATA, MSG_NOT, MSG_UNDECIDED } from '../constants';
 import { i32, match, messageLength } from '../helper';
 export type BackendKeyData = {
+    type: 'b-key-data';
     pid: number;
     secret: number;
 };
+
+export const BACKENDKEY_TYPE: BackendKeyData['type'] = 'b-key-data';
+
+export function isBackEndKeyData(u: any): u is BackendKeyData {
+    return u?.type === BACKENDKEY_TYPE;
+}
 
 export function parse(ctx: ReadableByteStream): false | null | undefined | BackendKeyData {
     const { buffer, cursor } = ctx;
@@ -33,7 +40,8 @@ export function parse(ctx: ReadableByteStream): false | null | undefined | Backe
     if (len !== 13) {
         return null;
     }
-    const bkd = {
+    const bkd: BackendKeyData = {
+        type: BACKENDKEY_TYPE,
         pid: i32(buffer, cursor + 5),
         secret: i32(buffer, 9)
     };

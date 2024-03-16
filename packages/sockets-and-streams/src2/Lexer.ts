@@ -1,11 +1,6 @@
-import type {
-    MapTagToGeneratorOfMessage,
-    MapTagToMessage,
-    SelectedMessages,
-    TagType,
-    ValueOf
-} from './messages/fromBackend/types';
+import type { GeneratorOfMessage, SelectedMessages, TagType } from './messages/fromBackend/types';
 import ReadableByteStream from './utils/ReadableByteStream';
+import { mapMsgTagToParser } from './messages/fromBackend/constants';
 
 type CallBack<T extends TagType = TagType> = (
     eol: boolean,
@@ -15,7 +10,7 @@ type CallBack<T extends TagType = TagType> = (
 ) => void;
 
 type CallBackErr<T extends TagType = TagType> = (readable: ReadableByteStream, tokens: SelectedMessages<T>[]) => void;
-export default class Lexer<T extends TagType = TagType> {
+export default class Lexer<T extends TagType> {
     private inProgressTag: T | undefined;
     private dataCorrupted: boolean;
     private outOfDomainMsgType: boolean;
@@ -24,8 +19,8 @@ export default class Lexer<T extends TagType = TagType> {
     private readonly collectedTokens: SelectedMessages<T>[];
     constructor(
         private readonly receivedBytes: ReadableByteStream,
-        private readonly mapTagToLexer: MapTagToGeneratorOfMessage<T>,
         private readonly isEOL: (token: SelectedMessages<T>) => boolean,
+        private readonly allowed: T[],
         private readonly curruptedCB: CallBackErr<T>,
         private readonly eolCB: CallBack<T>,
         private readonly outOfDomain: CallBackErr<T>,
@@ -37,11 +32,18 @@ export default class Lexer<T extends TagType = TagType> {
         this.dataCorrupted = false;
         this.inProgressTag = undefined;
     }
+    public getTokens() {
+        return this.collectedTokens;
+    }
     public handleData() {
         while (!this.eol && !this.dataCorrupted && !this.outOfDomainMsgType && this.receivedBytes.bytesLeft() > 0) {
-            const tag: T = this.inProgressTag ?? (this.receivedBytes.current() as T);
-
-            const currentGenerator = this.mapTagToLexer[tag];
+            const tag = this.inProgressTag ?? this.receivedBytes.current();
+            if (this.allowed.includes(tag as T) === false) {
+                this.outOfDomainMsgType = true;
+                this.outOfDomain(this.receivedBytes, this.collectedTokens);
+                return;
+            }
+            const currentGenerator: GeneratorOfMessage<T> | undefined = mapMsgTagToParser[tag];
             if (currentGenerator === undefined) {
                 this.outOfDomainMsgType = true;
                 this.outOfDomain(this.receivedBytes, this.collectedTokens);
@@ -54,7 +56,7 @@ export default class Lexer<T extends TagType = TagType> {
                 this.curruptedCB(this.receivedBytes, this.collectedTokens);
                 // todo: what to do here? signal
             } else if (result === undefined) {
-                this.inProgressTag = tag;
+                this.inProgressTag = tag as T;
                 return; // wait for more data
             } else {
                 const len = this.collectedTokens.push(result);

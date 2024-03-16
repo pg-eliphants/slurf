@@ -5,6 +5,7 @@ import {
     getRandomDelayInMs,
     getSLLSocketClassAndOptions,
     getStore,
+    isInformationalMessage,
     normalizePGConfig,
     validatePGConnectionParams
 } from './helper';
@@ -30,9 +31,11 @@ import {
     SETPOOL,
     BOOTEND,
     NEGOTIATE_PROTOCOL,
-    NON_AUTH_DATA,
+    OOD_AUTH,
     AUTH_PW_MISSING,
-    AUTH_END
+    AUTH_END,
+    OOD_SESSION_INFO,
+    INFO_TOKENS
 } from './constants';
 import { delayMillis } from '../helpers';
 import Encoder from '../../utils/Encoder';
@@ -159,20 +162,9 @@ export default class SuperVisor implements Enqueue<SuperVisorControlMsgs> {
             addToStore(this.weakSocketMap, socketActor, { type: msg.type });
             return;
         }
-        if (
-            msg.type === PG_ERROR ||
-            msg.type === PG_NOTICE ||
-            msg.type === NEGOTIATE_PROTOCOL ||
-            msg.type === NETWORKERR ||
-            msg.type === NON_AUTH_DATA
-        ) {
+        if (isInformationalMessage(msg)) {
             const { socketActor } = msg;
-            addToStore(this.weakSocketMap, socketActor, { type: msg.type, pl: msg.pl });
-            return;
-        }
-        if (msg.type === AUTH_PW_MISSING) {
-            const { socketActor } = msg;
-            addToStore(this.weakSocketMap, socketActor, { type: msg.type });
+            addToStore(this.weakSocketMap, socketActor, { type: msg.type, ...('pl' in msg && { pl: msg.pl }) });
             return;
         }
         if (msg.type === SSL) {
@@ -196,6 +188,16 @@ export default class SuperVisor implements Enqueue<SuperVisorControlMsgs> {
                 this.decoder
             );
             socketActor.enqueue({ type: SET_ACTOR, pl: authActor });
+            return;
+        }
+        if (msg.type === INFO_TOKENS) {
+            const { socketActor, pl } = msg;
+            pl.forEach((token) => {
+                addToStore(this.weakSocketMap, socketActor, {
+                    type: token.type,
+                    ...('pl' in token && { pl: token.pl })
+                });
+            });
             return;
         }
         if (msg.type === AUTH_END) {

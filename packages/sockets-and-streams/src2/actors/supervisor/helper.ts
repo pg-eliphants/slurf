@@ -6,16 +6,24 @@ import {
     ClientConfig,
     CreateSSLSocketSpec,
     CreateSocketSpec,
-    CreateSocketSpecHints,
     PGConfig,
     SSLConfig,
-    PoolFirstResidence,
     PoolTimeBins,
     SSLFallback
 } from './types';
 import { defaultActivityTimeReducer } from '../helpers';
 import Encoder from '../../utils/Encoder';
 import Enqueue from '../Enqueue';
+import {
+    BufferStuffingAttack,
+    ErrorResponse,
+    MangledData,
+    NoticeResponse,
+    PasswordMissing,
+    SVNegotiateProtocolVersion
+} from './messages';
+import { AUTH_PW_MISSING, BUFFER_STUFFING_ATTACK, MANGELD_DATA, NEGOTIATE_PROTOCOL, OOD_AUTH } from './constants';
+import { PG_ERROR } from '../../messages/fromBackend/ErrorAndNoticeResponse/constants';
 
 const defaultSSLFallback = (config: PGConfig) => {
     return false;
@@ -153,4 +161,23 @@ export function addToStore<T>(wm: WeakMap<Enqueue<T>, unknown[]>, sa: Enqueue<T>
 
 export function getStore<T>(wm: WeakMap<Enqueue<T>, unknown[]>, sa: Enqueue<T>): unknown[] {
     return wm.get(sa) || [];
+}
+
+export function isInformationalMessage(
+    u: any
+): u is
+    | BufferStuffingAttack
+    | MangledData
+    | SVNegotiateProtocolVersion
+    | PasswordMissing
+    | ErrorResponse
+    | NoticeResponse {
+    return (
+        u?.type === BUFFER_STUFFING_ATTACK ||
+        u?.type === MANGELD_DATA ||
+        u?.type === NEGOTIATE_PROTOCOL ||
+        u?.type === AUTH_PW_MISSING ||
+        u?.type === OOD_AUTH ||
+        u?.type === PG_ERROR
+    );
 }

@@ -1,7 +1,8 @@
+import type { NetworkData } from '../messages';
+import type { NetworkClose } from '../messages';
+
 export type AuthStart = {
     type: 'auth-start';
 };
 
-import type { NetworkData } from '../messages';
-
-export type AuthenticationControlMsgs = AuthStart | NetworkData;
+export type AuthenticationControlMsgs = AuthStart | NetworkData | NetworkClose;

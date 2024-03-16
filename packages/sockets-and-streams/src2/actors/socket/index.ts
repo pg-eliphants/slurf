@@ -159,6 +159,7 @@ export default class SocketActor implements Enqueue<SocketControlMsgs> {
         this.socket.on('close', (hadError) => {
             this.activityEvents.close++;
             this.updateNetworkStats('close');
+            this.downStreamActor.enqueue({ type: NETCLOSE });
             this.supervisor.enqueue({
                 type: NETCLOSE,
                 socketActor: this,

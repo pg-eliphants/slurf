@@ -8,7 +8,7 @@ import ReadableByteStream from '../../utils/ReadableByteStream';
 import Enqueue from '../Enqueue';
 import { DATA, END_CONNECTION, SESSION_INFO_END } from '../constants';
 import { SocketControlMsgs } from '../socket/messages';
-import { MANGELD_DATA, NON_AUTH_DATA, NON_Q4_DATA } from '../supervisor/constants';
+import { MANGELD_DATA, OOD_SESSION_INFO } from '../supervisor/constants';
 import { SuperVisorControlMsgs } from '../supervisor/messages';
 import { SES_START } from './constants';
 import { SessionInfoControlMessages } from './messages';
@@ -49,7 +49,7 @@ export default class SessionInfoExchange implements Enqueue<SessionInfoControlMe
     }
     private handleOutOfDomainData() {
         const { socketActor, receivedBytes } = this;
-        this.supervisor.enqueue({ type: NON_Q4_DATA, pl: receivedBytes, socketActor });
+        this.supervisor.enqueue({ type: OOD_SESSION_INFO, pl: receivedBytes, socketActor });
         this.socketActor.enqueue({ type: END_CONNECTION });
         this.outOfDomainMsgType = true;
     }

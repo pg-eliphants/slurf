@@ -14,6 +14,7 @@ import {
     EndConnection as _EndConnection
 } from '../messages';
 import type { NegotiateProtocolResult } from '../../messages/fromBackend/NegotiateProtocol';
+import { SelectedMessages } from '../../messages/fromBackend/types';
 
 export type SocketOriginFragmenet = {
     socketActor: Enqueue<SocketControlMsgs>;
@@ -67,13 +68,13 @@ export type SVUpgradeToSSL = SocketOriginFragmenet & {
     type: 'ssl';
 };
 
-export type NoAuthData = SocketOriginFragmenet & {
-    type: 'non-auth-data';
+export type OODAuth = SocketOriginFragmenet & {
+    type: 'ood-auth';
     pl: ReadableByteStream;
 };
 
-export type NoQ4Data = SocketOriginFragmenet & {
-    type: 'non-q4-data';
+export type OODSessionInfo = SocketOriginFragmenet & {
+    type: 'ood-session-info';
     pl: ReadableByteStream;
 };
 
@@ -88,6 +89,11 @@ export type PasswordMissing = SocketOriginFragmenet & {
 
 export type EndConnection = _EndConnection & SocketOriginFragmenet;
 export type SessionInfoExchangeEnd = _SessionInfoExchangeEnd & SocketOriginFragmenet & PoolPayloadFragment;
+
+export type InformationalTokenMessage = SocketOriginFragmenet & {
+    type: 'info-token';
+    pl: SelectedMessages[];
+};
 
 export type SuperVisorControlMsgs =
     | SVNetworkError
@@ -105,6 +111,7 @@ export type SuperVisorControlMsgs =
     | SVUpgradeToSSL
     | PasswordMissing
     | EndConnection
-    | NoAuthData
-    | NoQ4Data
-    | SessionInfoExchangeEnd;
+    | OODAuth
+    | OODSessionInfo
+    | SessionInfoExchangeEnd
+    | InformationalTokenMessage;
