@@ -1,4 +1,4 @@
-import type { NetworkData } from '../messages';
+import type { NetworkData, EndConnection } from '../messages';
 export type Connected = {
     type: 'connect';
 };

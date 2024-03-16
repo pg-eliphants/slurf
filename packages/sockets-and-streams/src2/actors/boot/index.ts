@@ -6,10 +6,9 @@ import { SuperVisorControlMsgs } from '../supervisor/messages';
 import Encoder from '../../utils/Encoder';
 import { createSSLRequest } from './helpers';
 import { SocketControlMsgs } from '../socket/messages';
-import { BOOTEND, BUFFER_STUFFING_ATTACK, MANGELD_DATA } from '../supervisor/constants';
-import { DATA, END_CONNECTION, SSL } from '../constants';
+import { BOOTEND, BUFFER_STUFFING_ATTACK, DATA, END_CONNECTION, MANGELD_DATA, SSL } from '../constants';
 import ReadableByteStream from '../../utils/ReadableByteStream';
-import { optionallyHandleErrorAndNoticeResponse } from '../../messages/fromBackend/helper';
+import { optionallyHandleErrorAndNoticeResponse } from '../helpers';
 
 export default class Boot implements Enqueue<BootControlMsgs> {
     private sslRequestSent: boolean;
@@ -76,8 +75,8 @@ export default class Boot implements Enqueue<BootControlMsgs> {
         this.socketActor().enqueue({ type: END_CONNECTION });
     }
 
-    public enqueue(data: BootControlMsgs) {
-        if (data.type === CONNECTED) {
+    public enqueue(msg: BootControlMsgs) {
+        if (msg.type === CONNECTED) {
             if (this.isSSLValid) {
                 this.socketActor().enqueue({ type: WRITE, data: createSSLRequest(this.encoder)! });
                 this.sslRequestSent = true;
@@ -89,8 +88,8 @@ export default class Boot implements Enqueue<BootControlMsgs> {
             this.lifeEnded = true;
             return;
         }
-        if (data.type === DATA) {
-            this.receivedBytes.enqueue(data.pl);
+        if (msg.type === DATA) {
+            this.receivedBytes.enqueue(msg.pl);
             return this.handleData();
         }
     }

@@ -64,6 +64,9 @@ const superVisor = createDefaultSuperVisor({
     decoder
 });
 
-superVisor.addConnection('idle').then((done) => {
-    console.log('socket created?: %o!', done);
-});
+superVisor
+    .addConnection('idle')
+    .then((done) => {
+        console.log('socket created?: %o!', done);
+    })
+    .catch((err) => console.log('socket creation fail:', err));

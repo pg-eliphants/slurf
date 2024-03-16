@@ -3,6 +3,9 @@ import { parse as parseAuthentication } from './Authentication';
 import { parseError, parseNotice } from './ErrorAndNoticeResponse';
 
 import { parse as parseNegotiateVersion } from './NegotiateProtocol';
+import { parse as parseParameterStatus } from './ParameterStatus';
+import { parse as parseReady4Query } from './ReadyForQuery';
+import { parse as parseBackendKeyData } from './BackEndKeyData';
 
 export type AuthenticationTag = 82;
 export type ParameterStatusTag = 83;
@@ -57,9 +60,12 @@ export const MSG_IS: MessageState = 'is';
 export const MSG_NOT: MessageState = 'not';
 export const MSG_ERROR: MessageState = 'error';
 
-export const mapMsgTagToParser: MapTagToGeneratorOfMessage<82 | 69 | 118 | 78> = {
+export const mapMsgTagToParser: MapTagToGeneratorOfMessage<82 | 69 | 118 | 78 | 83 | 90 | 75> = {
     82: parseAuthentication,
     69: parseError,
     118: parseNegotiateVersion,
-    78: parseNotice
+    78: parseNotice,
+    83: parseParameterStatus,
+    90: parseReady4Query,
+    75: parseBackendKeyData
 };

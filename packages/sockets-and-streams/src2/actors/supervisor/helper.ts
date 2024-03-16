@@ -13,17 +13,19 @@ import {
 } from './types';
 import { defaultActivityTimeReducer } from '../helpers';
 import Encoder from '../../utils/Encoder';
-import Enqueue from '../Enqueue';
+
 import {
     BufferStuffingAttack,
     ErrorResponse,
     MangledData,
     NoticeResponse,
     PasswordMissing,
-    SVNegotiateProtocolVersion
+    NegotiateProtocolVersion
 } from './messages';
-import { AUTH_PW_MISSING, BUFFER_STUFFING_ATTACK, MANGELD_DATA, NEGOTIATE_PROTOCOL, OOD_AUTH } from './constants';
+
+import { AUTH_PW_MISSING, NEGOTIATE_PROTOCOL, OOD_AUTH } from '../constants';
 import { PG_ERROR } from '../../messages/fromBackend/ErrorAndNoticeResponse/constants';
+import { BUFFER_STUFFING_ATTACK, MANGELD_DATA } from '../constants';
 
 const defaultSSLFallback = (config: PGConfig) => {
     return false;
@@ -148,19 +150,19 @@ export function normalizePGConfig(options: PGConfig): Required<PGConfig> {
     return rc;
 }
 
-export function getSackBySocketActor<T>(wm: WeakMap<Enqueue<T>, unknown[]>, sa: Enqueue<T>): unknown[] {
+export function getSackBySocketActor<K extends Object, S>(wm: WeakMap<K, S[]>, sa: K): S[] {
     const rc = wm.get(sa) || [];
     wm.set(sa, rc);
     return rc;
 }
 
-export function addToStore<T>(wm: WeakMap<Enqueue<T>, unknown[]>, sa: Enqueue<T>, item: unknown) {
+export function addToStore<K extends Object, S>(wm: WeakMap<K, S[]>, sa: K, item: S) {
     const sack = getSackBySocketActor(wm, sa);
     sack.push(item);
 }
 
-export function getStore<T>(wm: WeakMap<Enqueue<T>, unknown[]>, sa: Enqueue<T>): unknown[] {
-    return wm.get(sa) || [];
+export function getStore<K extends Object, S>(wm: WeakMap<K, S[]>, sa: K) {
+    return wm.get(sa);
 }
 
 export function isInformationalMessage(
@@ -168,7 +170,7 @@ export function isInformationalMessage(
 ): u is
     | BufferStuffingAttack
     | MangledData
-    | SVNegotiateProtocolVersion
+    | NegotiateProtocolVersion
     | PasswordMissing
     | ErrorResponse
     | NoticeResponse {

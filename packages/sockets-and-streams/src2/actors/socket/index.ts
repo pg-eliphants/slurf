@@ -11,13 +11,12 @@ import {
 import { PromiseExtended } from '../../utils/PromiseExtended';
 import type { SocketControlMsgs, UpgradeToSSL, Write, WriteThrottle } from './messages';
 import Enqueue from '../Enqueue';
-import { SVLookUpError, SVNetworkClose, SuperVisorControlMsgs } from '../supervisor/messages';
+import { SuperVisorControlMsgs } from '../supervisor/messages';
 import { Item } from '../../utils/list';
 import { isAggregateError } from './helpers';
 import { CREATEPOOL, SETPOOL } from '../supervisor/constants';
 import { SocketOtherOptions } from '../supervisor/types';
 import { BootControlMsgs } from '../boot/messages';
-import { NetworkError } from '../messages';
 import { END_CONNECTION, LOOKUPERROR, NETCLOSE, NETWORKERR, SESSION_INFO_END, SSL } from '../constants';
 import { SET_ACTOR, WRITE, WRITE_THROTTLE } from './constants';
 import ReadableByteStream from '../../utils/ReadableByteStream';

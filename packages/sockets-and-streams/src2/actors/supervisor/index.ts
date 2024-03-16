@@ -26,21 +26,10 @@ import {
 import SocketActor from '../socket';
 import type { Item } from '../../utils/list';
 import { insertBefore, removeSelf } from '../../utils/list';
-import {
-    TERMINALPOOL,
-    SETPOOL,
-    BOOTEND,
-    NEGOTIATE_PROTOCOL,
-    OOD_AUTH,
-    AUTH_PW_MISSING,
-    AUTH_END,
-    OOD_SESSION_INFO,
-    INFO_TOKENS
-} from './constants';
+import { TERMINALPOOL, SETPOOL, INFO_TOKENS } from './constants';
 import { delayMillis } from '../helpers';
 import Encoder from '../../utils/Encoder';
-import { PG_ERROR, PG_NOTICE } from '../../messages/fromBackend/ErrorAndNoticeResponse/constants';
-import { END_CONNECTION, NETCLOSE, NETWORKERR, SESSION_INFO_END, SSL } from '../constants';
+import { AUTH_END, BOOTEND, END_CONNECTION, NETCLOSE, NETWORKERR, SESSION_INFO_END, SSL } from '../constants';
 import Boot from '../boot';
 import { SocketControlMsgs, UpgradeToSSL } from '../socket/messages';
 import AuthenticationActor from '../auth';
@@ -48,6 +37,17 @@ import { SET_ACTOR } from '../socket/constants';
 import SessionInfoExchange from '../sessionInfo';
 import { SES_START } from '../sessionInfo/constants';
 import Query from '../query';
+import {
+    BufferStuffingAttack as _BufferStuffingAttack,
+    EndConnection as _EndConnection,
+    NetworkError as _NetworkError,
+    MangledData as _MangledData,
+    NegotiateProtocolVersion as _NegotiateProtocolVersion,
+    PasswordMissing as _PasswordMissing
+} from '../messages';
+import { SelectedMessages } from '../../messages/fromBackend/types';
+import { QUERY_START } from '../query/constants';
+import { PromiseExtended, createResolvePromiseExtended } from '../../utils/PromiseExtended';
 
 export default class SuperVisor implements Enqueue<SuperVisorControlMsgs> {
     // primary key generator for SocketAgents
@@ -88,7 +88,20 @@ export default class SuperVisor implements Enqueue<SuperVisorControlMsgs> {
         created: {}
     };
 
-    private readonly weakSocketMap = new WeakMap<Enqueue<SocketControlMsgs>, []>();
+    private readonly weakSocketToInfoMap = new WeakMap<
+        Enqueue<SocketControlMsgs>,
+        (
+            | SelectedMessages
+            | _NegotiateProtocolVersion
+            | _EndConnection
+            | _NetworkError
+            | _BufferStuffingAttack
+            | _MangledData
+            | _PasswordMissing
+        )[]
+    >();
+
+    private readonly weakSocketToReadyMap = new WeakMap<Enqueue<SocketControlMsgs>, PromiseExtended<void>>();
 
     private updateActivityWaitTimes(activity: ActivityWait, bin: number): void {
         this.activityWaits[activity][bin] = (this.activityWaits[activity][bin] ?? 0) + 1;
@@ -147,24 +160,32 @@ export default class SuperVisor implements Enqueue<SuperVisorControlMsgs> {
     }
 
     public enqueue(msg: SuperVisorControlMsgs) {
+        const { socketActor } = msg;
+        if (msg.type === NETWORKERR) {
+            addToStore(this.weakSocketToInfoMap, socketActor, { type: msg.type, pl: msg.pl });
+            return;
+        }
         if (msg.type === NETCLOSE) {
             const { wsa, currentPool, poolPlacementTime, socketActor } = msg;
             const newplt = this.migrateToPool(wsa, currentPool, TERMINALPOOL, poolPlacementTime);
             if (newplt) {
                 wsa.value.enqueue({ type: SETPOOL, pool: TERMINALPOOL, placementTime: newplt });
             }
-            console.log(getStore(this.weakSocketMap, socketActor));
+            const promiseExt = this.weakSocketToReadyMap.get(socketActor);
+            promiseExt?.forceReject(getStore(this.weakSocketToInfoMap, socketActor) as any);
             return;
         }
         // sent when the "end" event is received on the socket object
         if (msg.type === END_CONNECTION) {
             const { socketActor } = msg;
-            addToStore(this.weakSocketMap, socketActor, { type: msg.type });
+
+            addToStore(this.weakSocketToInfoMap, socketActor, { type: msg.type });
             return;
         }
         if (isInformationalMessage(msg)) {
             const { socketActor } = msg;
-            addToStore(this.weakSocketMap, socketActor, { type: msg.type, ...('pl' in msg && { pl: msg.pl }) });
+            const pl: any = 'pl' in msg ? msg.pl : undefined;
+            addToStore(this.weakSocketToInfoMap, socketActor, { type: msg.type, ...(pl && { pl }) });
             return;
         }
         if (msg.type === SSL) {
@@ -193,10 +214,7 @@ export default class SuperVisor implements Enqueue<SuperVisorControlMsgs> {
         if (msg.type === INFO_TOKENS) {
             const { socketActor, pl } = msg;
             pl.forEach((token) => {
-                addToStore(this.weakSocketMap, socketActor, {
-                    type: token.type,
-                    ...('pl' in token && { pl: token.pl })
-                });
+                addToStore(this.weakSocketToInfoMap, socketActor, token);
             });
             return;
         }
@@ -209,29 +227,24 @@ export default class SuperVisor implements Enqueue<SuperVisorControlMsgs> {
             return;
         }
         if (msg.type === SESSION_INFO_END) {
-            const {
-                socketActor,
-                readable,
-                backendKey,
-                paramStatus,
-                poolPlacementTime,
-                finalPool,
-                currentPool,
-                r4q,
-                wsa
-            } = msg;
-            const sessionActor = new Query(this, socketActor, this.encoder, this.decoder, paramStatus, backendKey, r4q);
+            const { socketActor, pl, poolPlacementTime, finalPool, currentPool, wsa } = msg;
+            const tokens = getStore(this.weakSocketToInfoMap, socketActor);
+            const queryActor = new Query(this, socketActor, this.encoder, this.decoder, tokens || []);
             const newplt = this.migrateToPool(wsa, currentPool, finalPool, poolPlacementTime);
             if (newplt) {
                 socketActor.enqueue({ type: SETPOOL, pool: finalPool, placementTime: newplt });
             }
-            socketActor.enqueue({ type: SET_ACTOR, pl: sessionActor });
+            socketActor.enqueue({ type: SET_ACTOR, pl: queryActor });
+            queryActor.enqueue({ type: QUERY_START });
+            const promiseExt = this.weakSocketToReadyMap.get(socketActor);
+            this.weakSocketToReadyMap.delete(socketActor);
+            promiseExt?.forceResolve(tokens as any);
             return;
         }
         // process other events or defer their operations
     }
 
-    public async addConnection(forPool: PoolFirstResidence, jitter = getRandomDelayInMs()): Promise<boolean> {
+    public async addConnection(forPool: PoolFirstResidence, jitter = getRandomDelayInMs()): Promise<any> {
         // validation
         // pg connection params (use, host, session params, etc)
         const pgConfig = this.getClientConfig();
@@ -239,16 +252,14 @@ export default class SuperVisor implements Enqueue<SuperVisorControlMsgs> {
 
         if (Array.isArray(isValidPGConfig)) {
             // todo: handle error logging
-            console.log(isValidPGConfig.map((err) => err.message).join('\n'));
-            return false;
+            return Promise.reject(isValidPGConfig.map((err) => err.message).join('\n'));
         }
         // ssl connection params, false (no ssl), true (ssl), or error (ssl configuration errors)
         const isSSLValid = getSLLSocketClassAndOptions(this.createSSLSocketSpec);
 
         if (Array.isArray(isSSLValid)) {
             //todo: comminicate this back to the api caller somehow
-            console.log(isSSLValid.map((err) => err.message).join('\n'));
-            return false;
+            return Promise.reject(isSSLValid.map((err) => err.message).join('\n'));
         }
         // fallback possible?
         const doFallBackFromSSL = isSSLValid ? this.getSSLFallback(pgConfig) : false;
@@ -284,6 +295,8 @@ export default class SuperVisor implements Enqueue<SuperVisorControlMsgs> {
             bootActor
         );
         this.residencies.created = insertBefore(this.residencies.created, wsa());
-        return true;
+        const promiseExt = createResolvePromiseExtended(false);
+        this.weakSocketToReadyMap.set(socketActor, promiseExt);
+        return promiseExt.promise;
     }
 }

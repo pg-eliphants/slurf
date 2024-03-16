@@ -1,6 +1,6 @@
-import type { GeneratorOfMessage, SelectedMessages, TagType } from './messages/fromBackend/types';
-import ReadableByteStream from './utils/ReadableByteStream';
-import { mapMsgTagToParser } from './messages/fromBackend/constants';
+import type { GeneratorOfMessage, SelectedMessages, TagType } from '../messages/fromBackend/types';
+import ReadableByteStream from './ReadableByteStream';
+import { mapMsgTagToParser } from '../messages/fromBackend/constants';
 
 type CallBack<T extends TagType = TagType> = (
     eol: boolean,

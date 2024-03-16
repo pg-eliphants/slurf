@@ -4,7 +4,7 @@ import type { NegotiateProtocolResult } from './NegotiateProtocol';
 import type { ReadyForQueryResponse } from './ReadyForQuery';
 import { PGErrorResponse, PGNoticeResponse } from './ErrorAndNoticeResponse/types';
 import ReadableByteStream from '../../utils/ReadableByteStream';
-
+import type { ParameterStatus } from './ParameterStatus';
 export type MapTagToMessage = {
     82: Authentication;
     75: BackendKeyData;
@@ -12,7 +12,7 @@ export type MapTagToMessage = {
     69: PGErrorResponse;
     78: PGNoticeResponse;
     118: NegotiateProtocolResult;
-    // [index: number]: unknown;
+    83: ParameterStatus;
 };
 
 export type TagType = keyof MapTagToMessage;
