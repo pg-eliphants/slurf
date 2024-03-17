@@ -13,6 +13,7 @@ import { resolve } from 'node:path';
 import tsl from 'node:tls';
 import MemoryManager from './utils/MemoryManager';
 import Encoder from './utils/Encoder';
+import Query from './actors/query';
 
 const socketConnectOptions = () => ({
     port: 5432,
@@ -66,7 +67,7 @@ const superVisor = createDefaultSuperVisor({
 
 superVisor
     .addConnection('idle')
-    .then((done) => {
-        console.log('socket created?: %o!', done);
+    .then((query: Query) => {
+        console.log('socket created?: %o!', query.constructor.name);
     })
     .catch((err) => console.log('socket creation fail:', err));

@@ -9,6 +9,7 @@ import { SocketControlMsgs } from '../socket/messages';
 import { BOOTEND, BUFFER_STUFFING_ATTACK, DATA, END_CONNECTION, MANGELD_DATA, SSL } from '../constants';
 import ReadableByteStream from '../../utils/ReadableByteStream';
 import { optionallyHandleErrorAndNoticeResponse } from '../helpers';
+import { PoolFirstResidence } from '../supervisor/types';
 
 export default class Boot implements Enqueue<BootControlMsgs> {
     private sslRequestSent: boolean;
@@ -58,7 +59,7 @@ export default class Boot implements Enqueue<BootControlMsgs> {
             this.receivedBytes.advanceCursor(1);
             // server does not know ssl
             if (this.canDoSSLFallback) {
-                this.supervisor.enqueue({ type: BOOTEND, socketActor, pl: this.receivedBytes });
+                this.supervisor.enqueue({ type: BOOTEND, socketActor, pl: this.receivedBytes, forPool: this.forPool });
                 return;
             }
             // abbort connection
@@ -67,7 +68,7 @@ export default class Boot implements Enqueue<BootControlMsgs> {
         if (byte === 83) {
             this.receivedBytes.advanceCursor(1);
             // server does know ssl, ssl upgrade allowed
-            this.supervisor.enqueue({ type: BOOTEND, socketActor, pl: this.receivedBytes });
+            this.supervisor.enqueue({ type: BOOTEND, socketActor, pl: this.receivedBytes, forPool: this.forPool });
             // ssl upgrade
             this.supervisor.enqueue({ type: SSL, socketActor });
             return;
@@ -84,7 +85,7 @@ export default class Boot implements Enqueue<BootControlMsgs> {
             }
             // end the boot socket the socket
             // starupMessage will be handled by the authentication actor
-            this.supervisor.enqueue({ type: BOOTEND, socketActor: this.socketActor(), pl: this.receivedBytes });
+            this.supervisor.enqueue({ type: BOOTEND, socketActor: this.socketActor(), pl: this.receivedBytes, forPool: this.forPool });
             this.lifeEnded = true;
             return;
         }
@@ -101,6 +102,7 @@ export default class Boot implements Enqueue<BootControlMsgs> {
         private readonly canDoSSLFallback: boolean,
         private readonly encoder: Encoder,
         private readonly decoder: TextDecoder,
+        private readonly forPool: PoolFirstResidence,
         private readonly CACHE_BYTE_SIZE = 128
     ) {
         this.sslRequestSent = false;

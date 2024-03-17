@@ -26,10 +26,10 @@ import {
 import SocketActor from '../socket';
 import type { Item } from '../../utils/list';
 import { insertBefore, removeSelf } from '../../utils/list';
-import { TERMINALPOOL, SETPOOL, INFO_TOKENS } from './constants';
+import { TERMINALPOOL, SETPOOL, INFO_TOKENS, ACTIVEPOOL } from './constants';
 import { delayMillis } from '../helpers';
 import Encoder from '../../utils/Encoder';
-import { AUTH_END, BOOTEND, END_CONNECTION, NETCLOSE, NETWORKERR, SESSION_INFO_END, SSL } from '../constants';
+import { AUTH_END, BOOTEND, END_CONNECTION, NETCLOSE, NETWORKERR, QID, SESSION_INFO_END, SSL } from '../constants';
 import Boot from '../boot';
 import { SocketControlMsgs, UpgradeToSSL } from '../socket/messages';
 import AuthenticationActor from '../auth';
@@ -101,7 +101,7 @@ export default class SuperVisor implements Enqueue<SuperVisorControlMsgs> {
         )[]
     >();
 
-    private readonly weakSocketToReadyMap = new WeakMap<Enqueue<SocketControlMsgs>, PromiseExtended<void>>();
+    private readonly weakSocketToReadyMap = new WeakMap<Enqueue<SocketControlMsgs>, PromiseExtended<Query>>();
 
     private updateActivityWaitTimes(activity: ActivityWait, bin: number): void {
         this.activityWaits[activity][bin] = (this.activityWaits[activity][bin] ?? 0) + 1;
@@ -169,7 +169,7 @@ export default class SuperVisor implements Enqueue<SuperVisorControlMsgs> {
             const { wsa, currentPool, poolPlacementTime, socketActor } = msg;
             const newplt = this.migrateToPool(wsa, currentPool, TERMINALPOOL, poolPlacementTime);
             if (newplt) {
-                wsa.value.enqueue({ type: SETPOOL, pool: TERMINALPOOL, placementTime: newplt });
+                socketActor.enqueue({ type: SETPOOL, pool: TERMINALPOOL, placementTime: newplt });
             }
             const promiseExt = this.weakSocketToReadyMap.get(socketActor);
             promiseExt?.forceReject(getStore(this.weakSocketToInfoMap, socketActor) as any);
@@ -202,7 +202,7 @@ export default class SuperVisor implements Enqueue<SuperVisorControlMsgs> {
             const readable = msg.pl;
             const authActor = new AuthenticationActor(
                 readable,
-                normalizePGConfig(this.getClientConfig()),
+                normalizePGConfig(this.getClientConfig(msg.forPool)),
                 socketActor,
                 this,
                 this.encoder,
@@ -227,31 +227,37 @@ export default class SuperVisor implements Enqueue<SuperVisorControlMsgs> {
             return;
         }
         if (msg.type === SESSION_INFO_END) {
-            const { socketActor, pl, poolPlacementTime, finalPool, currentPool, wsa } = msg;
+            const { socketActor, pl } = msg;
             const tokens = getStore(this.weakSocketToInfoMap, socketActor);
             const queryActor = new Query(this, socketActor, this.encoder, this.decoder, tokens || []);
-            const newplt = this.migrateToPool(wsa, currentPool, finalPool, poolPlacementTime);
-            if (newplt) {
-                socketActor.enqueue({ type: SETPOOL, pool: finalPool, placementTime: newplt });
-            }
             socketActor.enqueue({ type: SET_ACTOR, pl: queryActor });
             queryActor.enqueue({ type: QUERY_START });
+            return;
+        }
+        if (msg.type === QID){
+            const { wsa, currentPool, poolPlacementTime, socketActor, query, finalPool } = msg;
             const promiseExt = this.weakSocketToReadyMap.get(socketActor);
+            const targetPool =  promiseExt ? ACTIVEPOOL : finalPool
+            const newplt = this.migrateToPool(wsa, currentPool, targetPool, poolPlacementTime);
+            if (newplt) {
+               socketActor.enqueue({ type: SETPOOL, pool: targetPool, placementTime: newplt });
+            }
             this.weakSocketToReadyMap.delete(socketActor);
-            promiseExt?.forceResolve(tokens as any);
+            promiseExt?.forceResolve(query as any);
             return;
         }
         // process other events or defer their operations
     }
 
-    public async addConnection(forPool: PoolFirstResidence, jitter = getRandomDelayInMs()): Promise<any> {
+    public async addConnection(forPool: PoolFirstResidence, jitter = getRandomDelayInMs()): Promise<Query> {
         // validation
         // pg connection params (use, host, session params, etc)
-        const pgConfig = this.getClientConfig();
+        const pgConfig = this.getClientConfig(forPool);
         const isValidPGConfig = validatePGConnectionParams(pgConfig);
 
         if (Array.isArray(isValidPGConfig)) {
             // todo: handle error logging
+            // for now return array of errors
             return Promise.reject(isValidPGConfig.map((err) => err.message).join('\n'));
         }
         // ssl connection params, false (no ssl), true (ssl), or error (ssl configuration errors)
@@ -259,20 +265,19 @@ export default class SuperVisor implements Enqueue<SuperVisorControlMsgs> {
 
         if (Array.isArray(isSSLValid)) {
             //todo: comminicate this back to the api caller somehow
+            // for now return array of errors
             return Promise.reject(isSSLValid.map((err) => err.message).join('\n'));
         }
         // fallback possible?
-        const doFallBackFromSSL = isSSLValid ? this.getSSLFallback(pgConfig) : false;
+        const doFallBackFromSSL = isSSLValid ? this.getSSLFallback(forPool, pgConfig) : false;
 
-        // I AM HERE:
-        // todo: isSSLValid, doFallBackFromSSL are needed by boot upfront to make good decisions about connection
         // create the bootActor here and attach it to SocketActor
         let socketActor: SocketActor;
-        const bootActor = new Boot(this, () => socketActor, isSSLValid, doFallBackFromSSL, this.encoder, this.decoder);
+        const bootActor = new Boot(this, () => socketActor, isSSLValid, doFallBackFromSSL, this.encoder, this.decoder, forPool);
 
         // wait daily ms
         await delayMillis(jitter);
-        // action network connection is made
+        // network connection is made
         const { socketFactory, socketConnectOptions, extraOpt } = this.createSocketSpec({ forPool });
         const createConnection = socketFactory();
         const extraOptions = extraOpt();
@@ -295,8 +300,24 @@ export default class SuperVisor implements Enqueue<SuperVisorControlMsgs> {
             bootActor
         );
         this.residencies.created = insertBefore(this.residencies.created, wsa());
-        const promiseExt = createResolvePromiseExtended(false);
+        const promiseExt = createResolvePromiseExtended<Query>(false);
+        // no we dont do this here
         this.weakSocketToReadyMap.set(socketActor, promiseExt);
         return promiseExt.promise;
     }
 }
+
+/*
+
+scenario 1: Need to add a bunch of sockets to idle at startup of an api, so its ready to service multiple DB request
+scenario 2: Need a single connection to directly do stuff
+scenario 3: Pick from the "idle", "vis", "reservedPool" pool a Socket (will be transferred to 'active'),
+
+devs only work with the Query Object so when asking for a "endpoint"
+
+-> socket moves to active
+-> returns query object to endpoint
+
+supervisor -> socketActor -> Query
+     returns    <-           <- returns itself
+*/

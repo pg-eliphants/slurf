@@ -34,8 +34,8 @@ export type PGConfig = {
     database?: string;
     replication?: boolean;
 };
-export type ClientConfig = () => PGConfig;
-export type SSLFallback = (config: PGConfig) => boolean;
+export type ClientConfig = (forPool: PoolFirstResidence) => PGConfig;
+export type SSLFallback = (forPool: PoolFirstResidence, config: PGConfig) => boolean;
 
 export type CreateSocketSpecHints = {
     forPool: PoolFirstResidence;

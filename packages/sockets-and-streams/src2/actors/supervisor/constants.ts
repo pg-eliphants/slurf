@@ -16,6 +16,7 @@ export const activityWaits: ActivityWait[] = [
 // internally used by supervisor
 export const CREATEPOOL: Pool = 'created';
 export const TERMINALPOOL: Pool = 'terminal';
+export const ACTIVEPOOL: Pool = 'active';
 
 // instructional
 export const SETPOOL: SetPool['type'] = 'setpool';

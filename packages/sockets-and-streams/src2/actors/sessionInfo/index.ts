@@ -38,9 +38,10 @@ export default class SessionInfoExchange implements Enqueue<SessionInfoControlMe
                 if (eol) {
                     // send tokens to supervisor
                     sendToSuperVisor(this.supervisor, this.socketActor, tokens, isInformationalToken);
-                    this.socketActor.enqueue({
+                    this.supervisor.enqueue({
                         type: SESSION_INFO_END,
-                        pl: this.receivedBytes
+                        pl: this.receivedBytes,
+                        socketActor: this.socketActor,
                     });
                     return;
                 }

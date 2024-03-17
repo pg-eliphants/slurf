@@ -1,6 +1,7 @@
 import { SelectedMessages } from '../../messages/fromBackend/types';
 import Encoder from '../../utils/Encoder';
 import Enqueue from '../Enqueue';
+import { QID } from '../constants';
 import {
     BufferStuffingAttack,
     EndConnection,
@@ -32,6 +33,9 @@ export default class Query implements Enqueue<QueryControlMsgs> {
     ) {}
     public enqueue(msg: QueryControlMsgs) {
         if (msg.type === QUERY_START) {
+            this.socketActor.enqueue({ type: QID })
+            // what to do here
+            // 
             console.log('query-start', this.infoTokens);
             return;
         }

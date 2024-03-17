@@ -2,6 +2,7 @@ import type { PGErrorResponse, PGNoticeResponse } from '../messages/fromBackend/
 import { NegotiateProtocolResult } from '../messages/fromBackend/NegotiateProtocol';
 import { SelectedMessages } from '../messages/fromBackend/types';
 import ReadableByteStream from '../utils/ReadableByteStream';
+import { PoolFirstResidence } from './supervisor/types';
 
 export type NetworkData = {
     type: 'data';
@@ -92,6 +93,7 @@ export type NegotiateProtocolVersion = {
 export type BootPhaseEnded = {
     type: 'boot-end';
     pl: ReadableByteStream;
+    forPool: PoolFirstResidence;
 };
 
 export type AuthPhaseEnded = {
@@ -122,3 +124,7 @@ export type NoticeResponse = {
     type: 'pg.N';
     pl: PGNoticeResponse;
 };
+
+export type QueryInitDone = {
+    type: 'query-init-done'
+}

@@ -17,12 +17,15 @@ import { isAggregateError } from './helpers';
 import { CREATEPOOL, SETPOOL } from '../supervisor/constants';
 import { SocketOtherOptions } from '../supervisor/types';
 import { BootControlMsgs } from '../boot/messages';
-import { END_CONNECTION, LOOKUPERROR, NETCLOSE, NETWORKERR, SESSION_INFO_END, SSL } from '../constants';
+import { END_CONNECTION, LOOKUPERROR, NETCLOSE, NETWORKERR, QID, SSL } from '../constants';
 import { SET_ACTOR, WRITE, WRITE_THROTTLE } from './constants';
 import ReadableByteStream from '../../utils/ReadableByteStream';
 import { AUTH_START } from '../auth/constants';
 import { AuthenticationControlMsgs } from '../auth/messages';
 import dump from 'buffer-hexdump';
+import { SessionInfoControlMessages } from '../sessionInfo/messages';
+import { QueryControlMsgs } from '../query/messages';
+import Query from '../query';
 // SocketControlMsgs is what this Actor can receive in messages
 export default class SocketActor implements Enqueue<SocketControlMsgs> {
     // pools
@@ -285,7 +288,7 @@ export default class SocketActor implements Enqueue<SocketControlMsgs> {
             this.socket.end();
             return;
         }
-        if (msg.type === SESSION_INFO_END) {
+        if (msg.type === QID) {
             // resend to supervisor with added pool info
             this.supervisor.enqueue({
                 ...msg,
@@ -293,7 +296,8 @@ export default class SocketActor implements Enqueue<SocketControlMsgs> {
                 currentPool: this.current,
                 poolPlacementTime: this.poolPlacementTime,
                 socketActor: this,
-                finalPool: this.createdFor
+                finalPool: this.createdFor,
+                query: this.downStreamActor as Query,
             });
             return;
         }
@@ -310,7 +314,7 @@ export default class SocketActor implements Enqueue<SocketControlMsgs> {
         private readonly extraOptions: SocketOtherOptions,
         private readonly id: number,
         private readonly createdFor: PoolFirstResidence,
-        private downStreamActor: Enqueue<BootControlMsgs | AuthenticationControlMsgs>,
+        private downStreamActor: Enqueue<BootControlMsgs | AuthenticationControlMsgs | SessionInfoControlMessages | QueryControlMsgs>,
         private readonly WRITE_CHUNK_SIZE = 4096,
         private readonly LOCAL_CACHE_SIZE = 4096
     ) {

@@ -22,8 +22,10 @@ import {
     InformationalTokenMessage as _InformationalTokenMessage,
     BufferStuffingAttack as _BufferStuffingAttack,
     ErrorResponse as _ErrorResponse,
-    NoticeResponse as _NoticeResponse
+    NoticeResponse as _NoticeResponse, 
+    QueryInitDone as _QueryInitDone
 } from '../messages';
+import Query from '../query';
 
 export type SocketOriginFragmenet = {
     socketActor: Enqueue<SocketControlMsgs>;
@@ -70,9 +72,11 @@ export type NegotiateProtocolVersion = SocketOriginFragmenet & _NegotiateProtoco
 export type PasswordMissing = SocketOriginFragmenet & _PasswordMissing;
 
 export type EndConnection = _EndConnection & SocketOriginFragmenet;
-export type SessionInfoExchangeEnd = _SessionInfoExchangeEnd & SocketOriginFragmenet & PoolPayloadFragment;
+export type SessionInfoExchangeEnd = _SessionInfoExchangeEnd & SocketOriginFragmenet;
 
 export type InformationalTokenMessage = SocketOriginFragmenet & _InformationalTokenMessage;
+
+export type QueryInitDone = PoolPayloadFragment & SocketOriginFragmenet & _QueryInitDone & { query: Query }
 
 export type SuperVisorControlMsgs =
     | NetworkError
@@ -93,4 +97,5 @@ export type SuperVisorControlMsgs =
     | OODAuth
     | OODSessionInfo
     | SessionInfoExchangeEnd
-    | InformationalTokenMessage;
+    | InformationalTokenMessage
+    | QueryInitDone;
