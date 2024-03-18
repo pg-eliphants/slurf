@@ -69,9 +69,7 @@ export default class SuperVisor implements Enqueue<SuperVisorControlMsgs> {
     // pools
     // pool lists
     private readonly residencies: Residency = {
-        vis: null,
-        reservedEmpherical: null,
-        reservedPermanent: null,
+        reserved: null,
         active: null,
         idle: null,
         terminal: null,
@@ -79,9 +77,7 @@ export default class SuperVisor implements Enqueue<SuperVisorControlMsgs> {
     }; // pools
     // the "resident time" histogram of all the pools above
     private readonly poolWaits: PoolWaitTimes = {
-        vis: {},
-        reservedEmpherical: {},
-        reservedPermanent: {},
+        reserved: {},
         active: {},
         idle: {},
         terminal: {},
@@ -149,9 +145,7 @@ export default class SuperVisor implements Enqueue<SuperVisorControlMsgs> {
     ) {
         this.residencies = {
             active: null,
-            vis: null,
-            reservedPermanent: null,
-            reservedEmpherical: null,
+            reserved: null,
             idle: null,
             created: null,
             terminal: null

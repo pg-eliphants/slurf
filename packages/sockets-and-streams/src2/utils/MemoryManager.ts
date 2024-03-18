@@ -1,17 +1,17 @@
 import type { List } from './list';
 import { removeSelf, insertBefore } from './list';
 export type MemoryCategories =
-    | '64'
-    | '128'
-    | '256'
-    | '512'
-    | '1024'
-    | '2048'
-    | '4096'
-    | '8192'
-    | '16384'
-    | '32768'
-    | '65536';
+    | 64
+    | 128
+    | 256
+    | 512
+    | 1024
+    | 2048
+    | 4096
+    | 8192
+    | 16384
+    | 32768
+    | 65536;
 export const MAX_MEM_BLOCK_SIZE = 65536;
 export const MIN_MEM_BLOCK_SIZE = 64;
 
@@ -23,23 +23,23 @@ export type MemorySlabStats = {
     [index in MemoryCategories]: number;
 };
 
-const initialDefault: Record<MemoryCategories, number> = {
-    '64': 40,
-    '128': 40,
-    '256': 40,
-    '512': 40,
-    '1024': 10,
-    '2048': 5,
-    '4096': 1,
-    '8192': 1,
-    '16384': 1,
-    '32768': 1,
-    '65536': 1
+const initialDefault: MemorySlabStats = {
+    64: 40,
+    128: 40,
+    256: 40,
+    512: 40,
+    1024: 10,
+    2048: 5,
+    4096: 1,
+    8192: 1,
+    16384: 1,
+    32768: 1,
+    65536: 1
 };
 
 export default class MemoryManager {
     private readonly slabs: MemorySlabs;
-    constructor(initial: Record<MemoryCategories, number> = initialDefault) {
+    constructor(initial: MemorySlabStats = initialDefault) {
         this.slabs = {
             64: {
                 list: null,
@@ -87,8 +87,8 @@ export default class MemoryManager {
             }
         };
         // initialize
-        let block: MemoryCategories;
-        for (block in initial) {
+        for (const entry of Object.entries(initial)){
+            const block = entry[0];
             const partition = this.slabs[block];
             const size = initial[block];
             for (let i = 0; i < size; i++) {
@@ -103,7 +103,7 @@ export default class MemoryManager {
         this.slabs[partition].length++;
     }
     fetchSlab(from: MemoryCategories): List<Uint8Array> {
-        if (Number(from) > MAX_MEM_BLOCK_SIZE) {
+        if (from > MAX_MEM_BLOCK_SIZE) {
             return null;
         }
         const partition = this.slabs[from];
@@ -111,17 +111,17 @@ export default class MemoryManager {
             // log creation?
             return { prev: null, next: null, value: new Uint8Array(Number(from)) };
         }
+        const next = partition.list.next;
         const item = removeSelf(partition.list);
         if (item === partition.list){
-            partition.list = item.next ?? null;
+            partition.list = next ?? null;
         }
         partition.length--;
         return item;
     }
     getStats(): MemorySlabStats {
         const rc: Partial<MemorySlabStats> = {};
-        let i: MemoryCategories;
-        for (i in this.slabs) {
+        for (const i of Object.keys(this.slabs)) {
             const partition = this.slabs[i];
             rc[i] = partition.length;
         }

@@ -33,11 +33,11 @@ const socketFactory = () => (options: NetConnectOpts) => net.createConnection(op
 const socketSSLFactory: ReturnType<CreateSSLSocketSpec>['socketSSLFactory'] = () => (options: SSLConfig) =>
     tsl.connect(options);
 
-const clientConfig: ClientConfig = () => {
+const clientConfig: ClientConfig = (forPool) => {
     const rc: PGConfig = {
-        user: 'role_ssl_passwd',
+        user: 'role_ssl_nopasswd',
         database: 'auth_db',
-        password: () => 'role_ssl_passwd'
+        password: () => 'role_ssl_nopasswd'
     };
     return rc;
 };
@@ -69,5 +69,10 @@ superVisor
     .addConnection('idle')
     .then((query: Query) => {
         console.log('socket created?: %o!', query.constructor.name);
+        query.parseSQL("select oid, typname from pg_type where typname = 'bool'", 'foobar2')
+         query.sync();
+        query.parseSQL("select oid, typname from pg_type where typname = 'bool'", 'foobar1')
+        query.sync();
+        query.simpleQuery('SELECT name, from_sql from  pg_prepared_statements');
     })
     .catch((err) => console.log('socket creation fail:', err));

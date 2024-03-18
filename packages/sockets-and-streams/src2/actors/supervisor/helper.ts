@@ -9,7 +9,8 @@ import {
     PGConfig,
     SSLConfig,
     PoolTimeBins,
-    SSLFallback
+    SSLFallback,
+    PoolFirstResidence
 } from './types';
 import { defaultActivityTimeReducer } from '../helpers';
 import Encoder from '../../utils/Encoder';
@@ -27,7 +28,7 @@ import { AUTH_PW_MISSING, NEGOTIATE_PROTOCOL, OOD_AUTH } from '../constants';
 import { PG_ERROR } from '../../messages/fromBackend/ErrorAndNoticeResponse/constants';
 import { BUFFER_STUFFING_ATTACK, MANGELD_DATA } from '../constants';
 
-const defaultSSLFallback = (config: PGConfig) => {
+const defaultSSLFallback = (forPool: PoolFirstResidence, config: PGConfig) => {
     return false;
 };
 
@@ -51,9 +52,7 @@ export function createDefaultSuperVisor({
     now = Date.now,
     decoder = new TextDecoder(),
     reducePoolTimeBins = {
-        vis: defaultActivityTimeReducer,
-        reservedEmpherical: defaultActivityTimeReducer,
-        reservedPermanent: defaultActivityTimeReducer,
+        reserved: defaultActivityTimeReducer,
         active: defaultActivityTimeReducer,
         idle: defaultActivityTimeReducer,
         terminal: defaultActivityTimeReducer,

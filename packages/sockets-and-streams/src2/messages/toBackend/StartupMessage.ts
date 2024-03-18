@@ -3,10 +3,10 @@ import Encoder from '../../utils/Encoder';
 
 export function createStartupMessage(config: Required<PGConfig>, encoder: Encoder): Uint8Array | undefined {
     const bin = encoder
-        .init('128')
+        .init(128)
         .nextMessage()
         ?.i16(3)
-        ?.i16(7)
+        ?.i16(0)
         ?.cstr('user')
         ?.cstr(config.user)
         ?.cstr('database')
