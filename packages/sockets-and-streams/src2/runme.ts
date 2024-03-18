@@ -25,6 +25,8 @@ const sslOptions: ReturnType<CreateSSLSocketSpec>['sslOptions'] = () => ({
     ca: readFileSync(resolve('ca.crt'), 'utf8')
 });
 
+const sslOptionsFalse: ReturnType<CreateSSLSocketSpec>['sslOptions'] = () => false;
+
 const extraOpt = () => ({
     timeout: 6e3 // 6s
 });
@@ -35,9 +37,9 @@ const socketSSLFactory: ReturnType<CreateSSLSocketSpec>['socketSSLFactory'] = ()
 
 const clientConfig: ClientConfig = (forPool) => {
     const rc: PGConfig = {
-        user: 'role_ssl_nopasswd',
+        user: 'role_ssl_passwd',
         database: 'auth_db',
-        password: () => 'role_ssl_nopasswd'
+        password: () => 'role_ssl_passwd'
     };
     return rc;
 };
@@ -49,7 +51,7 @@ const createSocketSpec: CreateSocketSpec = (hints: CreateSocketSpecHints) => ({
 
 const createSSLSocketSpec: CreateSSLSocketSpec = () => ({
     socketSSLFactory,
-    sslOptions
+    sslOptions: sslOptions
 });
 
 const decoder = new TextDecoder();
@@ -68,11 +70,9 @@ const superVisor = createDefaultSuperVisor({
 superVisor
     .addConnection('idle')
     .then((query: Query) => {
-        console.log('socket created?: %o!', query.constructor.name);
-        query.parseSQL("select oid, typname from pg_type where typname = 'bool'", 'foobar2')
-         query.sync();
-        query.parseSQL("select oid, typname from pg_type where typname = 'bool'", 'foobar1')
+        /*console.log('socket created?: %o!', query.constructor.name);
+        query.parseSQL("select * from auth.user", 'foobar1')
         query.sync();
-        query.simpleQuery('SELECT name, from_sql from  pg_prepared_statements');
-    })
+        query.simpleQuery('SELECT name, from_sql from  pg_prepared_statements order by name');
+    */})
     .catch((err) => console.log('socket creation fail:', err));

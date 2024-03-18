@@ -29,7 +29,7 @@ import { insertBefore, removeSelf } from '../../utils/list';
 import { TERMINALPOOL, SETPOOL, INFO_TOKENS, ACTIVEPOOL } from './constants';
 import { delayMillis } from '../helpers';
 import Encoder from '../../utils/Encoder';
-import { AUTH_END, BOOTEND, END_CONNECTION, NETCLOSE, NETWORKERR, QID, SESSION_INFO_END, SSL } from '../constants';
+import { AUTH_END, BOOTEND, BOOTEND_NO_SSL, END_CONNECTION, NETCLOSE, NETWORKERR, QID, SESSION_INFO_END, SSL } from '../constants';
 import Boot from '../boot';
 import { SocketControlMsgs, UpgradeToSSL } from '../socket/messages';
 import AuthenticationActor from '../auth';
@@ -48,6 +48,7 @@ import {
 import { SelectedMessages } from '../../messages/fromBackend/types';
 import { QUERY_START } from '../query/constants';
 import { PromiseExtended, createResolvePromiseExtended } from '../../utils/PromiseExtended';
+import { AUTH_START } from '../auth/constants';
 
 export default class SuperVisor implements Enqueue<SuperVisorControlMsgs> {
     // primary key generator for SocketAgents
@@ -191,7 +192,7 @@ export default class SuperVisor implements Enqueue<SuperVisorControlMsgs> {
             socketActor.enqueue(sockMsg);
             return;
         }
-        if (msg.type === BOOTEND) {
+        if (msg.type === BOOTEND || msg.type === BOOTEND_NO_SSL) {
             const socketActor = msg.socketActor;
             const readable = msg.pl;
             const authActor = new AuthenticationActor(
@@ -203,6 +204,9 @@ export default class SuperVisor implements Enqueue<SuperVisorControlMsgs> {
                 this.decoder
             );
             socketActor.enqueue({ type: SET_ACTOR, pl: authActor });
+            if (msg.type === BOOTEND_NO_SSL){
+                authActor.enqueue({ type: AUTH_START});
+            }
             return;
         }
         if (msg.type === INFO_TOKENS) {

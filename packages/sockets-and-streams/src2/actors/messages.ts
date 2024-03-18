@@ -96,6 +96,12 @@ export type BootPhaseEnded = {
     forPool: PoolFirstResidence;
 };
 
+export type BootPhaseEndedNoSSL = {
+     type: 'boot-end-no-ssl';
+     pl: ReadableByteStream;
+     forPool: PoolFirstResidence;
+}
+
 export type AuthPhaseEnded = {
     type: 'auth-end';
     pl: ReadableByteStream;

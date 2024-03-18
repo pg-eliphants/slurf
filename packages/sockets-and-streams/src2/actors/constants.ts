@@ -16,7 +16,8 @@ import type {
     OODAuth,
     OODSessionInfo,
     NetworkTimeout,
-    QueryInitDone
+    QueryInitDone,
+    BootPhaseEndedNoSSL
 } from './messages';
 
 export const DATA: NetworkData['type'] = 'data';
@@ -34,6 +35,7 @@ export const AUTH_PW_MISSING: PasswordMissing['type'] = 'password-not-provided';
 export const NEGOTIATE_PROTOCOL: NegotiateProtocolVersion['type'] = 'negotiate-protocol-version';
 
 export const BOOTEND: BootPhaseEnded['type'] = 'boot-end';
+export const BOOTEND_NO_SSL: BootPhaseEndedNoSSL['type'] = 'boot-end-no-ssl';
 export const AUTH_END: AuthPhaseEnded['type'] = 'auth-end';
 
 export const PAUSED_DATA: DataReceivedWhenPaused['type'] = 'paused-data';

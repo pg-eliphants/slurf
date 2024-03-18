@@ -6,7 +6,7 @@ import { SuperVisorControlMsgs } from '../supervisor/messages';
 import Encoder from '../../utils/Encoder';
 import { createSSLRequest } from './helpers';
 import { SocketControlMsgs } from '../socket/messages';
-import { BOOTEND, BUFFER_STUFFING_ATTACK, DATA, END_CONNECTION, MANGELD_DATA, SSL } from '../constants';
+import { BOOTEND, BOOTEND_NO_SSL, BUFFER_STUFFING_ATTACK, DATA, END_CONNECTION, MANGELD_DATA, SSL } from '../constants';
 import ReadableByteStream from '../../utils/ReadableByteStream';
 import { optionallyHandleErrorAndNoticeResponse } from '../helpers';
 import { PoolFirstResidence } from '../supervisor/types';
@@ -59,7 +59,8 @@ export default class Boot implements Enqueue<BootControlMsgs> {
             this.receivedBytes.advanceCursor(1);
             // server does not know ssl
             if (this.canDoSSLFallback) {
-                this.supervisor.enqueue({ type: BOOTEND, socketActor, pl: this.receivedBytes, forPool: this.forPool });
+
+                this.supervisor.enqueue({ type: BOOTEND_NO_SSL, socketActor, pl: this.receivedBytes, forPool: this.forPool });
                 return;
             }
             // abbort connection
@@ -68,9 +69,9 @@ export default class Boot implements Enqueue<BootControlMsgs> {
         if (byte === 83) {
             this.receivedBytes.advanceCursor(1);
             // server does know ssl, ssl upgrade allowed
-            this.supervisor.enqueue({ type: BOOTEND, socketActor, pl: this.receivedBytes, forPool: this.forPool });
             // ssl upgrade
             this.supervisor.enqueue({ type: SSL, socketActor });
+            this.supervisor.enqueue({ type: BOOTEND, socketActor, pl: this.receivedBytes, forPool: this.forPool });
             return;
         }
         this.socketActor().enqueue({ type: END_CONNECTION });
@@ -85,7 +86,7 @@ export default class Boot implements Enqueue<BootControlMsgs> {
             }
             // end the boot socket the socket
             // starupMessage will be handled by the authentication actor
-            this.supervisor.enqueue({ type: BOOTEND, socketActor: this.socketActor(), pl: this.receivedBytes, forPool: this.forPool });
+            this.supervisor.enqueue({ type: BOOTEND_NO_SSL, socketActor: this.socketActor(), pl: this.receivedBytes, forPool: this.forPool });
             this.lifeEnded = true;
             return;
         }

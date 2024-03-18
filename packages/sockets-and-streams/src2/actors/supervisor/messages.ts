@@ -23,7 +23,8 @@ import {
     BufferStuffingAttack as _BufferStuffingAttack,
     ErrorResponse as _ErrorResponse,
     NoticeResponse as _NoticeResponse, 
-    QueryInitDone as _QueryInitDone
+    QueryInitDone as _QueryInitDone,
+    BootPhaseEndedNoSSL as _BootPhaseEndedNoSSL
 } from '../messages';
 import Query from '../query';
 
@@ -78,6 +79,8 @@ export type InformationalTokenMessage = SocketOriginFragmenet & _InformationalTo
 
 export type QueryInitDone = PoolPayloadFragment & SocketOriginFragmenet & _QueryInitDone & { query: Query }
 
+export type BootPhaseEndedNoSSL = SocketOriginFragmenet & _BootPhaseEndedNoSSL;
+
 export type SuperVisorControlMsgs =
     | NetworkError
     | NetworkClose
@@ -85,6 +88,7 @@ export type SuperVisorControlMsgs =
     | Timeout
     | NegotiateProtocolVersion
     | BootPhaseEnded
+    | BootPhaseEndedNoSSL
     | AuthPhaseEnded
     | ErrorResponse
     | NoticeResponse
