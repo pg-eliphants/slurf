@@ -227,7 +227,7 @@ export default class SuperVisor implements Enqueue<SuperVisorControlMsgs> {
         if (msg.type === SESSION_INFO_END) {
             const { socketActor, pl } = msg;
             const tokens = getStore(this.weakSocketToInfoMap, socketActor);
-            const queryActor = new Query(this, socketActor, this.encoder, this.decoder, tokens || []);
+            const queryActor = new Query(pl, this, socketActor, this.encoder, this.decoder, tokens || []);
             socketActor.enqueue({ type: SET_ACTOR, pl: queryActor });
             queryActor.enqueue({ type: QUERY_START });
             return;

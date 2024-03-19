@@ -14,9 +14,10 @@ import { createStartupMessage } from '../../messages/toBackend/StartupMessage';
 import Lexer from '../../utils/Lexer';
 import { sendToSuperVisor } from '../helpers';
 import { isInformationalToken } from './helpers';
+import { AUTH_CLASS, AuthenticationTag, ERROR, ErrorResponseTag, NEGOTIATE, NOTICE, NegotiateProtocolVersionTag, NoticeResponseTag } from '../../messages/fromBackend/constants';
 
 export default class AuthenticationActor implements Enqueue<AuthenticationControlMsgs> {
-    private lexer: Lexer<82 | 69 | 118 | 78>;
+    private lexer: Lexer<AuthenticationTag | ErrorResponseTag | NegotiateProtocolVersionTag | NoticeResponseTag>;
     constructor(
         private readonly receivedBytes: ReadableByteStream,
         private readonly config: Required<PGConfig>,
@@ -25,13 +26,13 @@ export default class AuthenticationActor implements Enqueue<AuthenticationContro
         private readonly encoder: Encoder,
         private readonly decoder: TextDecoder
     ) {
-        this.lexer = new Lexer<82 | 69 | 118 | 78>(
+        this.lexer = new Lexer<AuthenticationTag | ErrorResponseTag | NegotiateProtocolVersionTag | NoticeResponseTag>(
             this.receivedBytes,
             // isEOL
             (msg) => {
                 return isAuthOkMsg(msg);
             },
-            [82, 69, 118, 78],
+            [AUTH_CLASS, ERROR, NEGOTIATE, NOTICE],
             // curruptedCB
             (readable, tokens) => {
                 sendToSuperVisor(this.supervisor, this.socketActor, tokens, isInformationalToken);

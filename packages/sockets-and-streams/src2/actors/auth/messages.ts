@@ -5,4 +5,5 @@ export type AuthStart = {
     type: 'auth-start';
 };
 
+
 export type AuthenticationControlMsgs = AuthStart | NetworkData | NetworkClose | EndConnection;

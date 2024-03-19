@@ -70,9 +70,9 @@ const superVisor = createDefaultSuperVisor({
 superVisor
     .addConnection('idle')
     .then((query: Query) => {
-        /*console.log('socket created?: %o!', query.constructor.name);
-        query.parseSQL("select * from auth.user", 'foobar1')
+        console.log('socket created?: %o!', query.constructor.name);
+        query.parseSQL('select * from auth.user', 'foobar1');
         query.sync();
-        query.simpleQuery('SELECT name, from_sql from  pg_prepared_statements order by name');
-    */})
+        query.simpleQuery('SELECT * from auth.user');
+    })
     .catch((err) => console.log('socket creation fail:', err));

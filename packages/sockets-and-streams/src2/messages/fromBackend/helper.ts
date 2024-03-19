@@ -1,9 +1,4 @@
 import type { MessageState } from './types';
-import type { PGErrorResponse, PGNoticeResponse } from './ErrorAndNoticeResponse/types';
-
-import ReadableByteStream from '../../utils/ReadableByteStream';
-import { parseError, parseNotice } from '../../messages/fromBackend/ErrorAndNoticeResponse';
-
 // constants
 import { MSG_UNDECIDED, MSG_IS, MSG_NOT } from './constants';
 
