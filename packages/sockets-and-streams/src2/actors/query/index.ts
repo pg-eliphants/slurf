@@ -41,6 +41,7 @@ import {
 import createDescribeMessage, { DescribeType } from '../../messages/toBackend/Describe';
 import createBindMessage, { formatTypes } from '../../messages/toBackend/Bind';
 import { parseArgs } from 'util';
+import createExecuteMessage from '../../messages/toBackend/Execute';
 
 export default class Query implements Enqueue<QueryControlMsgs> {
     private lexer: Lexer<
@@ -156,6 +157,14 @@ export default class Query implements Enqueue<QueryControlMsgs> {
         resultFormat: formatTypes
     ) {
         const result = createBindMessage(this.encoder, portal, name, parameterFormat, parameterValues, resultFormat);
+        if (!result) {
+            return false;
+        }
+        this.socketActor.enqueue({ type: WRITE, data: result });
+    }
+
+    async execute(portalName?: string, fetchSize = 0) {
+        const result = createExecuteMessage(this.encoder, portalName, fetchSize);
         if (!result) {
             return false;
         }

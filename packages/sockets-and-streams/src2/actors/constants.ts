@@ -42,4 +42,4 @@ export const PAUSED_DATA: DataReceivedWhenPaused['type'] = 'paused-data';
 
 export const OOD_AUTH: OODAuth['type'] = 'ood-auth';
 export const OOD_SESSION_INFO: OODSessionInfo['type'] = 'ood-session-info';
-export const QID: QueryInitDone['type'] = 'query-init-done'
+export const QID: QueryInitDone['type'] = 'query-init-done';

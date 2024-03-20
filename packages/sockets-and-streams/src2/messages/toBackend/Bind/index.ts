@@ -64,11 +64,10 @@ export default function createBindMessage(
     // max prepared statement name length 64 ('')
     // + formatcodes
     //www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS
-    // P = 80 (portal)
-    // S = 83 (prepared statement)
+
     let e = encoder.init(256).nextMessage(66)?.cstr(portal)?.cstr(preparedName);
 
-    // parameters
+    // parameters-format
     if (parameterFormat === 0) {
         e = e?.i16(0);
     } else {
@@ -80,7 +79,7 @@ export default function createBindMessage(
     // parameter-values
     e = e?.i16(values.length);
     for (let i = 0; i < values.length; i++) {
-        e = e?.i16(values[i].length);
+        e = e?.i32(values[i].length);
         e = e?.bin(values[i]);
     }
     // result-format
