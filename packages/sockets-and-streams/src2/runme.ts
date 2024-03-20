@@ -71,11 +71,20 @@ superVisor
     .addConnection('idle')
     .then((query: Query) => {
         console.log('socket created?: %o!', query.constructor.name);
-        query.parseSQL('select id, cr_ts  from auth.user where id > $1', 'foobar');
+        query.parseSQL('select id, cr_ts  from auth.user where id > $1 order by id desc', 'foobar');
         const _1 = new Uint8Array([0, 0, 0, 4]);
-        query.bind('foobar', 'foobar', [1], [_1], [1, 1]);
+        query.bind('foobar', 'foobar', [1], [_1], [0, 1]);
         query.describe('foobar', 'S');
-        query.execute('foobar');
+        query.execute('foobar', 1);
+        query.close('p', 'foobar');
+        _1[0] = 1;
+        query.bind('foobar', 'foobar', [1], [_1], [0, 1]);
+        query.execute('foobar', 5);
+        query.close('p', 'foobar');
+        _1[0] = 0;
+        _1[3] = 0;
+        query.bind('foobar', 'foobar', [1], [_1], [0, 1]);
+        query.execute('foobar', 0);
         //const _1 = new Uint8Array(4);
         //_1[3] = 5;
         //query.bind('foorbar', 'foobar', [1], [_1], 0);

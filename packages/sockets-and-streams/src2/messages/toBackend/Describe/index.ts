@@ -15,19 +15,12 @@ The name of the prepared statement or portal to describe (an empty string select
 
 import Encoder from '../../../utils/Encoder';
 import { EMPTY_UINT8ARR } from '../constants';
-
-const map = {
-    P: 80,
-    p: 80,
-    S: 83,
-    s: 83
-};
-
-export type DescribeType = 'P' | 'S' | 'p' | 's';
+import { PortalOrStatement } from '../types';
+import { map } from '../constants';
 
 export default function createDescribeMessage(
     encoder: Encoder,
-    type: DescribeType, // false = portal name, true = prepared name
+    type: PortalOrStatement, // false = portal name, true = prepared name
     name?: string
 ): Uint8Array | undefined {
     // choose 128 over 64 because the name (prepared statement name or portal name) is not longer then 63 char

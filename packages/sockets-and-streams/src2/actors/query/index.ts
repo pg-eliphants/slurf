@@ -38,10 +38,11 @@ import {
     ReadyForQueryTag,
     RowDescriptionTag
 } from '../../messages/fromBackend/constants';
-import createDescribeMessage, { DescribeType } from '../../messages/toBackend/Describe';
+import createDescribeMessage from '../../messages/toBackend/Describe';
 import createBindMessage, { formatTypes } from '../../messages/toBackend/Bind';
-import { parseArgs } from 'util';
 import createExecuteMessage from '../../messages/toBackend/Execute';
+import { PortalOrStatement } from '../../messages/toBackend/types';
+import createCloseMessage from '../../messages/toBackend/Close';
 
 export default class Query implements Enqueue<QueryControlMsgs> {
     private lexer: Lexer<
@@ -141,7 +142,7 @@ export default class Query implements Enqueue<QueryControlMsgs> {
         this.socketActor.enqueue({ type: WRITE, data: result });
     }
 
-    async describe(name: string, type: DescribeType) {
+    async describe(name: string, type: PortalOrStatement) {
         const result = createDescribeMessage(this.encoder, type, name);
         if (!result) {
             return false;
@@ -165,6 +166,14 @@ export default class Query implements Enqueue<QueryControlMsgs> {
 
     async execute(portalName?: string, fetchSize = 0) {
         const result = createExecuteMessage(this.encoder, portalName, fetchSize);
+        if (!result) {
+            return false;
+        }
+        this.socketActor.enqueue({ type: WRITE, data: result });
+    }
+
+    async close(type: PortalOrStatement, name?: string) {
+        const result = createCloseMessage(this.encoder, type, name);
         if (!result) {
             return false;
         }
