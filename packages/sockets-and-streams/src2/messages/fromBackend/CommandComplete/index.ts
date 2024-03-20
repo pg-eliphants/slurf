@@ -59,7 +59,7 @@ export type CommandComplete = {
 
 export const COMMAND_COMPLETE_TYPE: CommandComplete['type'] = 'com-complete';
 
-export function parse(ctx: ReadableByteStream, txtDecoder: TextDecoder): null | undefined | false | CommandComplete {
+export function parse(ctx: ReadableByteStream, decoder: TextDecoder): null | undefined | false | CommandComplete {
     const { buffer, cursor } = ctx;
     const matched = match(COMMAND_COMPLETE, buffer, cursor);
     if (matched === MSG_NOT) {
@@ -73,7 +73,7 @@ export function parse(ctx: ReadableByteStream, txtDecoder: TextDecoder): null | 
     if (idx < 0) {
         return null;
     }
-    const commandTag = txtDecoder.decode(buffer.slice(cursor + 5, idx));
+    const commandTag = decoder.decode(buffer.slice(cursor + 5, idx));
 
     if (len + cursor === idx + 1) {
         ctx.advanceCursor(len);

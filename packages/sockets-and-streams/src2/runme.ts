@@ -71,7 +71,8 @@ superVisor
     .addConnection('idle')
     .then((query: Query) => {
         console.log('socket created?: %o!', query.constructor.name);
-        query.parseSQL('select * from auth.user', 'foobar1');
+        query.parseSQL('select * from auth.user where id > $1', 'foobar');
+        query.describe('foobar', 'S');
         query.sync();
         query.simpleQuery('SELECT * from auth.user');
     })

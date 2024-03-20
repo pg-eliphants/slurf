@@ -15,7 +15,7 @@ import { SuperVisorControlMsgs } from '../supervisor/messages';
 import { QUERY_START } from './constants';
 import { QueryControlMsgs } from './messages';
 import createParseMessage from '../../messages/toBackend/Parse';
-import { WRITE } from '../socket/constants';
+import { WRITE, WRITE_THROTTLE } from '../socket/constants';
 import createSimpleQueryMessage from '../../messages/toBackend/Query';
 import createSyncMessage from '../../messages/toBackend/Sync';
 import Lexer from '../../utils/Lexer';
@@ -38,6 +38,9 @@ import {
     ReadyForQueryTag,
     RowDescriptionTag
 } from '../../messages/fromBackend/constants';
+import createDescribeMessage, { DescribeType } from '../../messages/toBackend/Describe';
+import createBindMessage, { formatTypes } from '../../messages/toBackend/Bind';
+import { parseArgs } from 'util';
 
 export default class Query implements Enqueue<QueryControlMsgs> {
     private lexer: Lexer<
@@ -118,7 +121,7 @@ export default class Query implements Enqueue<QueryControlMsgs> {
         if (result === null) {
             return false; // out of memory
         }
-        await this.socketActor.enqueue({ type: WRITE, data: result });
+        this.socketActor.enqueue({ type: WRITE, data: result });
     }
 
     async simpleQuery(sql: string) {
@@ -126,7 +129,7 @@ export default class Query implements Enqueue<QueryControlMsgs> {
         if (result === null) {
             return false; // out of memory
         }
-        await this.socketActor.enqueue({ type: WRITE, data: result });
+        await this.socketActor.enqueue({ type: WRITE_THROTTLE, data: result });
     }
 
     async sync() {
@@ -134,6 +137,28 @@ export default class Query implements Enqueue<QueryControlMsgs> {
         if (!result) {
             return false;
         }
-        await this.socketActor.enqueue({ type: WRITE, data: result });
+        this.socketActor.enqueue({ type: WRITE, data: result });
+    }
+
+    async describe(name: string, type: DescribeType) {
+        const result = createDescribeMessage(this.encoder, type, name);
+        if (!result) {
+            return false;
+        }
+        this.socketActor.enqueue({ type: WRITE, data: result });
+    }
+
+    async bind(
+        name: string,
+        portal: string,
+        parameterFormat: formatTypes,
+        parameterValues: Uint8Array[],
+        resultFormat: formatTypes
+    ) {
+        const result = createBindMessage(this.encoder, portal, name, parameterFormat, parameterValues, resultFormat);
+        if (!result) {
+            return false;
+        }
+        this.socketActor.enqueue({ type: WRITE, data: result });
     }
 }
