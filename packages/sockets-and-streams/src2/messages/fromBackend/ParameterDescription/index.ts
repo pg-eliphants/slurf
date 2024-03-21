@@ -41,7 +41,7 @@ export function parse(ctx: ReadableByteStream): null | undefined | false | Param
     const numPar = i16(buffer, cursor + 5);
     const rc = new Uint32Array(numPar);
     let base = cursor + 7;
-    for (let i = 0; i < numPar; i++, base += i << 2) {
+    for (let i = 0; i < numPar; i++, base += 4) {
         rc[i] = i32(buffer, base);
     }
     if (endPosition === base) {

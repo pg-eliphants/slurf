@@ -43,6 +43,8 @@ import createBindMessage, { formatTypes } from '../../messages/toBackend/Bind';
 import createExecuteMessage from '../../messages/toBackend/Execute';
 import { PortalOrStatement } from '../../messages/toBackend/types';
 import createCloseMessage from '../../messages/toBackend/Close';
+import createFlushMessage from '../../messages/toBackend/Flush';
+import createTerminateMessage from '../../messages/toBackend/Terminate';
 
 export default class Query implements Enqueue<QueryControlMsgs> {
     private lexer: Lexer<
@@ -113,7 +115,7 @@ export default class Query implements Enqueue<QueryControlMsgs> {
         }
     }
 
-    async parseSQL(sql: string, name: string, ...iods: number[]) {
+    async parseSQL(name: string, sql: string, ...iods: number[]) {
         if (name) {
             if (name.length > 63) {
                 return null; // name is bigger then 63
@@ -174,6 +176,22 @@ export default class Query implements Enqueue<QueryControlMsgs> {
 
     async close(type: PortalOrStatement, name?: string) {
         const result = createCloseMessage(this.encoder, type, name);
+        if (!result) {
+            return false;
+        }
+        this.socketActor.enqueue({ type: WRITE, data: result });
+    }
+
+    async flush() {
+        const result = createFlushMessage(this.encoder);
+        if (!result) {
+            return false;
+        }
+        this.socketActor.enqueue({ type: WRITE, data: result });
+    }
+
+    async terminate() {
+        const result = createTerminateMessage(this.encoder);
         if (!result) {
             return false;
         }
