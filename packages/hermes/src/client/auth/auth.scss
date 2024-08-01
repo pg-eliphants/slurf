@@ -1,0 +1,372 @@
+    /* authentication general pane */
+    .auth.active.leave, 
+    .auth {
+        width: 100%;
+        height: 100%;
+        position: fixed;
+        top: 0px;
+        right: 0px;
+        overflow: hidden;
+        z-index: 9999;
+        transform: translateX(100%);
+    }
+    /* authentication close button , baseline */
+
+    .auth-close ,
+    .auth.active.leave .auth-close {
+        width: 30px;
+        height: 30px;
+        position: absolute;
+        right: -50px;
+        /* normally not within the view */
+        top: 10px;
+        text-align: center;
+        line-height: 32px;
+        color: #fff;
+        border-radius: 50%;
+        font-size: 14px;
+        cursor: pointer;
+        transition: right 400ms cubic-bezier(0.66, -0.255, 0.57, 1.325);
+    }
+
+    .auth-close:hover,
+    .auth-close:focus {
+        background: rgba(255, 255, 255, 0.1);
+    }
+    /* blue (default) login backdrop*/
+
+    .backdrop {
+        width: 100%;
+        min-width: 500px;
+        height: 100%;
+        position: absolute;
+        left: 0;
+        top: 0;
+    }
+
+    .backdrop.login-bd {
+        background: linear-gradient(to right, rgba(21, 21, 28, 0.4) 0%, rgba(2, 171, 234, 0.83) 62%, #02abea 75%, #02abea 100%);
+    }
+    /* red (default) forgot password backdrop */
+
+    .backdrop.forgot-bd {
+        background: linear-gradient(to right, rgba(21, 21, 28, 0.4) 0%, #ff4f4f 83%, #ff4f4f 100%);
+    }
+
+    .backdrop.register-bd {
+        background: linear-gradient(to left, rgba(21, 21, 28, 1) 0%, rgba(21, 21, 28, 0.9) 75%, rgba(21, 21, 28, 0.83) 62%, rgba(21, 21, 28, 0.4) 100%);
+    }
+    /* form titles */
+
+    .content-title {
+        text-align: right;
+        color: #fff;
+        letter-spacing: -1.4px;
+        line-height: 50px;
+    }
+
+    .content-title.login-type {
+        font-size: 35px;
+    }
+
+    .content-title.forgot-type {
+        font-size: 25px;
+    }
+
+    .content-title.register-type {
+        font-size: 35px;
+        letter-spacing: -0.5px;
+        text-align: left;
+        line-height: 48px;
+        height: 48px;
+    }
+
+    .form {
+        height: auto;
+        position: absolute;
+        color: #fff;
+        font-family: "myFontLight";
+        z-index: 9;
+        display: block;
+    }
+    /* login form */
+    /* forgot email form */
+
+    .login-content,
+    .forgot-content {
+        width: 300px;
+    }
+
+    .register-content {
+        width: 350px;
+    }
+    /* form button-section for the forms forgot-password and login */
+
+    .form-section-button {
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+    }
+    /* register-form links */
+
+    .register-content span.slink,
+    /* login form links  */
+
+    .login-content span.slink,
+    /* forgot password form links */
+
+    .forgot-content span.slink {
+        text-decoration: none;
+        outline: unset;
+        color: #fff;
+        cursor: pointer;
+        font-size: 11px;
+    }
+    /* register new user form links */
+    /*  .register-content .login-links {
+        margin-top: 10px;
+    }*/
+    /* hover over login form links  */
+
+    .login-content span.slink:hover,
+    .login-content span.slink:focus,
+    /* hover forgot password form links */
+
+    .forgot-content span.slink:hover,
+    .forgot-content span.slink:focus,
+    .register-content span.slink:hover,
+    .register-content span.slink:focus {
+        text-decoration: underline;
+    }
+    /* input controls */
+
+    .lpc-input {
+        width: 100%;
+        height: 40px;
+        color: #fff;
+        font-size: 14px;
+        background: none;
+        border: none;
+        outline: none;
+        text-align: right;
+        font-family: "myFontLight";
+        margin-bottom: 10px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+    }
+
+    .lpc-input::-webkit-input-placeholder {
+        color: #fff;
+    }
+
+    .lpc-input::-moz-placeholder {
+        color: #fff;
+    }
+
+    .lpc-input:-ms-input-placeholder {
+        color: #fff;
+    }
+
+    .rc-input {
+        width: 100%;
+        height: 40px;
+        color: #fff;
+        font-size: 14px;
+        background: none;
+        border: none;
+        outline: none;
+        font-family: "myFontLight";
+        margin-bottom: 10px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .rc-input::-webkit-input-placeholder {
+        color: rgba(255, 255, 255, 0.5);
+    }
+
+    .rc-input::-moz-placeholder {
+        color: rgba(255, 255, 255, 0.5);
+    }
+
+    .rc-input:-ms-input-placeholder {
+        color: rgba(255, 255, 255, 0.5);
+    }
+    /* button */
+
+    .lpc-bt {
+        width: auto;
+        height: 35px;
+        color: #fff;
+        font-size: 14px;
+        font-family: "myFontLight";
+        border-radius: 2px;
+        background: none;
+        padding: 0 10px;
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        outline: none;
+    }
+
+    .lpc-bt:hover,
+    .lpc-bt:focus {
+        background: rgba(255, 255, 255, 0.2);
+    }
+
+    .auth.active.leave {
+        .register-content,
+        .login-content,
+        .forgot-content {
+            right: 0px;
+            transform: translateX(100%);
+        }
+    }
+
+    .auth.active.leave {
+        .backdrop.forgot-bd,
+        .backdrop.login-bd,
+        .backdrop.register-bd {
+            transform: translateX(100%);
+        }
+    }
+
+    .auth.active .register-content,
+    .auth.active .login-content,
+    .auth.active .forgot-content {
+        right: 30px;
+        transform: translateX(100%);
+    }
+    /* activate authentication */
+
+    .auth.active {
+        transform: translateX(0);
+    }
+
+    .auth.active .auth-close {
+        right: 10px;
+    }
+
+    .auth.active .register-content,
+    .auth.active .login-content,
+    .auth.active .forgot-content {
+        right: 30px;
+        transform: translateX(0);
+    }
+
+    .auth:not(.active) .register-content,
+    .auth:not(.active) .login-content,
+    .auth:not(.active) .forgot-content {
+        right: 0px;
+        transform: translateX(100%);
+    }
+    /* login mode */
+    /* login mode */
+    /* login mode */
+    /* hide forgot password content */
+
+    .auth.active:not(.forgot):not(.register) .register-content {
+        top: -500px;
+    }
+
+    .auth.active:not(.forgot):not(.register) .login-content {
+        top: 30%;
+    }
+
+    .auth.active:not(.forgot):not(.register) .forgot-content {
+        top: 120%;
+    }
+
+    .auth.active:not(.forgot):not(.register) .backdrop.register-bd {
+        transform: translateX(100%);
+    }
+
+    .auth.active:not(.forgot):not(.register) .backdrop.login-bd {
+        transform: translateX(0);
+    }
+
+    .auth.active:not(.forgot):not(.register) .backdrop.forgot-bd {
+        transform: translateX(100%);
+    }
+    /* forgot password mode */
+    /* forgot password mode */
+    /* forgot password mode */
+
+    .auth.forgot .backdrop.login-bd {
+        transform: translateX(100%);
+    }
+
+    .auth.forgot .backdrop.forgot-bd {
+        transform: translateX(0);
+    }
+
+    .auth.forgot .backdrop.register-bd {
+        transform: translateX(100%);
+    }
+
+    .auth.forgot .login-content {
+        top: -500px;
+    }
+
+    .auth.forgot .register-content {
+        top: calc( -100% - 500px);
+    }
+    /* show forgot-password content */
+
+    .auth.forgot .forgot-content {
+        top: 30%;
+    }
+    /* register user mode */
+    /* register user mode */
+    /* register user mode */
+    /* hide  login-content */
+
+    .auth.register .login-content {
+        top: 120%;
+    }
+
+    .auth.register .register-content {
+        top: 30%;
+    }
+
+    .auth.register .forgot-content {
+        top: 220%;
+    }
+
+    .auth.register .backdrop.login-bd {
+        transform: translateX(100%);
+    }
+
+    .auth.register .backdrop.forgot-bd {
+        transform: translateX(100%);
+    }
+
+    .auth.register .backdrop.register-bd {
+        transform: translateX(0);
+    }
+
+    @media (max-width: 700px) {
+        .auth .login-bd {
+            width: 300%;
+            background: #02abea;
+        }
+        .auth .forgot-bd {
+            width: 300%;
+            background: #ff4f4f;
+        }
+        .auth .register-bd {
+            width: 300%;
+            background: rgba(21, 21, 28, 1);
+        }
+    }
+
+    .auth,
+    .login-content,
+    .forgot-content,
+    .register-content,
+    .backdrop {
+        transition: .6s;
+    }
+
+    @media (max-width: 500px) {
+        .register-content {
+            width: 90%;
+        }
+    }
