@@ -4,8 +4,8 @@ import type { List } from '../../utils/list';
 import SocketActor from '../socket';
 
 // internal housekeeping
-export type PoolFirstResidence = Exclude<Pool, 'active' | 'terminal' | 'reservedEmpherical' | 'created'>;
-export type Pool = 'vis' | 'reservedEmpherical' | 'reservedPermanent' | 'active' | 'idle' | 'terminal' | 'created';
+export type PoolFirstResidence = Exclude<Pool, 'active' | 'terminal' |  'created'>;
+export type Pool =  'reserved' | 'active' | 'idle' | 'terminal' | 'created';
 export type ActivityWait = 'network' | 'iom_code' | 'connect' | 'sslConnect' | 'finish' | 'end' | 'close' | 'drained';
 
 export type Residency = {
@@ -34,8 +34,8 @@ export type PGConfig = {
     database?: string;
     replication?: boolean;
 };
-export type ClientConfig = () => PGConfig;
-export type SSLFallback = (config: PGConfig) => boolean;
+export type ClientConfig = (forPool: PoolFirstResidence) => PGConfig;
+export type SSLFallback = (forPool: PoolFirstResidence, config: PGConfig) => boolean;
 
 export type CreateSocketSpecHints = {
     forPool: PoolFirstResidence;

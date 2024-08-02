@@ -4,10 +4,16 @@ import { PARAM_STATUS, MSG_UNDECIDED, MSG_NOT } from '../constants';
 import { match, messageLength } from '../helper';
 
 export type ParameterStatus = {
+    type: 'p-status';
     name: string;
     value: string;
 };
 
+export const PARAM_STATUS_TYPE: ParameterStatus['type'] = 'p-status';
+
+export function isParamStatus(u: any): u is ParameterStatus {
+    return u?.type === PARAM_STATUS_TYPE;
+}
 /* you can get this message at any time
 
     ParameterStatus (B) 
@@ -62,5 +68,5 @@ export function parse(ctx: ReadableByteStream, txtDecoder: TextDecoder): false |
     }
     const value = txtDecoder.decode(buffer.slice(split + 1, endPosition - 1));
     ctx.advanceCursor(len);
-    return { name, value };
+    return { type: PARAM_STATUS_TYPE, name, value };
 }

@@ -1,5 +1,3 @@
-import type { PGErrorResponse, PGNoticeResponse } from '../../messages/fromBackend/ErrorAndNoticeResponse/types';
-import ReadableByteStream from '../../utils/ReadableByteStream';
 import { Item } from '../../utils/list';
 import Enqueue from '../Enqueue';
 import SocketActor from '../socket';
@@ -7,13 +5,28 @@ import { SocketControlMsgs } from '../socket/messages';
 import type { Pool, PoolFirstResidence } from './types';
 import {
     SessionInfoExchangeEnd as _SessionInfoExchangeEnd,
-    NetworkError,
-    NetworkClose,
-    LookUpError,
-    NetworkTimeOut,
-    EndConnection as _EndConnection
+    NetworkError as _NetworkError,
+    NetworkClose as _NetworkClose,
+    LookUpError as _LookUpError,
+    NetworkTimeout as _NetworkTimeout,
+    EndConnection as _EndConnection,
+    PasswordMissing as _PasswordMissing,
+    MangledData as _MangledData,
+    NegotiateProtocolVersion as _NegotiateProtocolVersion,
+    BootPhaseEnded as _BootPhaseEnded,
+    AuthPhaseEnded as _AuthPhaseEnded,
+    DataReceivedWhenPaused as _DataReceivedWhenPaused,
+    UpgradeToSSL as _UpgradeToSSL,
+    OODAuth as _OODAuth,
+    OODSessionInfo as _OODSessionInfo,
+    InformationalTokenMessage as _InformationalTokenMessage,
+    BufferStuffingAttack as _BufferStuffingAttack,
+    ErrorResponse as _ErrorResponse,
+    NoticeResponse as _NoticeResponse, 
+    QueryInitDone as _QueryInitDone,
+    BootPhaseEndedNoSSL as _BootPhaseEndedNoSSL
 } from '../messages';
-import type { NegotiateProtocolResult } from '../../messages/fromBackend/NegotiateProtocol';
+import Query from '../query';
 
 export type SocketOriginFragmenet = {
     socketActor: Enqueue<SocketControlMsgs>;
@@ -30,81 +43,63 @@ export type PoolPayloadFragment = {
 // network lifecycle messages
 // network lifecycle messages
 
-export type SVNetworkClose = SocketOriginFragmenet & PoolPayloadFragment & NetworkClose;
-export type SVNetworkError = SocketOriginFragmenet & NetworkError;
-export type SVLookUpError = SocketOriginFragmenet & PoolPayloadFragment & LookUpError;
-export type SVTimeout = SocketOriginFragmenet & PoolPayloadFragment & NetworkTimeOut;
+export type NetworkClose = SocketOriginFragmenet & PoolPayloadFragment & _NetworkClose;
+export type NetworkError = SocketOriginFragmenet & _NetworkError;
+export type LookUpError = SocketOriginFragmenet & PoolPayloadFragment & _LookUpError;
+export type Timeout = SocketOriginFragmenet & PoolPayloadFragment & _NetworkTimeout;
 
-export type BootPhaseEnded = SocketOriginFragmenet & {
-    type: 'boot-end';
-    pl: ReadableByteStream;
-};
+export type BootPhaseEnded = SocketOriginFragmenet & _BootPhaseEnded;
 
-export type AuthPhaseEnded = SocketOriginFragmenet & {
-    type: 'auth-end';
-    pl: ReadableByteStream;
-};
+export type AuthPhaseEnded = SocketOriginFragmenet & _AuthPhaseEnded;
 
-export type DataReceivedWhenPaused = SocketOriginFragmenet & {
-    type: 'paused-data';
-};
+export type DataReceivedWhenPaused = SocketOriginFragmenet & _DataReceivedWhenPaused;
 
-export type ErrorResponse = PGErrorResponse & SocketOriginFragmenet;
+export type ErrorResponse = _ErrorResponse & SocketOriginFragmenet;
 
-export type NoticeResponse = PGNoticeResponse & SocketOriginFragmenet;
+export type NoticeResponse = _NoticeResponse & SocketOriginFragmenet;
 
-export type MangledData = SocketOriginFragmenet & {
-    type: 'mangled';
-    pl: ReadableByteStream;
-};
+export type MangledData = SocketOriginFragmenet & _MangledData;
 
-export type BufferStuffingAttack = SocketOriginFragmenet & {
-    type: 'buffer-stuffing';
-    pl: ReadableByteStream;
-};
+export type BufferStuffingAttack = SocketOriginFragmenet & _BufferStuffingAttack;
 
-export type SVUpgradeToSSL = SocketOriginFragmenet & {
-    type: 'ssl';
-};
+export type UpgradeToSSL = SocketOriginFragmenet & _UpgradeToSSL;
 
-export type NoAuthData = SocketOriginFragmenet & {
-    type: 'non-auth-data';
-    pl: ReadableByteStream;
-};
+export type OODAuth = SocketOriginFragmenet & _OODAuth;
 
-export type NoQ4Data = SocketOriginFragmenet & {
-    type: 'non-q4-data';
-    pl: ReadableByteStream;
-};
+export type OODSessionInfo = SocketOriginFragmenet & _OODSessionInfo;
 
-export type SVNegotiateProtocolVersion = SocketOriginFragmenet & {
-    type: 'negotiate-protocol';
-    pl: NegotiateProtocolResult;
-};
+export type NegotiateProtocolVersion = SocketOriginFragmenet & _NegotiateProtocolVersion;
 
-export type PasswordMissing = SocketOriginFragmenet & {
-    type: 'password-not-provided';
-};
+export type PasswordMissing = SocketOriginFragmenet & _PasswordMissing;
 
 export type EndConnection = _EndConnection & SocketOriginFragmenet;
-export type SessionInfoExchangeEnd = _SessionInfoExchangeEnd & SocketOriginFragmenet & PoolPayloadFragment;
+export type SessionInfoExchangeEnd = _SessionInfoExchangeEnd & SocketOriginFragmenet;
+
+export type InformationalTokenMessage = SocketOriginFragmenet & _InformationalTokenMessage;
+
+export type QueryInitDone = PoolPayloadFragment & SocketOriginFragmenet & _QueryInitDone & { query: Query }
+
+export type BootPhaseEndedNoSSL = SocketOriginFragmenet & _BootPhaseEndedNoSSL;
 
 export type SuperVisorControlMsgs =
-    | SVNetworkError
-    | SVNetworkClose
-    | SVLookUpError
-    | SVTimeout
-    | SVNegotiateProtocolVersion
+    | NetworkError
+    | NetworkClose
+    | LookUpError
+    | Timeout
+    | NegotiateProtocolVersion
     | BootPhaseEnded
+    | BootPhaseEndedNoSSL
     | AuthPhaseEnded
     | ErrorResponse
     | NoticeResponse
     | DataReceivedWhenPaused
     | MangledData
     | BufferStuffingAttack
-    | SVUpgradeToSSL
+    | UpgradeToSSL
     | PasswordMissing
     | EndConnection
-    | NoAuthData
-    | NoQ4Data
-    | SessionInfoExchangeEnd;
+    | OODAuth
+    | OODSessionInfo
+    | SessionInfoExchangeEnd
+    | InformationalTokenMessage
+    | QueryInitDone;

@@ -20,7 +20,7 @@ export default class Encoder {
         this.messageLengthOffset = 1;
         this.messagContentOffset = 5;
         // pick a slab, not to big, 128 bytes
-        this.slab = this.memoryManager.fetchSlab('128');
+        this.slab = this.memoryManager.fetchSlab(128);
         this.currentView = new DataView(this.slab!.value.buffer);
     }
 
@@ -36,7 +36,7 @@ export default class Encoder {
             if (power > 16) {
                 return false;
             }
-            const slabSize = String(1 << power) as MemoryCategories;
+            const slabSize = 1 << power as MemoryCategories;
             const replacementSlab = this.memoryManager.fetchSlab(slabSize)!; // guarantee to be not null
             replacementSlab.value.set(buf);
             this.memoryManager.returnSlab(this.slab);

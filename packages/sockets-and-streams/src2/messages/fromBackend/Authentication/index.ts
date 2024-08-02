@@ -3,18 +3,18 @@ import { MSG_NOT, MSG_IS, MSG_UNDECIDED, MSG_ERROR } from '../constants';
 import { i32 } from '../helper';
 import type ReadableByteStream from '../../../utils/ReadableByteStream';
 
-type Ok = 'O';
-type KerberosV5 = 'K';
-type ClearTextPassword = 'Clr';
-type MD5Password = 'MD5';
-type GSSType = 'G';
-type GSSContinue = 'GC';
-type SSPIType = 'SSPI';
-type SASLType = 'S';
-type SASLContinue = 'SC';
-type SASLFinal = 'SF';
+type Ok = 'ok';
+type KerberosV5 = 'k5';
+type ClearTextPassword = 'text-pw';
+type MD5Password = 'md5';
+type GSSType = 'gss';
+type GSSContinue = 'gss-c';
+type SSPIType = 'sspi';
+type SASLType = 'sasl';
+type SASLContinue = 'sasl-c';
+type SASLFinal = 'sasl-f';
 
-type AuthenticationType =
+export type AuthenticationType =
     | Ok
     | KerberosV5
     | ClearTextPassword
@@ -26,16 +26,16 @@ type AuthenticationType =
     | SASLContinue
     | SASLFinal;
 
-const OK: Ok = 'O';
-const KERBEROSV5: KerberosV5 = 'K';
-const CLEARTEXTPASSWORD: ClearTextPassword = 'Clr';
-const MD5PASSWORD: MD5Password = 'MD5';
-const GSS: GSSType = 'G';
-const GSSCONTINUE: GSSContinue = 'GC';
-const SSPI: SSPIType = 'SSPI';
-const SASL: SASLType = 'S';
-const SASLCONTINUE: SASLContinue = 'SC';
-const SASLFINAL: SASLFinal = 'SF';
+export const OK: Ok = 'ok';
+export const KERBEROSV5: KerberosV5 = 'k5';
+export const CLEARTEXTPASSWORD: ClearTextPassword = 'text-pw';
+export const MD5PASSWORD: MD5Password = 'md5';
+export const GSS: GSSType = 'gss';
+export const GSSCONTINUE: GSSContinue = 'gss-c';
+export const SSPI: SSPIType = 'sspi';
+export const SASL: SASLType = 'sasl';
+export const SASLCONTINUE: SASLContinue = 'sasl-c';
+export const SASLFINAL: SASLFinal = 'sasl-f';
 
 export type AuthenticationOk = { type: Ok };
 export type AuthenticationMD5Password = { type: MD5Password; salt: number };
@@ -60,13 +60,29 @@ export type Authentication =
     | AuthenticationSASLContinue
     | AuthenticationSASLFinal;
 
+export const allAuthenticationTypes: AuthenticationType[] = [
+    OK,
+    KERBEROSV5,
+    CLEARTEXTPASSWORD,
+    MD5PASSWORD,
+    GSS,
+    GSSCONTINUE,
+    SSPI,
+    SASL,
+    SASLCONTINUE,
+    SASLFINAL
+];
 // type guards
-export function isAuthOkMsg(u: Authentication): u is AuthenticationOk {
-    return u.type === OK;
+export function isAuthOkMsg(u: any): u is AuthenticationOk {
+    return u?.type === OK;
 }
 
-export function isAuthClearTextPassword(u: Authentication): u is AuthenticationClearText {
-    return u.type === CLEARTEXTPASSWORD;
+export function isAuthClearTextPassword(u: any): u is AuthenticationClearText {
+    return u?.type === CLEARTEXTPASSWORD;
+}
+
+export function isAuthenticationToken(u: any): u is Authentication {
+    return allAuthenticationTypes.includes(u?.type);
 }
 
 const dynLen = (bin: Uint8Array, start: number) => i32(bin, start + 1) + 1;

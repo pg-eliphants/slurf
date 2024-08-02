@@ -13,5 +13,5 @@ The password (encrypted, if requested).
 import Encoder from '../../../utils/Encoder';
 
 export default function createPasswordMessage(passwd: string, encoder: Encoder) {
-    return encoder.init('64')?.nextMessage(112)?.cstr(passwd)?.setLength().getMessage();
+    return encoder.init(64)?.nextMessage(112)?.cstr(passwd)?.setLength().getMessage();
 }

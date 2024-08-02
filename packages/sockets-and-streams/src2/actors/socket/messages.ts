@@ -1,5 +1,5 @@
 import { CreateSSLSocketSpec, Pool } from '../supervisor/types';
-import type { EndConnection, UpgradeToSSL as _UpgradeToSSL, SessionInfoExchangeEnd as _SIEE } from '../messages';
+import type { EndConnection, UpgradeToSSL as _UpgradeToSSL, QueryInitDone } from '../messages';
 import Enqueue from '../Enqueue';
 
 // socket control messages (incomming)
@@ -36,7 +36,7 @@ export type SetActor<T = any> = {
     pl: Enqueue<T>;
 };
 
-export type SessionInfoExchangeEnd = _SIEE;
+
 
 export type SocketControlMsgs =
     | Pause
@@ -46,5 +46,5 @@ export type SocketControlMsgs =
     | WriteThrottle
     | UpgradeToSSL
     | SetActor
-    | SessionInfoExchangeEnd
-    | EndConnection;
+    | EndConnection
+    | QueryInitDone;

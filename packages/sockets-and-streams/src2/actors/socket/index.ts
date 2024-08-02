@@ -11,19 +11,21 @@ import {
 import { PromiseExtended } from '../../utils/PromiseExtended';
 import type { SocketControlMsgs, UpgradeToSSL, Write, WriteThrottle } from './messages';
 import Enqueue from '../Enqueue';
-import { SVLookUpError, SVNetworkClose, SuperVisorControlMsgs } from '../supervisor/messages';
+import { SuperVisorControlMsgs } from '../supervisor/messages';
 import { Item } from '../../utils/list';
 import { isAggregateError } from './helpers';
 import { CREATEPOOL, SETPOOL } from '../supervisor/constants';
 import { SocketOtherOptions } from '../supervisor/types';
 import { BootControlMsgs } from '../boot/messages';
-import { NetworkError } from '../messages';
-import { END_CONNECTION, LOOKUPERROR, NETCLOSE, NETWORKERR, SESSION_INFO_END, SSL } from '../constants';
+import { END_CONNECTION, LOOKUPERROR, NETCLOSE, NETWORKERR, QID, SSL } from '../constants';
 import { SET_ACTOR, WRITE, WRITE_THROTTLE } from './constants';
 import ReadableByteStream from '../../utils/ReadableByteStream';
 import { AUTH_START } from '../auth/constants';
 import { AuthenticationControlMsgs } from '../auth/messages';
 import dump from 'buffer-hexdump';
+import { SessionInfoControlMessages } from '../sessionInfo/messages';
+import { QueryControlMsgs } from '../query/messages';
+import Query from '../query';
 // SocketControlMsgs is what this Actor can receive in messages
 export default class SocketActor implements Enqueue<SocketControlMsgs> {
     // pools
@@ -159,6 +161,7 @@ export default class SocketActor implements Enqueue<SocketControlMsgs> {
         this.socket.on('close', (hadError) => {
             this.activityEvents.close++;
             this.updateNetworkStats('close');
+            this.downStreamActor.enqueue({ type: NETCLOSE });
             this.supervisor.enqueue({
                 type: NETCLOSE,
                 socketActor: this,
@@ -193,57 +196,57 @@ export default class SocketActor implements Enqueue<SocketControlMsgs> {
         });
     }
 
-    private handleWrite(msg: Write): boolean {
+    private handleWrite(msg: Write) {
         // if isPaused, this is an internal error, should not happen
         if (this.socket.isPaused()) {
             console.log('error, handleWrite, trying to send data while socket is paused');
             this.activityEvents.writeDataWhilePaused++;
-            return false;
+            return; // false;
         }
         if (this.socket.writableNeedDrain) {
             if (!this.receivedBytes.enqueue(msg.data)) {
                 console.log('error, handleWrite, backpressure + cache full');
-                return false; // backpressure + cache is full, so can't cache it
+                return; // false; // backpressure + cache is full, so can't cache it
             }
-            return true; // backpressure 'drain' event will take care of it
+            return; //  true; // backpressure 'drain' event will take care of it
         }
         const rc = this.socket.write(msg.data);
         if (!rc) {
             this.backPressure = new PromiseExtended(false);
         }
-        return true;
+        return;
     }
 
-    private async handleWriteThrotteld(msg: WriteThrottle): Promise<boolean> {
+    private async handleWriteThrotteld(msg: WriteThrottle): Promise<void> {
         // if isPaused, this is an internal error, should not happen
         if (this.socket.isPaused()) {
             console.log('error-0, handleWriteSafe, trying to send data while socket is paused');
             this.activityEvents.writeDataWhilePaused++;
-            return false;
+            return; // false;
         }
         if (this.socket.writableNeedDrain) {
             if (!this.receivedBytes.enqueue(msg.data)) {
                 console.log('error-1, handleWriteSafe, backpressure + cache full');
-                return false; // backpressure + cache is full, so can't cache it
+                return; // false; // backpressure + cache is full, so can't cache it
             }
-            await this.backPressure; // explicitly wait for drain event
-            return true; // backpressure 'drain' event will take care of it
+            await this.backPressure.promise; // explicitly wait for drain event
+            return; // true; // backpressure 'drain' event will take care of it
         }
 
         // 'drain' handler is in the process of draining the cache?
         if (this.receivedBytes.bytesLeft()) {
             if (!this.receivedBytes.enqueue(msg.data)) {
                 console.log('error-2, handleWriteSafe, backpressure + cache full');
-                return false; // backpressure and cache is also full, so can't cache it
+                return; // false; // backpressure and cache is also full, so can't cache it
             }
             // todo: mark this with an event counter (not blocked through "drain" but still data is cached)
-            return true;
+            return; //true;
         }
         const rc = this.socket.write(msg.data);
         if (!rc) {
             this.backPressure = new PromiseExtended(false);
         }
-        return true;
+        return; // true;
     }
 
     private upgradeToSSL(msg: UpgradeToSSL) {
@@ -266,7 +269,7 @@ export default class SocketActor implements Enqueue<SocketControlMsgs> {
             const { pool, placementTime } = msg;
             this.current = pool;
             this.poolPlacementTime = placementTime;
-            return true;
+            return;
         }
         if (msg.type === WRITE) {
             return this.handleWrite(msg);
@@ -285,7 +288,7 @@ export default class SocketActor implements Enqueue<SocketControlMsgs> {
             this.socket.end();
             return;
         }
-        if (msg.type === SESSION_INFO_END) {
+        if (msg.type === QID) {
             // resend to supervisor with added pool info
             this.supervisor.enqueue({
                 ...msg,
@@ -293,7 +296,8 @@ export default class SocketActor implements Enqueue<SocketControlMsgs> {
                 currentPool: this.current,
                 poolPlacementTime: this.poolPlacementTime,
                 socketActor: this,
-                finalPool: this.createdFor
+                finalPool: this.createdFor,
+                query: this.downStreamActor as Query
             });
             return;
         }
@@ -310,7 +314,9 @@ export default class SocketActor implements Enqueue<SocketControlMsgs> {
         private readonly extraOptions: SocketOtherOptions,
         private readonly id: number,
         private readonly createdFor: PoolFirstResidence,
-        private downStreamActor: Enqueue<BootControlMsgs | AuthenticationControlMsgs>,
+        private downStreamActor: Enqueue<
+            BootControlMsgs | AuthenticationControlMsgs | SessionInfoControlMessages | QueryControlMsgs
+        >,
         private readonly WRITE_CHUNK_SIZE = 4096,
         private readonly LOCAL_CACHE_SIZE = 4096
     ) {

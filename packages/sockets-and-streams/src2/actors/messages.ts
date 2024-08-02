@@ -1,18 +1,15 @@
-// socket lifecycle messages
-// network lifecycle messges
-// network lifecycle messges
-
-import { BackendKeyData } from '../messages/fromBackend/BackEndKeyData';
-import { ParameterStatus } from '../messages/fromBackend/ParameterStatus';
-import { ReadyForQueryResponse } from '../messages/fromBackend/ReadyForQuery';
+import type { PGErrorResponse, PGNoticeResponse } from '../messages/fromBackend/ErrorAndNoticeResponse/types';
+import { NegotiateProtocolResult } from '../messages/fromBackend/NegotiateProtocol';
+import { SelectedMessages } from '../messages/fromBackend/types';
 import ReadableByteStream from '../utils/ReadableByteStream';
+import { PoolFirstResidence } from './supervisor/types';
 
 export type NetworkData = {
     type: 'data';
     pl: Uint8Array;
 };
 
-export type NetworkTimeOut = {
+export type NetworkTimeout = {
     type: 'net-timeout';
     ts: number;
 };
@@ -66,8 +63,74 @@ export type EndConnection = {
 
 export type SessionInfoExchangeEnd = {
     type: 'session-info-exchnage-end';
-    r4q: ReadyForQueryResponse;
-    paramStatus: ParameterStatus[];
-    backendKey: BackendKeyData;
-    readable: ReadableByteStream;
+    pl: ReadableByteStream;
 };
+
+export type InformationalTokenMessage = {
+    type: 'info-token';
+    pl: SelectedMessages[];
+};
+
+export type BufferStuffingAttack = {
+    type: 'buffer-stuffing';
+    pl: ReadableByteStream;
+};
+
+export type MangledData = {
+    type: 'mangled';
+    pl: ReadableByteStream;
+};
+
+export type PasswordMissing = {
+    type: 'password-not-provided';
+};
+
+export type NegotiateProtocolVersion = {
+    type: 'negotiate-protocol-version';
+    pl: NegotiateProtocolResult;
+};
+
+export type BootPhaseEnded = {
+    type: 'boot-end';
+    pl: ReadableByteStream;
+    forPool: PoolFirstResidence;
+};
+
+export type BootPhaseEndedNoSSL = {
+     type: 'boot-end-no-ssl';
+     pl: ReadableByteStream;
+     forPool: PoolFirstResidence;
+}
+
+export type AuthPhaseEnded = {
+    type: 'auth-end';
+    pl: ReadableByteStream;
+};
+
+export type DataReceivedWhenPaused = {
+    type: 'paused-data';
+};
+
+export type OODAuth = {
+    type: 'ood-auth';
+    pl: ReadableByteStream;
+};
+
+export type OODSessionInfo = {
+    type: 'ood-session-info';
+    pl: ReadableByteStream;
+};
+
+export type ErrorResponse = {
+    type: 'pg.E';
+    pl: PGErrorResponse;
+};
+
+export type NoticeResponse = {
+    type: 'pg.N';
+    pl: PGNoticeResponse;
+};
+
+export type QueryInitDone = {
+    type: 'query-init-done'
+}

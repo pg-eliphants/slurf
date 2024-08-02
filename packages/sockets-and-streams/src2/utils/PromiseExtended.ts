@@ -27,6 +27,6 @@ export class PromiseExtended<T = undefined> {
     }
 }
 
-export function createResolvePromiseExtended(resolveNow: boolean): PromiseExtended<void> {
-    return new PromiseExtended<void>(resolveNow);
+export function createResolvePromiseExtended<T extends any>(resolveNow: boolean): PromiseExtended<T> {
+    return new PromiseExtended<T>(resolveNow);
 }
