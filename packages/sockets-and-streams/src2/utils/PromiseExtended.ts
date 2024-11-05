@@ -1,4 +1,4 @@
-export class PromiseExtended<T = undefined> {
+class PromiseExtended<T = undefined> {
     private _isResolved: boolean;
     public promise: Promise<T>;
     private _reject: (value: T | PromiseLike<T>) => void;
